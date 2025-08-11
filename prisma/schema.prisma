@@ -7,21 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum TransactionType {
-  CASH_IN
-  CASH_OUT
-  BUY
-  SELL
-  DIVIDEND
-  INTEREST
-  FEE
-  TAX
-  TRANSFER
-  FX_TRADE
-  OPTION_PREMIUM
-  EXERCISE
-}
-
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -52,6 +37,7 @@ model Instrument {
   type      String   @default("EQUITY")
   lots      Lot[]
   prices    Price[]
+  transactions Transaction[]
   createdAt DateTime @default(now())
   @@index([symbol])
 }
@@ -59,7 +45,7 @@ model Instrument {
 model Transaction {
   id           String          @id @default(uuid())
   accountId    String
-  type         TransactionType
+  type         String
   tradeDate    DateTime
   instrumentId String?
   quantity     Decimal?
@@ -95,7 +81,7 @@ model ValuationSnapshot {
   accountId  String
   asOf       DateTime
   totalValue Decimal
-  breakdown  Json
+  breakdown  String
   account    Account  @relation(fields: [accountId], references: [id])
   createdAt  DateTime @default(now())
   @@unique([accountId, asOf])
@@ -123,7 +109,7 @@ model FxRate {
 model Config {
   id            String   @id @default(uuid())
   key           String
-  value         Json
+  value         String
   effectiveFrom DateTime
   effectiveTo   DateTime?
   createdAt     DateTime @default(now())
@@ -138,7 +124,7 @@ model IncomeRecord {
   month     Int      // 1-12
   gross     Decimal
   bonus     Decimal? // optional bonus for that month (e.g. quarterly / annual if distributed)
-  overrides Json?    // override params
+  overrides String?    // override params
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
   @@unique([userId, year, month])

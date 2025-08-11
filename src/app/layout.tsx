@@ -1,9 +1,10 @@
 import React from "react";
 import "./globals.css";
+import Navbar from "@/components/layout/navbar";
 
 export const metadata = {
-  title: "Wealth Manager",
-  description: "Personal wealth management MVP",
+  title: "财富管理系统",
+  description: "个人财富管理MVP",
 };
 
 export default function RootLayout({
@@ -14,12 +15,8 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="min-h-screen font-sans antialiased">
-        <header className="p-4 border-b flex gap-4">
-          <a href="/">首页</a>
-          <a href="/income">收入</a>
-          <a href="/config">参数</a>
-        </header>
-        <main className="p-4">{children}</main>
+        <Navbar />
+        <main className="container mx-auto py-8">{children}</main>
       </body>
     </html>
   );

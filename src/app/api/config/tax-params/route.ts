@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   const rec = await prisma.config.create({
     data: {
       key,
-      value: parsed,
+      value: JSON.stringify(parsed),
       effectiveFrom: new Date(`${parsed.year}-01-01`),
     },
   });
@@ -31,5 +31,5 @@ export async function GET(req: NextRequest) {
     orderBy: { effectiveFrom: "desc" },
   });
   if (!rec) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ key, params: rec.value });
+  return NextResponse.json({ key, params: JSON.parse(rec.value) });
 }
