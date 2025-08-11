@@ -19,6 +19,11 @@
    - 计算绩效指标（TWR、XIRR）
    - 跟踪投资组合估值变化
 
+3. **税务参数配置**：
+   - 配置城市、年份、税率区间等税务参数
+   - 可视化展示税务参数（税率表、社保比例等）
+   - 以JSON格式保存和加载配置
+
 ## 架构
 
 - **前端**：Next.js 14 与 React 18
@@ -65,6 +70,10 @@ npm run prisma:migrate
 - `src/tests/` - 单元测试
 - `prisma/` - Prisma 模式和迁移
 - `src/components/` - React UI 组件
+  - `src/components/ui/` - 通用UI组件（Button, Card, Table等）
+  - `src/components/layout/` - 布局组件（导航栏等）
+  - `src/components/income/` - 收入管理相关组件
+  - `src/components/investment/` - 投资管理相关组件
 
 ## 数据模型
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calcMonthlyWithholdingCumulative, taxParamsSchema } from "@/lib/tax";
+import { ZodError } from "zod";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -20,15 +21,33 @@ export async function GET(req: NextRequest) {
   });
   if (!cfg)
     return NextResponse.json({ error: "tax params missing" }, { status: 400 });
-  const params = taxParamsSchema.parse(cfg.value);
-  const months = income.map((m: any) => ({
-    month: m.month,
-    gross: Number(m.gross),
-    bonus: m.bonus ? Number(m.bonus) : undefined,
-    overrides: m.overrides as any,
-  }));
-  const results = calcMonthlyWithholdingCumulative(months, params, {
-    mergeBonusIntoComprehensive: true,
-  });
-  return NextResponse.json({ results });
+  try {
+    const raw = JSON.parse(cfg.value);
+    const params = taxParamsSchema.parse(raw);
+    const months = income.map((m: any) => ({
+      month: m.month,
+      gross: Number(m.gross),
+      bonus: m.bonus ? Number(m.bonus) : undefined,
+      overrides: m.overrides as any,
+    }));
+    const results = calcMonthlyWithholdingCumulative(months, params, {
+      mergeBonusIntoComprehensive: true,
+    });
+    return NextResponse.json({ results });
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: "invalid tax params json" },
+        { status: 400 }
+      );
+    }
+    if (err instanceof ZodError) {
+      return NextResponse.json(
+        { error: "invalid tax params shape", issues: err.issues },
+        { status: 400 }
+      );
+    }
+    console.error("/api/income/forecast parse error", err);
+    return NextResponse.json({ error: "internal error" }, { status: 500 });
+  }
 }
