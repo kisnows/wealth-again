@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  CASH_IN
+  CASH_OUT
+  BUY
+  SELL
+  DIVIDEND
+  INTEREST
+  FEE
+  TAX
+  TRANSFER
+  FX_TRADE
+  OPTION_PREMIUM
+  EXERCISE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  accounts  Account[]
+  incomes   IncomeRecord[]
+}
+
+model Account {
+  id           String              @id @default(uuid())
+  userId       String
+  name         String
+  baseCurrency String              @default("CNY")
+  createdAt    DateTime            @default(now())
+  user         User                @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+  lots         Lot[]
+  snapshots    ValuationSnapshot[]
+}
+
+model Instrument {
+  id        String   @id @default(uuid())
+  symbol    String
+  market    String?
+  currency  String   @default("CNY")
+  type      String   @default("EQUITY")
+  lots      Lot[]
+  prices    Price[]
+  createdAt DateTime @default(now())
+  @@index([symbol])
+}
+
+model Transaction {
+  id           String          @id @default(uuid())
+  accountId    String
+  type         TransactionType
+  tradeDate    DateTime
+  instrumentId String?
+  quantity     Decimal?
+  price        Decimal?
+  cashAmount   Decimal?  // +in / -out
+  currency     String
+  fee          Decimal?  @default(0)
+  tax          Decimal?  @default(0)
+  lotId        String?
+  note         String?
+  account      Account  @relation(fields: [accountId], references: [id])
+  instrument   Instrument? @relation(fields: [instrumentId], references: [id])
+  lot          Lot? @relation(fields: [lotId], references: [id])
+  createdAt    DateTime @default(now())
+  @@index([accountId, tradeDate])
+}
+
+model Lot {
+  id           String   @id @default(uuid())
+  accountId    String
+  instrumentId String
+  qty          Decimal
+  costPerUnit  Decimal
+  openDate     DateTime
+  method       String   @default("FIFO")
+  account      Account  @relation(fields: [accountId], references: [id])
+  instrument   Instrument @relation(fields: [instrumentId], references: [id])
+  transactions Transaction[]
+}
+
+model ValuationSnapshot {
+  id         String   @id @default(uuid())
+  accountId  String
+  asOf       DateTime
+  totalValue Decimal
+  breakdown  Json
+  account    Account  @relation(fields: [accountId], references: [id])
+  createdAt  DateTime @default(now())
+  @@unique([accountId, asOf])
+}
+
+model Price {
+  id           String   @id @default(uuid())
+  instrumentId String
+  asOf         DateTime
+  close        Decimal
+  currency     String
+  instrument   Instrument @relation(fields: [instrumentId], references: [id])
+  @@unique([instrumentId, asOf])
+}
+
+model FxRate {
+  id       String   @id @default(uuid())
+  base     String
+  quote    String
+  asOf     DateTime
+  rate     Decimal
+  @@unique([base, quote, asOf])
+}
+
+model Config {
+  id            String   @id @default(uuid())
+  key           String
+  value         Json
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime @default(now())
+  @@index([key])
+}
+
+model IncomeRecord {
+  id        String   @id @default(uuid())
+  userId    String
+  city      String
+  year      Int
+  month     Int      // 1-12
+  gross     Decimal
+  bonus     Decimal? // optional bonus for that month (e.g. quarterly / annual if distributed)
+  overrides Json?    // override params
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  @@unique([userId, year, month])
+}

@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    container_name: wealth-mgr
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=file:./dev.db
+      - NEXTAUTH_SECRET=dev-secret
+      - NEXTAUTH_URL=http://localhost:3000
+    command: npm run dev
