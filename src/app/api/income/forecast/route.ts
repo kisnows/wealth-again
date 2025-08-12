@@ -177,8 +177,22 @@ export async function GET(req: NextRequest) {
         taxChange: taxMonths.has(months[i].y * 100 + months[i].m),
       },
       ym: `${months[i].y}-${String(months[i].m).padStart(2, "0")}`,
+      salaryThisMonth: inputs[i].gross || 0,
+      bonusThisMonth: inputs[i].bonus || 0,
     }));
-    return NextResponse.json({ results: annotated });
+    // 汇总
+    const totals = annotated.reduce(
+      (acc: any, x: any) => {
+        acc.totalSalary += Number(x.salaryThisMonth || 0);
+        acc.totalBonus += Number(x.bonusThisMonth || 0);
+        acc.totalGross += Number(x.grossThisMonth || 0);
+        acc.totalNet += Number(x.net || 0);
+        acc.totalTax += Number(x.taxThisMonth || 0);
+        return acc;
+      },
+      { totalSalary: 0, totalBonus: 0, totalGross: 0, totalNet: 0, totalTax: 0 }
+    );
+    return NextResponse.json({ results: annotated, totals });
   } catch (err: unknown) {
     if (err instanceof ZodError) {
       return NextResponse.json(

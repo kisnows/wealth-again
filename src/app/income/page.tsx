@@ -41,6 +41,7 @@ export default function IncomePage() {
     setBonuses(b.records || []);
     setChanges(c.records || []);
     setForecast((f.results || []).map((x: any) => ({ ...x })));
+    setTotals(f.totals || { totalSalary:0,totalBonus:0,totalGross:0,totalNet:0,totalTax:0 });
   }
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export default function IncomePage() {
     };
   }, [months, startYM, endYM]);
 
+  const [totals, setTotals] = useState<any>({ totalSalary:0,totalBonus:0,totalGross:0,totalNet:0,totalTax:0 });
   const chartData = useMemo(() => {
     const arr = forecast
       .map((r: any) => ({
@@ -120,6 +122,9 @@ export default function IncomePage() {
       <Card>
         <CardHeader><CardTitle>收入预测</CardTitle></CardHeader>
         <CardContent>
+          <div className="mb-2 text-sm text-gray-600">
+            总工资收入：¥{totals.totalSalary.toLocaleString()} ｜ 总奖金收入：¥{totals.totalBonus.toLocaleString()} ｜ 总税前：¥{totals.totalGross.toLocaleString()} ｜ 总税收：¥{totals.totalTax.toLocaleString()} ｜ 总税后：¥{totals.totalNet.toLocaleString()}
+          </div>
           <div className="flex gap-4 mb-4 items-center flex-wrap">
             <span>预测区间：</span>
             <select
