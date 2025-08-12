@@ -17,6 +17,7 @@ export default function AccountManager() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [newAccountName, setNewAccountName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 获取账户列表
   useEffect(() => {
@@ -33,19 +34,31 @@ export default function AccountManager() {
     }
   }
 
+  async function deleteAccount(id: string) {
+    await fetch(`/api/accounts?id=${id}`, { method: "DELETE" });
+    await fetchAccounts();
+  }
+
   async function createAccount() {
     if (!newAccountName.trim()) return;
-    
     setLoading(true);
+    setError(null);
     try {
-      await fetch("/api/accounts", {
+      const res = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newAccountName, baseCurrency: "CNY" }),
       });
-      
+      if (res.status === 409) {
+        setError("账户名已存在，请更换名称");
+        return;
+      }
+      if (!res.ok) {
+        setError("创建账户失败");
+        return;
+      }
       setNewAccountName("");
-      fetchAccounts();
+      await fetchAccounts();
     } catch (error) {
       console.error("Error creating account:", error);
     } finally {
@@ -60,6 +73,7 @@ export default function AccountManager() {
           <CardTitle>创建新账户</CardTitle>
         </CardHeader>
         <CardContent>
+          {error && <div className="mb-2 text-sm text-red-600">{error}</div>}
           <div className="flex gap-2">
             <div className="flex-1">
               <Label htmlFor="accountName">账户名称</Label>
@@ -96,10 +110,11 @@ export default function AccountManager() {
                     <p className="text-sm text-gray-500">
                       创建时间: {new Date(account.createdAt).toLocaleDateString()}
                     </p>
-                    <div className="mt-2">
-                      <Button variant="outline" size="sm" className="cursor-pointer">
-                        查看详情
+                    <div className="mt-2 flex gap-2">
+                      <Button asChild variant="outline" size="sm" className="cursor-pointer">
+                        <a href={`/investment/accounts/${account.id}`}>查看详情</a>
                       </Button>
+                      <Button variant="destructive" size="sm" onClick={() => deleteAccount(account.id)}>删除</Button>
                     </div>
                   </CardContent>
                 </Card>

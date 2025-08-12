@@ -14,12 +14,15 @@ export async function POST(req: NextRequest) {
     where: {
       accountId_asOf: { accountId: body.accountId, asOf: new Date(body.asOf) },
     },
-    update: { totalValue: body.totalValue.toString(), breakdown: {} },
+    update: {
+      totalValue: body.totalValue.toString(),
+      breakdown: JSON.stringify({}),
+    },
     create: {
       accountId: body.accountId,
       asOf: new Date(body.asOf),
       totalValue: body.totalValue.toString(),
-      breakdown: {},
+      breakdown: JSON.stringify({}),
     },
   });
   return NextResponse.json({ id: snap.id });

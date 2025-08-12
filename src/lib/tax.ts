@@ -35,6 +35,7 @@ export interface MonthlyResult {
   taxThisMonth: number;
   net: number;
   paramsVersionKey: string;
+  grossThisMonth?: number;
 }
 
 export function calcMonthlyWithholdingCumulative(
@@ -90,9 +91,22 @@ export function calcMonthlyWithholdingCumulative(
       taxThisMonth: round2(taxThisMonth),
       net: round2(net),
       paramsVersionKey: `${effective.city}-${effective.year}`,
+      grossThisMonth: round2(monthGross),
     });
   }
   return results;
+}
+
+export function normalizeTaxParamsValue(raw: unknown): TaxParams {
+  try {
+    if (typeof raw === "string") {
+      const parsed = JSON.parse(raw);
+      return taxParamsSchema.parse(parsed);
+    }
+    return taxParamsSchema.parse(raw);
+  } catch (e) {
+    throw e;
+  }
 }
 
 function calcCumulativeTax(

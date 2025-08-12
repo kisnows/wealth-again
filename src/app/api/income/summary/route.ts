@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { taxParamsSchema, calcMonthlyWithholdingCumulative } from "@/lib/tax";
+import {
+  normalizeTaxParamsValue,
+  calcMonthlyWithholdingCumulative,
+} from "@/lib/tax";
 import { ZodError } from "zod";
 
 export async function GET(req: NextRequest) {
@@ -40,14 +43,8 @@ export async function GET(req: NextRequest) {
 
   let params;
   try {
-    params = taxParamsSchema.parse(JSON.parse(cfg.value));
+    params = normalizeTaxParamsValue(cfg.value as string);
   } catch (err: unknown) {
-    if (err instanceof SyntaxError) {
-      return NextResponse.json(
-        { error: "invalid tax params json" },
-        { status: 400 }
-      );
-    }
     if (err instanceof ZodError) {
       return NextResponse.json(
         { error: "invalid tax params shape", issues: err.issues },
@@ -63,7 +60,9 @@ export async function GET(req: NextRequest) {
     month: record.month,
     gross: Number(record.gross),
     bonus: record.bonus ? Number(record.bonus) : undefined,
-    overrides: record.overrides as any,
+    overrides: record.overrides
+      ? JSON.parse(record.overrides as any)
+      : undefined,
   }));
 
   // 计算税务

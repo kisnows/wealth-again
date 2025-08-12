@@ -121,3 +121,50 @@ export function computePerformance(
     xirr: xirrValue,
   };
 }
+
+export interface PerformanceSeriesPoint {
+  date: Date;
+  value: number;
+  cumulativeNetContribution: number;
+  twrCumulative: number; // cumulative TWR up to this point
+}
+
+export function computePerformanceSeries(
+  valuations: { date: Date; value: number }[],
+  externalFlows: Cashflow[]
+): PerformanceSeriesPoint[] {
+  if (!valuations.length) return [];
+  const orderedVals = [...valuations].sort(
+    (a, b) => a.date.getTime() - b.date.getTime()
+  );
+  const points: PerformanceSeriesPoint[] = [];
+  let cumulativeNetContribution = 0;
+  let twrProduct = 1;
+  for (let i = 0; i < orderedVals.length; i++) {
+    const vEnd = orderedVals[i];
+    if (i === 0) {
+      // First point: initialize
+      points.push({
+        date: vEnd.date,
+        value: vEnd.value,
+        cumulativeNetContribution,
+        twrCumulative: 0,
+      });
+      continue;
+    }
+    const vStart = orderedVals[i - 1];
+    const flows = externalFlows
+      .filter((cf) => cf.date > vStart.date && cf.date <= vEnd.date)
+      .reduce((a, b) => a + b.amount, 0);
+    cumulativeNetContribution += flows;
+    const r = (vEnd.value - flows) / (vStart.value || 1);
+    twrProduct *= r;
+    points.push({
+      date: vEnd.date,
+      value: vEnd.value,
+      cumulativeNetContribution,
+      twrCumulative: twrProduct - 1,
+    });
+  }
+  return points;
+}

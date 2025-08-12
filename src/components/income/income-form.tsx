@@ -23,6 +23,7 @@ export default function IncomeForm() {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [gross, setGross] = useState(20000);
   const [bonus, setBonus] = useState(0);
+  const [bonusDate, setBonusDate] = useState<string>(new Date().toISOString().slice(0,10));
   const [forecast, setForecast] = useState<IncomeRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -40,11 +41,29 @@ export default function IncomeForm() {
       const f = await fetch(`/api/income/forecast?city=${city}&year=${year}`);
       const data = await f.json();
       setForecast(data.results || []);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("income:refresh"));
+      }
     } catch (error) {
       console.error("Error saving income:", error);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function addBonus() {
+    setLoading(true);
+    try {
+      await fetch("/api/income/bonus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ city, amount: bonus, effectiveDate: bonusDate }),
+      });
+      await submit();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("income:refresh"));
+      }
+    } finally { setLoading(false); }
   }
 
   return (
@@ -101,6 +120,11 @@ export default function IncomeForm() {
                 value={bonus}
                 onChange={(e) => setBonus(Number(e.target.value))}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bonusDate">奖金发放日</Label>
+              <Input id="bonusDate" type="date" value={bonusDate} onChange={(e)=> setBonusDate(e.target.value)} />
+              <Button className="mt-2" variant="outline" onClick={addBonus} disabled={loading || !bonus || !bonusDate}>添加奖金计划</Button>
             </div>
           </div>
           <div className="mt-4">

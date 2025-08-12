@@ -28,6 +28,9 @@ export default function ConfigPage() {
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [records, setRecords] = useState<any[]>([]);
+  const [page, setPage] = useState(1);
+  const [effectiveFrom, setEffectiveFrom] = useState<string>(new Date().toISOString().slice(0,10));
 
   useEffect(() => {
     // 尝试从服务器加载现有配置
@@ -47,10 +50,11 @@ export default function ConfigPage() {
 
   async function loadConfig() {
     try {
-      const res = await fetch("/api/config/tax-params?city=Hangzhou&year=2025");
+      const res = await fetch(`/api/config/tax-params?city=Hangzhou&year=2025&page=${page}&pageSize=50`);
       if (res.ok) {
         const data = await res.json();
         setJson(JSON.stringify(data.params, null, 2));
+        setRecords(data.records || []);
       }
     } catch (err) {
       console.log("No existing config found, using default");
@@ -64,12 +68,12 @@ export default function ConfigPage() {
     
     try {
       // 验证 JSON 格式
-      JSON.parse(json);
+      const bodyObj = JSON.parse(json);
       
       const res = await fetch("/api/config/tax-params", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: json,
+        body: JSON.stringify({ ...bodyObj, effectiveFrom }),
       });
       
       const data = await res.json();
@@ -112,6 +116,10 @@ export default function ConfigPage() {
               />
             </div>
             <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <label className="text-sm">生效日期</label>
+                <input type="date" className="border rounded px-2 py-1" value={effectiveFrom} onChange={(e)=>setEffectiveFrom(e.target.value)} />
+              </div>
               <Button onClick={save} disabled={loading}>
                 {loading ? "保存中..." : "保存配置"}
               </Button>
@@ -222,6 +230,29 @@ export default function ConfigPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>历史与未来生效记录</CardTitle></CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="border-b"><th className="text-left py-2">生效日期</th><th className="text-left py-2">版本摘要</th></tr></thead>
+              <tbody>
+                {records.map((r:any)=> (
+                  <tr key={r.id} className="border-b">
+                    <td className="py-2">{new Date(r.effectiveFrom).toLocaleDateString()}</td>
+                    <td className="py-2 text-sm">{r.key}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button variant="outline" size="sm" onClick={()=>{setPage(Math.max(1,page-1)); loadConfig();}} disabled={page===1}>上一页</Button>
+            <Button variant="outline" size="sm" onClick={()=>{setPage(page+1); loadConfig();}}>下一页</Button>
           </div>
         </CardContent>
       </Card>

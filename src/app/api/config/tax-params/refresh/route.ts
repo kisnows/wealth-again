@@ -87,7 +87,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "parse_error" }, { status: 422 });
     }
   } else {
-    process.env.ALLOW_NETWORK = "1";
     params = await fetchHangzhouParams({ year, city, allowNetwork: true });
   }
   const key = `tax:${city}:${year}`;

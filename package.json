@@ -1,5 +1,5 @@
 {
-  "name": "fiance-again",
+  "name": "wealth-again",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "start": "next start",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:dedup-accounts": "tsx scripts/dedup-accounts.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "next lint || true",

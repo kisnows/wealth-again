@@ -44,3 +44,25 @@ export async function POST(req: NextRequest) {
   });
   return NextResponse.json({ id: rec.id });
 }
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const accountId = searchParams.get("accountId");
+  const type = searchParams.get("type");
+  const page = Number(searchParams.get("page") || "1");
+  const pageSize = Number(searchParams.get("pageSize") || "50");
+  const skip = (page - 1) * pageSize;
+  const where: any = {};
+  if (accountId) where.accountId = accountId;
+  if (type) where.type = type;
+  const [total, txs] = await Promise.all([
+    prisma.transaction.count({ where }),
+    prisma.transaction.findMany({
+      where,
+      orderBy: { tradeDate: "desc" },
+      skip,
+      take: pageSize,
+    }),
+  ]);
+  return NextResponse.json({ transactions: txs, total, page, pageSize });
+}

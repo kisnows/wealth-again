@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { computePerformance } from "@/lib/performance";
+import {
+  computePerformance,
+  computePerformanceSeries,
+} from "@/lib/performance";
 
 export async function GET() {
   const snaps = await prisma.valuationSnapshot.findMany({
@@ -23,5 +26,6 @@ export async function GET() {
       amount: Number(t.cashAmount || 0) * (t.type === "CASH_IN" ? 1 : -1),
     }));
   const perf = computePerformance(valuations, flows);
-  return NextResponse.json({ performance: perf });
+  const series = computePerformanceSeries(valuations, flows);
+  return NextResponse.json({ performance: perf, series });
 }
