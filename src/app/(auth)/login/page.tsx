@@ -57,7 +57,7 @@ export default function LoginPage() {
               {error}
             </div>
           )}
-          
+
           <div className="space-y-2">
             <Label htmlFor="email">邮箱</Label>
             <Input
@@ -69,7 +69,7 @@ export default function LoginPage() {
               required
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="password">密码</Label>
             <Input
@@ -81,15 +81,18 @@ export default function LoginPage() {
               required
             />
           </div>
-          
+
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "登录中..." : "登录"}
           </Button>
-          
+
           <div className="text-center">
             <p className="text-sm text-gray-600">
               还没有账户？
-              <Link href="/register" className="text-blue-600 hover:underline ml-1">
+              <Link
+                href="/register"
+                className="text-blue-600 hover:underline ml-1"
+              >
                 立即注册
               </Link>
             </p>

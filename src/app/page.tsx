@@ -13,7 +13,7 @@ export default function Home() {
 
   useEffect(() => {
     if (status === "loading") return; // 等待加载完成
-    
+
     if (session) {
       // 如果已登录，重定向到仪表盘
       router.push("/dashboard");
@@ -54,7 +54,7 @@ export default function Home() {
                 登录
               </Button>
             </Link>
-            
+
             <Link href="/register">
               <Button variant="outline" className="w-full" size="lg">
                 注册账户

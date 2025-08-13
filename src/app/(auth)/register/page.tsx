@@ -64,7 +64,7 @@ export default function RegisterPage() {
               {error}
             </div>
           )}
-          
+
           <div className="space-y-2">
             <Label htmlFor="name">姓名</Label>
             <Input
@@ -76,7 +76,7 @@ export default function RegisterPage() {
               required
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="email">邮箱</Label>
             <Input
@@ -88,7 +88,7 @@ export default function RegisterPage() {
               required
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="password">密码</Label>
             <Input
@@ -100,7 +100,7 @@ export default function RegisterPage() {
               required
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">确认密码</Label>
             <Input
@@ -112,15 +112,18 @@ export default function RegisterPage() {
               required
             />
           </div>
-          
+
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "注册中..." : "注册"}
           </Button>
-          
+
           <div className="text-center">
             <p className="text-sm text-gray-600">
               已有账户？
-              <Link href="/login" className="text-blue-600 hover:underline ml-1">
+              <Link
+                href="/login"
+                className="text-blue-600 hover:underline ml-1"
+              >
                 立即登录
               </Link>
             </p>
