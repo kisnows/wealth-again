@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2021",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "es2021"
-    ],
+    "lib": ["dom", "dom.iterable", "es2021"],
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
@@ -17,16 +13,10 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "types": [
-      "node",
-      "jest",
-      "vitest"
-    ],
+    "types": ["node", "vitest"],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ]
+      "@/*": ["src/*"]
     },
     "incremental": true,
     "plugins": [
@@ -41,7 +31,5 @@
     "src/**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

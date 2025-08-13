@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
 
 interface IncomeRecord {
   month: number;
@@ -18,6 +18,7 @@ interface IncomeRecord {
 }
 
 export default function IncomeForm() {
+  const { data: session } = useSession();
   const [city, setCity] = useState("Hangzhou");
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -26,44 +27,103 @@ export default function IncomeForm() {
   const [bonusDate, setBonusDate] = useState<string>(new Date().toISOString().slice(0,10));
   const [forecast, setForecast] = useState<IncomeRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   async function submit() {
+    if (!session) return;
+    
     setLoading(true);
+    setError("");
+    setSuccess("");
+
     try {
       // 保存收入记录
-      await fetch("/api/income/monthly", {
+      const response = await fetch("/api/income/monthly", {
         method: "POST",
         body: JSON.stringify({ city, year, month, gross, bonus }),
         headers: { "Content-Type": "application/json" },
       });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error?.message || "保存失败");
+        return;
+      }
+
+      setSuccess("收入记录保存成功");
       
       // 获取预测结果
-      const f = await fetch(`/api/income/forecast?city=${city}&year=${year}`);
-      const data = await f.json();
-      setForecast(data.results || []);
+      const forecastResponse = await fetch(`/api/income/forecast?city=${city}&year=${year}`);
+      const forecastData = await forecastResponse.json();
+      
+      if (forecastData.success) {
+        setForecast(forecastData.data?.results || []);
+      }
+
+      // 通知其他组件刷新
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("income:refresh"));
       }
+
     } catch (error) {
       console.error("Error saving income:", error);
+      setError("网络错误，请稍后重试");
     } finally {
       setLoading(false);
     }
   }
 
   async function addBonus() {
+    if (!session) return;
+    
     setLoading(true);
+    setError("");
+    setSuccess("");
+
     try {
-      await fetch("/api/income/bonus", {
+      const response = await fetch("/api/income/bonus", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city, amount: bonus, effectiveDate: bonusDate }),
+        body: JSON.stringify({ 
+          city, 
+          amount: bonus, 
+          effectiveDate: bonusDate 
+        }),
       });
-      await submit();
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error?.message || "添加奖金计划失败");
+        return;
+      }
+
+      setSuccess("奖金计划添加成功");
+      setBonus(0); // 重置奖金输入
+
+      // 通知其他组件刷新
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("income:refresh"));
       }
-    } finally { setLoading(false); }
+
+    } catch (error) {
+      console.error("Error adding bonus:", error);
+      setError("网络错误，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!session) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-center text-gray-500">请先登录以使用此功能</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -73,6 +133,18 @@ export default function IncomeForm() {
           <CardTitle>收入录入</CardTitle>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+          
+          {success && (
+            <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+              {success}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="city">城市</Label>
@@ -123,13 +195,26 @@ export default function IncomeForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="bonusDate">奖金发放日</Label>
-              <Input id="bonusDate" type="date" value={bonusDate} onChange={(e)=> setBonusDate(e.target.value)} />
-              <Button className="mt-2" variant="outline" onClick={addBonus} disabled={loading || !bonus || !bonusDate}>添加奖金计划</Button>
+              <Input 
+                id="bonusDate" 
+                type="date" 
+                value={bonusDate} 
+                onChange={(e)=> setBonusDate(e.target.value)} 
+              />
             </div>
           </div>
-          <div className="mt-4">
+          
+          <div className="mt-6 flex gap-4">
             <Button onClick={submit} disabled={loading}>
-              {loading ? "保存中..." : "保存并预测"}
+              {loading ? "保存中..." : "保存收入记录"}
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              onClick={addBonus} 
+              disabled={loading || !bonus || !bonusDate}
+            >
+              {loading ? "添加中..." : "添加奖金计划"}
             </Button>
           </div>
         </CardContent>
@@ -156,10 +241,10 @@ export default function IncomeForm() {
                   {forecast.map((r) => (
                     <tr key={r.month} className="border-b">
                       <td className="py-2">{r.month}</td>
-                      <td className="py-2">{formatCurrency(r.taxableCumulative)}</td>
-                      <td className="py-2">{formatCurrency(r.taxThisMonth)}</td>
-                      <td className="py-2">{formatCurrency(r.taxDueCumulative)}</td>
-                      <td className="py-2">{formatCurrency(r.net)}</td>
+                      <td className="py-2">¥{r.taxableCumulative.toLocaleString()}</td>
+                      <td className="py-2">¥{r.taxThisMonth.toLocaleString()}</td>
+                      <td className="py-2">¥{r.taxDueCumulative.toLocaleString()}</td>
+                      <td className="py-2">¥{r.net.toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,0 +1,74 @@
+/// 需要添加到User表的关联关系
+/*
+在现有User表中需要添加以下关联关系：
+
+model User {
+  // ... 现有字段 ...
+  
+  // 新增关联关系
+  sessions      Session[] /// 用户会话
+  auditLogs     AuditLog[] /// 审计日志
+  notifications Notification[] /// 用户通知
+  preference    UserPreference? /// 用户偏好设置
+  backupRecords BackupRecord[] /// 数据备份记录
+}
+*/
+
+/// 对IncomeRecord表的优化建议
+/*
+建议在IncomeRecord表中添加以下字段：
+
+model IncomeRecord {
+  // ... 现有字段 ...
+  
+  // 新增字段
+  status        String   @default("ACTIVE") /// 记录状态（ACTIVE、ARCHIVED、DELETED）
+  source        String?  /// 收入来源（SALARY、BONUS、OTHER）
+  description   String? /// 收入描述
+  tags          String? /// 标签（JSON数组格式）
+  metadata      String? /// 元数据（JSON格式，存储额外信息）
+}
+*/
+
+/// 对Transaction表的优化建议
+/*
+建议在Transaction表中添加以下字段：
+
+model Transaction {
+  // ... 现有字段 ...
+  
+  // 新增字段
+  status          String   @default("CONFIRMED") /// 交易状态（PENDING、CONFIRMED、CANCELLED）
+  externalId      String? /// 外部系统ID（用于导入对账）
+  category        String? /// 交易分类
+  description     String? /// 交易描述
+  tags            String? /// 标签（JSON数组格式）
+  metadata        String? /// 元数据（JSON格式）
+  confirmedAt     DateTime? /// 确认时间
+  settledAt       DateTime? /// 结算时间
+}
+*/
+
+/// 对Config表的优化建议
+/*
+建议重构Config表以更好地支持层级配置：
+
+model Config {
+  // ... 现有字段 ...
+  
+  // 新增字段
+  category      String   @default("general") /// 配置分类
+  isActive      Boolean  @default(true) /// 是否激活
+  priority      Int      @default(0) /// 优先级（数字越大优先级越高）
+  parentId      String? /// 父配置ID（支持层级配置）
+  schema        String? /// 配置schema（JSON Schema格式）
+  
+  // 新增关联
+  parent        Config?   @relation("ConfigHierarchy", fields: [parentId], references: [id])
+  children      Config[]  @relation("ConfigHierarchy")
+  
+  // 新增索引
+  @@index([category, isActive])
+  @@index([effectiveFrom, effectiveTo])
+}
+*/

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+// 保留原有的兼容性导出
 export const taxBracketSchema = z.object({
   threshold: z.number(), // cumulative taxable income threshold
   rate: z.number(), // 0-1
@@ -20,6 +21,11 @@ export const taxParamsSchema = z.object({
 });
 
 export type TaxParams = z.infer<typeof taxParamsSchema>;
+
+// 重新导出新的税务模块
+export * from "./tax/index";
+
+// 原有的计算函数继续保留（向后兼容）
 
 export interface MonthlyIncomeInput {
   month: number; // 1-12

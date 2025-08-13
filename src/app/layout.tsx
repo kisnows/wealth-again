@@ -1,6 +1,6 @@
 import React from "react";
 import "./globals.css";
-import Navbar from "@/components/layout/navbar";
+import Providers from "@/components/providers";
 
 export const metadata = {
   title: "财富管理系统",
@@ -15,8 +15,9 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="min-h-screen font-sans antialiased">
-        <Navbar />
-        <main className="container mx-auto py-8">{children}</main>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

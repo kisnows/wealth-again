@@ -1,0 +1,111 @@
+/// 用户会话表 - 管理用户登录会话
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique /// JWT token或会话token
+  expiresAt DateTime /// 过期时间
+  ipAddress String? /// IP地址
+  userAgent String? /// 用户代理
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+/// 审计日志表 - 记录系统操作日志
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String? /// 操作用户ID，系统操作时可为空
+  action      String /// 操作类型（CREATE、UPDATE、DELETE等）
+  resource    String /// 操作资源类型（User、Account、Transaction等）
+  resourceId  String? /// 操作资源ID
+  oldValues   String? /// 操作前的值（JSON格式）
+  newValues   String? /// 操作后的值（JSON格式）
+  ipAddress   String? /// IP地址
+  userAgent   String? /// 用户代理
+  createdAt   DateTime @default(now())
+
+  // 关联关系
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+}
+
+/// 系统通知表 - 管理用户通知
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String /// 通知类型（INFO、WARNING、ERROR、SUCCESS）
+  title     String /// 通知标题
+  message   String /// 通知内容
+  isRead    Boolean  @default(false) /// 是否已读
+  data      String? /// 额外数据（JSON格式）
+  expiresAt DateTime? /// 过期时间
+  createdAt DateTime @default(now())
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+/// 用户偏好设置表 - 存储用户个性化设置
+model UserPreference {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  theme       String   @default("light") /// 主题设置
+  language    String   @default("zh-CN") /// 语言设置
+  timezone    String   @default("Asia/Shanghai") /// 时区设置
+  currency    String   @default("CNY") /// 默认货币
+  dateFormat  String   @default("YYYY-MM-DD") /// 日期格式
+  numberFormat String  @default("en-US") /// 数字格式
+  pageSize    Int      @default(20) /// 默认分页大小
+  dashboardConfig String? /// 仪表盘配置（JSON格式）
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// 系统设置表 - 全局系统设置
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique /// 设置键名
+  value       String /// 设置值（JSON格式）
+  description String? /// 设置描述
+  category    String   @default("general") /// 设置分类
+  isPublic    Boolean  @default(false) /// 是否为公开设置（前端可见）
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+/// 数据备份记录表 - 记录数据备份信息
+model BackupRecord {
+  id          String   @id @default(uuid())
+  userId      String? /// 触发备份的用户ID，null表示系统自动备份
+  fileName    String /// 备份文件名
+  filePath    String /// 备份文件路径
+  fileSize    BigInt /// 备份文件大小（字节）
+  type        String   @default("FULL") /// 备份类型（FULL、INCREMENTAL）
+  status      String   @default("PENDING") /// 备份状态（PENDING、SUCCESS、FAILED）
+  errorMessage String? /// 错误信息
+  createdAt   DateTime @default(now())
+  completedAt DateTime? /// 完成时间
+
+  // 关联关系
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}

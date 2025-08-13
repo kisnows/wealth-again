@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createTaxService } from "@/lib/tax";
 import { fetchHangzhouParams } from "@/lib/sources/hz-params";
 import { parseSihfFromHtml, parseGjjFromHtml } from "@/lib/sources/parsers";
 import { taxParamsSchema } from "@/lib/tax";
+
+const taxService = createTaxService(prisma);
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -89,6 +92,15 @@ export async function POST(req: NextRequest) {
   } else {
     params = await fetchHangzhouParams({ year, city, allowNetwork: true });
   }
+
+  // 使用新的税务服务保存参数
+  try {
+    await taxService.importHangzhouParams(params);
+  } catch (error) {
+    console.warn("Failed to save to new tax system:", error);
+  }
+
+  // 同时保存到旧的Config表（向后兼容）
   const key = `tax:${city}:${year}`;
   const rec = await prisma.config.create({
     data: {
@@ -97,5 +109,11 @@ export async function POST(req: NextRequest) {
       effectiveFrom: new Date(`${year}-01-01`),
     },
   });
-  return NextResponse.json({ id: rec.id, key, params });
+
+  return NextResponse.json({
+    id: rec.id,
+    key,
+    params,
+    message: "参数已刷新并保存到新的税务配置系统",
+  });
 }

@@ -64,11 +64,14 @@ export async function POST(req: NextRequest) {
         headerIndex["tax"] != null ? Number(cols[headerIndex["tax"]]) : 0;
       let instrumentId: string | undefined;
       if (symbol) {
-        const inst = await prisma.instrument.upsert({
+        let inst = await prisma.instrument.findFirst({
           where: { symbol },
-          create: { symbol },
-          update: {},
         });
+        if (!inst) {
+          inst = await prisma.instrument.create({
+            data: { symbol },
+          });
+        }
         instrumentId = inst.id;
       }
       const rec = await prisma.transaction.create({
