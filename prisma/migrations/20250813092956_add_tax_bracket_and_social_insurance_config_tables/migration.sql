@@ -60,7 +60,7 @@ CREATE TABLE "new_IncomeRecord" (
     "netIncome" DECIMAL,
     "overrides" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "IncomeRecord_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 INSERT INTO "new_IncomeRecord" ("bonus", "city", "createdAt", "gross", "id", "month", "overrides", "userId", "year") SELECT "bonus", "city", "createdAt", "gross", "id", "month", "overrides", "userId", "year" FROM "IncomeRecord";

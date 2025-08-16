@@ -34,7 +34,8 @@ export const taxConfigSchema = z.object({
   effectiveTo: z
     .string()
     .transform((str) => new Date(str))
-    .nullable(),
+    .nullable()
+    .optional(),
 
   // 基本扣除
   monthlyBasicDeduction: z.number().default(5000),

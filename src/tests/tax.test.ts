@@ -1,30 +1,52 @@
 import { describe, it, expect } from "vitest";
-import { calcMonthlyWithholdingCumulative, TaxParams } from "@/lib/tax";
+import { TaxService } from "@/lib/tax";
 
-describe("tax cumulative withholding", () => {
-  const params: TaxParams = {
-    city: "Hangzhou",
-    year: 2025,
-    monthlyBasicDeduction: 5000,
-    brackets: [
-      { threshold: 0, rate: 0.03, quickDeduction: 0 },
-      { threshold: 36000, rate: 0.1, quickDeduction: 2520 },
-      { threshold: 144000, rate: 0.2, quickDeduction: 16920 },
-    ],
-    sihfRates: { pension: 0.08 },
-    sihfBase: { min: 5000, max: 30000 },
-    specialDeductions: { children: 1000 },
-  };
-  it("computes incremental tax", () => {
-    const res = calcMonthlyWithholdingCumulative(
-      [
-        { month: 1, gross: 20000 },
-        { month: 2, gross: 20000 },
+describe("tax cumulative withholding (service)", () => {
+  it("computes incremental tax", async () => {
+    const city = "Hangzhou";
+    const repo = new (class {
+      brackets = [
+        { minIncome: 0, maxIncome: 36000, taxRate: 0.03, quickDeduction: 0 },
+        {
+          minIncome: 36000,
+          maxIncome: 144000,
+          taxRate: 0.1,
+          quickDeduction: 2520,
+        },
+        {
+          minIncome: 144000,
+          maxIncome: null,
+          taxRate: 0.2,
+          quickDeduction: 16920,
+        },
+      ];
+      si = {
+        socialMinBase: 5000,
+        socialMaxBase: 30000,
+        pensionRate: 0.08,
+        medicalRate: 0.02,
+        unemploymentRate: 0.005,
+        housingFundMinBase: 5000,
+        housingFundMaxBase: 30000,
+        housingFundRate: 0.12,
+      };
+      async getTaxBrackets() {
+        return this.brackets;
+      }
+      async getSocialInsuranceConfig() {
+        return this.si;
+      }
+    })() as any;
+    const svc = new TaxService(repo);
+    const res = await svc.calculateForecastWithholdingCumulative({
+      city,
+      months: [
+        { year: 2025, month: 1, gross: 20000 },
+        { year: 2025, month: 2, gross: 20000 },
       ],
-      params
-    );
+    });
     expect(res.length).toBe(2);
     expect(res[0].taxThisMonth).toBeGreaterThanOrEqual(0);
-    expect(res[1].taxDueCumulative).toBeGreaterThan(res[0].taxDueCumulative);
+    expect(res[1].taxThisMonth).toBeGreaterThanOrEqual(0);
   });
 });

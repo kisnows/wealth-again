@@ -118,6 +118,11 @@ export class TaxConfigRepository {
       },
     });
 
+    // 清理同一生效日的重复记录，保证幂等性
+    await this.prisma.socialInsuranceConfig.deleteMany({
+      where: { city, effectiveFrom },
+    });
+
     // 创建新的配置
     return this.prisma.socialInsuranceConfig.create({
       data: {

@@ -31,7 +31,11 @@
 
 1. **收入预测逻辑**：根据历史收入记录、税务变动及生效日期，预测未来的税前税后收入。若税务信息有变动，系统需要重新计算税后收入。
 2. **变动点标注**：在收入预测的列表上，标注出所有变动点，例如工资变动、奖金发放或税务调整。
-3. **折线图展示**：提供一个折线图，展示每月的税前、税后收入变化，以及预测期内总税前税后收入的变化。
+3. **收入合并计算**：所有奖金和工资都在自然月月底合并发放，共同计算税费和社保。例如，2025 年 8 月 19 日的奖金会与 8 月的工资合并，作为 8 月的总收入计算税率。
+4. **收入预测表格**：表头为"月份｜税前总收入｜社保｜税｜税后总收入｜工资｜奖金｜备注"，清晰显示每月收入构成和扣除明细。
+5. **图表展示**：
+   - **柱状图**：展示每月的税前总收入和税后总收入
+   - **折线图**：展示所选时间段内的税前累计收入和税后累计收入变化趋势
 
 ---
 
@@ -53,6 +57,33 @@
 3. **组件库**：前端使用 **Shadcn UI** 组件库。
 
 ---
+
+## 运行与测试
+
+- 安装依赖：
+  - `pnpm i`（或 `npm i`）
+- 生成 Prisma Client：
+  - `npx prisma generate`
+- 同步数据库（本地 SQLite）：
+  - `npx prisma migrate dev --skip-seed`
+- 运行测试：
+  - 全量：`npx -y vitest run`
+  - 单测：`npx -y vitest run src/tests/<file>.test.ts`
+
+### 关键 API（示例）
+
+- 税务参数刷新（杭州演示）：
+  - `POST /api/config/tax-params/refresh?city=Hangzhou&year=2025`
+- 工资变更：
+  - `POST /api/income/changes`，字段：`city`、`grossMonthly`、`effectiveFrom`
+- 奖金计划（按月末生效）：
+  - `POST /api/income/bonus`，字段：`city`、`amount`、`effectiveDate`
+- 收入预测（按月末配置逐月计算，标注变动点）：
+  - `GET /api/income/forecast?year=2025&city=Hangzhou`
+- 月度计算与年度汇总：
+  - `POST /api/income/calculate`，`GET /api/income/calculate?userId=...&year=2025`
+- 估值快照分页：
+  - `GET /api/accounts/{id}/snapshots?page=1&pageSize=50`
 
 ## 其他需求
 

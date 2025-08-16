@@ -6,21 +6,51 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 const defaultParams = {
   city: "Hangzhou",
-  year: new Date().getFullYear(),
   monthlyBasicDeduction: 5000,
-  brackets: [
-    { threshold: 0, rate: 0.03, quickDeduction: 0 },
-    { threshold: 36000, rate: 0.1, quickDeduction: 2520 },
-    { threshold: 144000, rate: 0.2, quickDeduction: 16920 },
-    { threshold: 300000, rate: 0.25, quickDeduction: 31920 },
-    { threshold: 420000, rate: 0.3, quickDeduction: 52920 },
-    { threshold: 660000, rate: 0.35, quickDeduction: 85920 },
-    { threshold: 960000, rate: 0.45, quickDeduction: 181920 },
+  taxBrackets: [
+    { minIncome: 0, maxIncome: 36000, taxRate: 0.03, quickDeduction: 0 },
+    { minIncome: 36000, maxIncome: 144000, taxRate: 0.1, quickDeduction: 2520 },
+    { minIncome: 144000, maxIncome: 300000, taxRate: 0.2, quickDeduction: 16920 },
+    { minIncome: 300000, maxIncome: 420000, taxRate: 0.25, quickDeduction: 31920 },
+    { minIncome: 420000, maxIncome: 660000, taxRate: 0.3, quickDeduction: 52920 },
+    { minIncome: 660000, maxIncome: 960000, taxRate: 0.35, quickDeduction: 85920 },
+    { minIncome: 960000, maxIncome: null, taxRate: 0.45, quickDeduction: 181920 },
   ],
-  sihfRates: { pension: 0.08, medical: 0.02, unemployment: 0.005 },
-  sihfBase: { min: 5000, max: 28017 },
-  specialDeductions: { children: 1000 },
+  socialInsurance: {
+    socialMinBase: 5000,
+    socialMaxBase: 28017,
+    pensionRate: 0.08,
+    medicalRate: 0.02,
+    unemploymentRate: 0.005,
+    housingFundMinBase: 5000,
+    housingFundMaxBase: 28017,
+    housingFundRate: 0.12,
+  },
 };
+
+// 转换旧格式到新格式
+function convertLegacyToNewFormat(legacyParams: any) {
+  return {
+    city: legacyParams.city,
+    monthlyBasicDeduction: legacyParams.monthlyBasicDeduction || 5000,
+    taxBrackets: legacyParams.brackets?.map((bracket: any, index: number, array: any[]) => ({
+      minIncome: bracket.threshold,
+      maxIncome: index < array.length - 1 ? array[index + 1].threshold : null,
+      taxRate: bracket.rate,
+      quickDeduction: bracket.quickDeduction,
+    })) || [],
+    socialInsurance: {
+      socialMinBase: legacyParams.sihfBase?.min || 5000,
+      socialMaxBase: legacyParams.sihfBase?.max || 28017,
+      pensionRate: legacyParams.sihfRates?.pension || 0.08,
+      medicalRate: legacyParams.sihfRates?.medical || 0.02,
+      unemploymentRate: legacyParams.sihfRates?.unemployment || 0.005,
+      housingFundMinBase: legacyParams.housingFund?.baseMin || legacyParams.sihfBase?.min || 5000,
+      housingFundMaxBase: legacyParams.housingFund?.baseMax || legacyParams.sihfBase?.max || 28017,
+      housingFundRate: legacyParams.housingFund?.rate || 0.12,
+    },
+  };
+}
 
 export default function ConfigPage() {
   const [json, setJson] = useState(JSON.stringify(defaultParams, null, 2));
@@ -53,7 +83,15 @@ export default function ConfigPage() {
       const res = await fetch(`/api/config/tax-params?city=Hangzhou&year=2025&page=${page}&pageSize=50`);
       if (res.ok) {
         const data = await res.json();
-        setJson(JSON.stringify(data.params, null, 2));
+        // 处理新格式或旧格式的数据
+        if (data.config) {
+          // 新格式数据
+          setJson(JSON.stringify(data.config, null, 2));
+        } else if (data.params) {
+          // 旧格式数据，需要转换为新格式
+          const converted = convertLegacyToNewFormat(data.params);
+          setJson(JSON.stringify(converted, null, 2));
+        }
         setRecords(data.records || []);
       }
     } catch (err) {
@@ -150,18 +188,14 @@ export default function ConfigPage() {
           {/* 基本信息 */}
           <div>
             <h3 className="text-lg font-medium mb-2">基本信息</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">城市</p>
                 <p className="font-medium">{parsedParams.city}</p>
               </div>
               <div className="p-3 border rounded-md">
-                <p className="text-sm text-gray-500">年份</p>
-                <p className="font-medium">{parsedParams.year}</p>
-              </div>
-              <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">月基本扣除额</p>
-                <p className="font-medium">¥{parsedParams.monthlyBasicDeduction.toLocaleString()}</p>
+                <p className="font-medium">¥{(parsedParams.monthlyBasicDeduction || 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -178,18 +212,15 @@ export default function ConfigPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {parsedParams.brackets.map((bracket, index) => {
-                  const nextBracket = parsedParams.brackets[index + 1];
-                  return (
-                    <TableRow key={index}>
-                      <TableCell>
-                        ¥{bracket.threshold.toLocaleString()} - {nextBracket ? `¥${(nextBracket.threshold - 1).toLocaleString()}` : "以上"}
-                      </TableCell>
-                      <TableCell>{(bracket.rate * 100).toFixed(1)}%</TableCell>
-                      <TableCell>¥{bracket.quickDeduction.toLocaleString()}</TableCell>
-                    </TableRow>
-                  );
-                })}
+                {(parsedParams.taxBrackets || []).map((bracket, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      ¥{(bracket.minIncome || 0).toLocaleString()} - {bracket.maxIncome ? `¥${bracket.maxIncome.toLocaleString()}` : "以上"}
+                    </TableCell>
+                    <TableCell>{((bracket.taxRate || 0) * 100).toFixed(1)}%</TableCell>
+                    <TableCell>¥{(bracket.quickDeduction || 0).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -197,38 +228,45 @@ export default function ConfigPage() {
           {/* 社保公积金比例 */}
           <div>
             <h3 className="text-lg font-medium mb-2">社保公积金比例</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">养老保险</p>
-                <p className="font-medium">{(parsedParams.sihfRates.pension * 100).toFixed(1)}%</p>
+                <p className="font-medium">{((parsedParams.socialInsurance?.pensionRate || 0) * 100).toFixed(1)}%</p>
               </div>
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">医疗保险</p>
-                <p className="font-medium">{(parsedParams.sihfRates.medical * 100).toFixed(1)}%</p>
+                <p className="font-medium">{((parsedParams.socialInsurance?.medicalRate || 0) * 100).toFixed(1)}%</p>
               </div>
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">失业保险</p>
-                <p className="font-medium">{(parsedParams.sihfRates.unemployment * 100).toFixed(1)}%</p>
+                <p className="font-medium">{((parsedParams.socialInsurance?.unemploymentRate || 0) * 100).toFixed(1)}%</p>
+              </div>
+              <div className="p-3 border rounded-md">
+                <p className="text-sm text-gray-500">住房公积金</p>
+                <p className="font-medium">{((parsedParams.socialInsurance?.housingFundRate || 0) * 100).toFixed(1)}%</p>
               </div>
             </div>
-            <div className="mt-2 p-3 border rounded-md">
-              <p className="text-sm text-gray-500">缴费基数范围</p>
-              <p className="font-medium">¥{parsedParams.sihfBase.min.toLocaleString()} - ¥{parsedParams.sihfBase.max.toLocaleString()}</p>
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 border rounded-md">
+                <p className="text-sm text-gray-500">社保缴费基数范围</p>
+                <p className="font-medium">¥{(parsedParams.socialInsurance?.socialMinBase || 0).toLocaleString()} - ¥{(parsedParams.socialInsurance?.socialMaxBase || 0).toLocaleString()}</p>
+              </div>
+              <div className="p-3 border rounded-md">
+                <p className="text-sm text-gray-500">公积金缴费基数范围</p>
+                <p className="font-medium">¥{(parsedParams.socialInsurance?.housingFundMinBase || 0).toLocaleString()} - ¥{(parsedParams.socialInsurance?.housingFundMaxBase || 0).toLocaleString()}</p>
+              </div>
             </div>
           </div>
 
-          {/* 专项扣除 */}
+          {/* 专项附加扣除说明 */}
           <div>
-            <h3 className="text-lg font-medium mb-2">专项附加扣除</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {Object.entries(parsedParams.specialDeductions).map(([key, value]) => (
-                <div key={key} className="p-3 border rounded-md">
-                  <p className="text-sm text-gray-500">
-                    {key === 'children' ? '子女教育' : key}
-                  </p>
-                  <p className="font-medium">¥{value.toLocaleString()}/月</p>
-                </div>
-              ))}
+            <h3 className="text-lg font-medium mb-2">专项附加扣除说明</h3>
+            <div className="p-4 bg-gray-50 rounded-md">
+              <p className="text-sm text-gray-600">
+                专项附加扣除包括：子女教育（1000元/月）、继续教育（400元/月）、住房贷款利息（1000元/月）、
+                住房租金（1500-800元/月）、赡养老人（2000元/月）、大病医疗（最高80000元/年）等。
+                具体扣除标准请参考最新税法规定。
+              </p>
             </div>
           </div>
         </CardContent>

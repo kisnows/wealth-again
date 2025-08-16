@@ -1,3 +1,8 @@
+/**
+ * 投资账户详情组件
+ * 用于显示和管理投资账户的详细信息，包括现金流、交易、估值快照和绩效数据
+ */
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -7,6 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
 
+/**
+ * 交易记录类型定义
+ */
 type Tx = {
   id: string;
   type: string;
@@ -15,7 +23,14 @@ type Tx = {
   currency: string;
 };
 
+/**
+ * 投资账户详情组件默认导出
+ * @param {Object} props - 组件属性
+ * @param {string} props.accountId - 账户ID
+ * @param {string} props.baseCurrency - 基础货币
+ */
 export default function AccountDetail({ accountId, baseCurrency }: { accountId: string; baseCurrency: string }) {
+  // 组件状态管理
   const [tab, setTab] = useState<"cash" | "trades" | "snapshots" | "performance">("cash");
   const [cashDate, setCashDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [cashAmount, setCashAmount] = useState<number>(0);
@@ -35,6 +50,9 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
   const [txPage, setTxPage] = useState(1);
   const [txTotal, setTxTotal] = useState(0);
 
+  /**
+   * 加载账户数据
+   */
   async function load() {
     const [tradeRes, perfRes, snapRes] = await Promise.all([
       fetch(`/api/transactions?accountId=${accountId}&page=${txPage}&pageSize=50`).then((r) => r.json()),
@@ -51,6 +69,9 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
     setSnapTotal(snapRes.total || 0);
   }
 
+  /**
+   * 账户间转账
+   */
   async function transfer() {
     if (!transferTo || transferAmount <= 0) return;
     await fetch(`/api/transactions/transfer`, {
@@ -69,15 +90,24 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
     await load();
   }
 
+  // 组件挂载和更新时加载数据
   useEffect(() => {
     load();
     fetch("/api/accounts").then(r=>r.json()).then(d=> setAccounts((d.accounts||[]).map((a:any)=>({id:a.id, name:a.name}))));
   }, [accountId, txPage, snapPage]);
 
+  /**
+   * 从交易数组中过滤出交易记录（排除现金流记录）
+   * @param {any[]} arr - 交易数组
+   * @returns {Tx[]} 交易记录数组
+   */
   function tradesFrom(arr: any[]): Tx[] {
     return (arr || []).filter((t) => t.type !== "CASH_IN" && t.type !== "CASH_OUT");
   }
 
+  /**
+   * 添加现金流记录
+   */
   async function addCashflow() {
     const amt = cashType === "CASH_IN" ? Math.abs(cashAmount) : -Math.abs(cashAmount);
     await fetch(`/api/transactions`, {
@@ -95,6 +125,9 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
     await load();
   }
 
+  /**
+   * 添加估值快照
+   */
   async function addSnapshot() {
     await fetch(`/api/valuations/snapshot`, {
       method: "POST",
@@ -105,8 +138,10 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
     await load();
   }
 
+  // 渲染组件界面
   return (
     <div className="space-y-6">
+      {/* 标签页导航 */}
       <div className="flex gap-2 border-b pb-2">
         {[
           { k: "cash", n: "现金流" },
@@ -120,6 +155,7 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
         ))}
       </div>
 
+      {/* 现金流标签页 */}
       {tab === "cash" && (
         <Card>
           <CardHeader>
@@ -209,6 +245,7 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
         </Card>
       )}
 
+      {/* 交易标签页 */}
       {tab === "trades" && (
         <Card>
           <CardHeader>
@@ -239,6 +276,7 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
         </Card>
       )}
 
+      {/* 估值快照标签页 */}
       {tab === "snapshots" && (
         <Card>
           <CardHeader>
@@ -288,6 +326,7 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
         </Card>
       )}
 
+      {/* 绩效标签页 */}
       {tab === "performance" && (
         <Card>
           <CardHeader>
@@ -354,5 +393,3 @@ export default function AccountDetail({ accountId, baseCurrency }: { accountId: 
     </div>
   );
 }
-
-

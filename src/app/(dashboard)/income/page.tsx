@@ -38,7 +38,8 @@ export default function IncomePage() {
       fetch(`/api/income/changes?page=1&pageSize=50`).then((r) => r.json()),
       fetch(`/api/income/forecast?start=${startYM}&end=${endYM}`).then((r) => r.json()),
     ]);
-    setBonuses(b.records || []);
+    // 修复奖金API返回结构不一致的问题
+    setBonuses(b.success ? b.data || [] : b.records || []);
     setChanges(c.records || []);
     setForecast((f.results || []).map((x: any) => ({ ...x })));
     setTotals(f.totals || { totalSalary:0,totalBonus:0,totalGross:0,totalNet:0,totalTax:0 });
@@ -170,13 +171,37 @@ export default function IncomePage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="border-b"><th className="text-left py-2">月份</th><th className="text-left py-2">税前</th><th className="text-left py-2">税后</th><th className="text-left py-2">标注</th></tr></thead>
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">月份</th>
+                  <th className="text-left py-2">税前总收入</th>
+                  <th className="text-left py-2">累计总收入</th>
+                  <th className="text-left py-2">社保</th>
+                  <th className="text-left py-2">税</th>
+                  <th className="text-left py-2">税后总收入</th>
+                  <th className="text-left py-2">工资</th>
+                  <th className="text-left py-2">奖金</th>
+                  <th className="text-left py-2">适用税率</th>
+                  <th className="text-left py-2">备注</th>
+                </tr>
+              </thead>
               <tbody>
                 {forecast.map((r:any)=> (
                   <tr key={r.month} className="border-b">
                     <td className="py-2">{r.ym || `${new Date().getFullYear()}-${String(r.month).padStart(2, "0")}`}</td>
-                    <td className="py-2">¥{Number(r.grossThisMonth||0).toLocaleString()}</td>
-                    <td className="py-2">¥{Number(r.net||0).toLocaleString()}</td>
+                    <td className="py-2 font-semibold">¥{Number(r.grossThisMonth||0).toLocaleString()}</td>
+                    <td className="py-2">¥{Number(r.cumulativeIncome||0).toLocaleString()}</td>
+                    <td className="py-2 text-blue-600">¥{Number(r.totalDeductionsThisMonth||0).toLocaleString()}</td>
+                    <td className="py-2 text-red-600">¥{Number(r.taxThisMonth||0).toLocaleString()}</td>
+                    <td className="py-2 font-semibold text-green-600">¥{Number(r.net||0).toLocaleString()}</td>
+                    <td className="py-2">¥{Number(r.salaryThisMonth||0).toLocaleString()}</td>
+                    <td className="py-2 font-medium text-orange-600">
+                      {r.bonusThisMonth && Number(r.bonusThisMonth) > 0 
+                        ? `¥${Number(r.bonusThisMonth).toLocaleString()}`
+                        : "-"
+                      }
+                    </td>
+                    <td className="py-2">{r.appliedTaxRate != null ? `${Number(r.appliedTaxRate).toFixed(2)}%` : "-"}</td>
                     <td className="py-2 text-sm text-gray-600">{[r.markers?.salaryChange?"工资变动":null, r.markers?.bonusPaid?"奖金":null, r.markers?.taxChange?"税务调整":null].filter(Boolean).join(" / ")||"-"}</td>
                   </tr>
                 ))}
@@ -193,8 +218,8 @@ export default function IncomePage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="taxBefore" name="税前" fill="#8884d8" />
-                  <Bar dataKey="taxAfter" name="税后" fill="#82ca9d" />
+                  <Bar dataKey="taxBefore" name="税前总收入" fill="#8884d8" />
+                  <Bar dataKey="taxAfter" name="税后总收入" fill="#82ca9d" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -206,8 +231,8 @@ export default function IncomePage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="cumBefore" name="累计税前" stroke="#8884d8" />
-                  <Line type="monotone" dataKey="cumAfter" name="累计税后" stroke="#82ca9d" />
+                  <Line type="monotone" dataKey="cumBefore" name="累计税前收入" stroke="#8884d8" />
+                  <Line type="monotone" dataKey="cumAfter" name="累计税后收入" stroke="#82ca9d" />
                 </LineChart>
               </ResponsiveContainer>
             </div>

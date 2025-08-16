@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  calcMonthlyWithholdingCumulative,
-  normalizeTaxParamsValue,
-  TaxParams,
-} from "@/lib/tax";
+import { getCurrentUser } from "@/lib/session";
+import { createTaxService } from "@/lib/tax";
 import { ZodError } from "zod";
 import { fetchHangzhouParams } from "@/lib/sources/hz-params";
 
@@ -30,89 +27,53 @@ function iterateMonths(
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const city = searchParams.get("city") || "Hangzhou";
-  const startYM = searchParams.get("start");
-  const endYM = searchParams.get("end");
-  const year = Number(searchParams.get("year"));
-  const horizon = Number(searchParams.get("months") || "12");
-  if (!year && !(startYM && endYM))
-    return NextResponse.json(
-      { error: "year or start/end required" },
-      { status: 400 }
-    );
-  const user = await prisma.user.findFirst();
-  if (!user) return NextResponse.json({ results: [] });
-
-  // 时间范围
-  let rangeStart: Date;
-  let rangeEnd: Date;
-  if (startYM && endYM) {
-    rangeStart = new Date(
-      Number(startYM.slice(0, 4)),
-      Number(startYM.slice(5, 7)) - 1,
-      1
-    );
-    rangeEnd = ymToDateEnd(endYM);
-  } else {
-    const y = year || new Date().getFullYear();
-    rangeStart = new Date(y, 0, 1);
-    rangeEnd = new Date(y, Math.min(11, horizon - 1), 0);
-  }
-
-  const [changes, bonuses] = await Promise.all([
-    prisma.incomeChange.findMany({
-      where: { userId: user.id, city, effectiveFrom: { lte: rangeEnd } },
-      orderBy: { effectiveFrom: "asc" },
-    }),
-    prisma.bonusPlan.findMany({
-      where: {
-        userId: user.id,
-        city,
-        effectiveDate: { gte: rangeStart, lte: rangeEnd },
-      },
-      orderBy: { effectiveDate: "asc" },
-    }),
-  ]);
-
-  async function paramsForMonth(
-    y: number,
-    m: number
-  ): Promise<TaxParams | null> {
-    const yearKey = `tax:${city}:${y}`;
-    let records = await prisma.config.findMany({
-      where: { key: yearKey },
-      orderBy: { effectiveFrom: "asc" },
-    });
-    // 若没有该年的记录：尝试自动引导（杭州）
-    if (!records.length && city === "Hangzhou") {
-      const params = await fetchHangzhouParams({ year: y, city });
-      await prisma.config.create({
-        data: {
-          key: yearKey,
-          value: JSON.stringify(params),
-          effectiveFrom: new Date(`${y}-01-01`),
-        },
-      });
-      records = await prisma.config.findMany({
-        where: { key: yearKey },
-        orderBy: { effectiveFrom: "asc" },
-      });
-    }
-    const monthEnd = new Date(y, m, 0).getTime();
-    let pick: any = null;
-    for (const r of records) {
-      if (r.effectiveFrom.getTime() <= monthEnd) pick = r;
-    }
-    if (!pick) return null;
-    try {
-      return normalizeTaxParamsValue(pick.value as string);
-    } catch {
-      return null;
-    }
-  }
-
   try {
+    const userId = await getCurrentUser(req);
+    const { searchParams } = new URL(req.url);
+    const city = searchParams.get("city") || "Hangzhou";
+    const startYM = searchParams.get("start");
+    const endYM = searchParams.get("end");
+    const year = Number(searchParams.get("year"));
+    const horizon = Number(searchParams.get("months") || "12");
+    if (!year && !(startYM && endYM))
+      return NextResponse.json(
+        { error: "year or start/end required" },
+        { status: 400 }
+      );
+
+    // 时间范围
+    let rangeStart: Date;
+    let rangeEnd: Date;
+    if (startYM && endYM) {
+      rangeStart = new Date(
+        Number(startYM.slice(0, 4)),
+        Number(startYM.slice(5, 7)) - 1,
+        1
+      );
+      rangeEnd = ymToDateEnd(endYM);
+    } else {
+      const y = year || new Date().getFullYear();
+      rangeStart = new Date(y, 0, 1);
+      rangeEnd = new Date(y, Math.min(11, horizon - 1), 0);
+    }
+
+    const [changes, bonuses] = await Promise.all([
+      prisma.incomeChange.findMany({
+        where: { userId, city, effectiveFrom: { lte: rangeEnd } },
+        orderBy: { effectiveFrom: "asc" },
+      }),
+      prisma.bonusPlan.findMany({
+        where: {
+          userId,
+          city,
+          effectiveDate: { gte: rangeStart, lte: rangeEnd },
+        },
+        orderBy: { effectiveDate: "asc" },
+      }),
+    ]);
+
+    const taxService = createTaxService(prisma);
+
     const months = iterateMonths(rangeStart, rangeEnd);
     function grossForMonth(y: number, m: number): number {
       const end = new Date(y, m, 0).getTime();
@@ -130,22 +91,26 @@ export async function GET(req: NextRequest) {
       }
       return s || undefined;
     }
-    const monthParams: (TaxParams | null)[] = [];
-    for (const it of months) monthParams.push(await paramsForMonth(it.y, it.m));
-    if (monthParams.some((p) => p == null))
-      return NextResponse.json(
-        { error: "tax params missing for some months" },
-        { status: 400 }
-      );
-    const base = monthParams[0]!;
-    const inputs = months.map((it, idx) => ({
-      month: it.m,
-      gross: grossForMonth(it.y, it.m),
-      bonus: bonusForMonth(it.y, it.m),
-      overrides: monthParams[idx] || undefined,
-    }));
-    const results = calcMonthlyWithholdingCumulative(inputs, base, {
-      mergeBonusIntoComprehensive: true,
+    // 方案B：调用服务层计算累计预扣
+    // 自动导入杭州配置（若缺失）
+    for (const it of months) {
+      const cfg = await taxService.getCurrentTaxConfig(city, it.endDate);
+      if (
+        (!cfg?.taxBrackets?.length || !cfg?.socialInsurance) &&
+        city === "Hangzhou"
+      ) {
+        const params = await fetchHangzhouParams({ year: it.y, city });
+        await taxService.importHangzhouParams(params);
+      }
+    }
+    const results = await taxService.calculateForecastWithholdingCumulative({
+      city,
+      months: months.map((it) => ({
+        year: it.y,
+        month: it.m,
+        gross: grossForMonth(it.y, it.m),
+        bonus: bonusForMonth(it.y, it.m) || 0,
+      })),
     });
     const changeMonths = new Set(
       changes.map(
@@ -160,14 +125,16 @@ export async function GET(req: NextRequest) {
       )
     );
     const taxMonths = new Set(
-      months
-        .filter(
-          (_, i) =>
-            i > 0 &&
-            JSON.stringify(monthParams[i]!.brackets) !==
-              JSON.stringify(monthParams[i - 1]!.brackets)
+      results
+        .map((r, i, arr) =>
+          i === 0 ? null : arr[i - 1].paramsSig !== r.paramsSig ? r.ym : null
         )
-        .map((it) => it.y * 100 + it.m)
+        .filter(Boolean)
+        .map(
+          (ym) =>
+            Number(String(ym).slice(0, 4)) * 100 +
+            Number(String(ym).slice(5, 7))
+        )
     );
     const annotated = results.map((r, i) => ({
       ...r,
@@ -177,8 +144,8 @@ export async function GET(req: NextRequest) {
         taxChange: taxMonths.has(months[i].y * 100 + months[i].m),
       },
       ym: `${months[i].y}-${String(months[i].m).padStart(2, "0")}`,
-      salaryThisMonth: inputs[i].gross || 0,
-      bonusThisMonth: inputs[i].bonus || 0,
+      salaryThisMonth: grossForMonth(months[i].y, months[i].m) || 0,
+      bonusThisMonth: bonusForMonth(months[i].y, months[i].m) || 0,
     }));
     // 汇总
     const totals = annotated.reduce(
@@ -194,6 +161,10 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json({ results: annotated, totals });
   } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("Unauthorized")) {
+      return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    }
+
     if (err instanceof ZodError) {
       return NextResponse.json(
         { error: "invalid tax params shape", issues: err.issues },

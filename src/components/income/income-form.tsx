@@ -19,18 +19,22 @@ interface IncomeRecord {
 
 export default function IncomeForm() {
   const { data: session } = useSession();
+  
+  // 共同状态
   const [city, setCity] = useState("Hangzhou");
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [gross, setGross] = useState(20000);
-  const [bonus, setBonus] = useState(0);
-  const [bonusDate, setBonusDate] = useState<string>(new Date().toISOString().slice(0,10));
-  const [forecast, setForecast] = useState<IncomeRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
+  // 工资变化表单状态
+  const [salaryGross, setSalaryGross] = useState(20000);
+  const [salaryEffectiveDate, setSalaryEffectiveDate] = useState<string>(new Date().toISOString().slice(0,10));
+  
+  // 奖金收入表单状态
+  const [bonusAmount, setBonusAmount] = useState(0);
+  const [bonusEffectiveDate, setBonusEffectiveDate] = useState<string>(new Date().toISOString().slice(0,10));
 
-  async function submit() {
+  async function submitSalaryChange() {
     if (!session) return;
     
     setLoading(true);
@@ -38,29 +42,25 @@ export default function IncomeForm() {
     setSuccess("");
 
     try {
-      // 保存收入记录
-      const response = await fetch("/api/income/monthly", {
+      const response = await fetch("/api/income/changes", {
         method: "POST",
-        body: JSON.stringify({ city, year, month, gross, bonus }),
+        body: JSON.stringify({ 
+          city, 
+          grossMonthly: salaryGross,
+          effectiveFrom: salaryEffectiveDate
+        }),
         headers: { "Content-Type": "application/json" },
       });
 
       const data = await response.json();
 
-      if (!data.success) {
-        setError(data.error?.message || "保存失败");
+      if (data.error) {
+        setError(data.error || "保存工资变更失败");
         return;
       }
 
-      setSuccess("收入记录保存成功");
-      
-      // 获取预测结果
-      const forecastResponse = await fetch(`/api/income/forecast?city=${city}&year=${year}`);
-      const forecastData = await forecastResponse.json();
-      
-      if (forecastData.success) {
-        setForecast(forecastData.data?.results || []);
-      }
+      setSuccess("工资变更记录保存成功");
+      setSalaryGross(20000); // 重置表单
 
       // 通知其他组件刷新
       if (typeof window !== "undefined") {
@@ -68,14 +68,14 @@ export default function IncomeForm() {
       }
 
     } catch (error) {
-      console.error("Error saving income:", error);
+      console.error("Error saving salary change:", error);
       setError("网络错误，请稍后重试");
     } finally {
       setLoading(false);
     }
   }
 
-  async function addBonus() {
+  async function submitBonusPlan() {
     if (!session) return;
     
     setLoading(true);
@@ -88,8 +88,8 @@ export default function IncomeForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           city, 
-          amount: bonus, 
-          effectiveDate: bonusDate 
+          amount: bonusAmount, 
+          effectiveDate: bonusEffectiveDate 
         }),
       });
 
@@ -101,7 +101,7 @@ export default function IncomeForm() {
       }
 
       setSuccess("奖金计划添加成功");
-      setBonus(0); // 重置奖金输入
+      setBonusAmount(0); // 重置奖金输入
 
       // 通知其他组件刷新
       if (typeof window !== "undefined") {
@@ -128,131 +128,117 @@ export default function IncomeForm() {
 
   return (
     <div className="space-y-6">
+      {/* 全局消息提示 */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+          {success}
+        </div>
+      )}
+
+      {/* 全局城市设置 */}
       <Card>
         <CardHeader>
-          <CardTitle>收入录入</CardTitle>
+          <CardTitle>基本设置</CardTitle>
         </CardHeader>
         <CardContent>
-          {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
-          
-          {success && (
-            <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-              {success}
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="city">城市</Label>
+            <Input
+              id="city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="请输入城市"
+              className="max-w-xs"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* 工资变化表单 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>工资变化</CardTitle>
+          <p className="text-sm text-gray-600">记录月薪变化，用于收入预测计算</p>
+        </CardHeader>
+        <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="city">城市</Label>
+              <Label htmlFor="salaryGross">月薪 (元)</Label>
               <Input
-                id="city"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="请输入城市"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="year">年份</Label>
-              <Input
-                id="year"
+                id="salaryGross"
                 type="number"
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
+                value={salaryGross}
+                onChange={(e) => setSalaryGross(Number(e.target.value))}
+                placeholder="请输入月薪"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="month">月份</Label>
-              <Input
-                id="month"
-                type="number"
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-                min="1"
-                max="12"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="gross">税前收入 (元)</Label>
-              <Input
-                id="gross"
-                type="number"
-                value={gross}
-                onChange={(e) => setGross(Number(e.target.value))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bonus">奖金 (元)</Label>
-              <Input
-                id="bonus"
-                type="number"
-                value={bonus}
-                onChange={(e) => setBonus(Number(e.target.value))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bonusDate">奖金发放日</Label>
+              <Label htmlFor="salaryEffectiveDate">生效日期</Label>
               <Input 
-                id="bonusDate" 
+                id="salaryEffectiveDate" 
                 type="date" 
-                value={bonusDate} 
-                onChange={(e)=> setBonusDate(e.target.value)} 
+                value={salaryEffectiveDate} 
+                onChange={(e)=> setSalaryEffectiveDate(e.target.value)} 
               />
             </div>
           </div>
           
-          <div className="mt-6 flex gap-4">
-            <Button onClick={submit} disabled={loading}>
-              {loading ? "保存中..." : "保存收入记录"}
-            </Button>
-            
+          <div className="mt-6">
             <Button 
-              variant="outline" 
-              onClick={addBonus} 
-              disabled={loading || !bonus || !bonusDate}
+              onClick={submitSalaryChange} 
+              disabled={loading || !salaryGross}
+            >
+              {loading ? "保存中..." : "保存工资变更"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 奖金收入表单 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>奖金收入</CardTitle>
+          <p className="text-sm text-gray-600">添加奖金计划，系统将在预测中自动计算相关税费</p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="bonusAmount">奖金金额 (元)</Label>
+              <Input
+                id="bonusAmount"
+                type="number"
+                value={bonusAmount}
+                onChange={(e) => setBonusAmount(Number(e.target.value))}
+                placeholder="请输入奖金金额"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bonusEffectiveDate">发放日期</Label>
+              <Input 
+                id="bonusEffectiveDate" 
+                type="date" 
+                value={bonusEffectiveDate} 
+                onChange={(e)=> setBonusEffectiveDate(e.target.value)} 
+              />
+            </div>
+          </div>
+          
+          <div className="mt-6">
+            <Button 
+              onClick={submitBonusPlan} 
+              disabled={loading || !bonusAmount}
             >
               {loading ? "添加中..." : "添加奖金计划"}
             </Button>
           </div>
         </CardContent>
       </Card>
-
-      {forecast.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>累计预扣结果</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">月份</th>
-                    <th className="text-left py-2">累计应税</th>
-                    <th className="text-left py-2">本月税额</th>
-                    <th className="text-left py-2">累计税额</th>
-                    <th className="text-left py-2">税后收入</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {forecast.map((r) => (
-                    <tr key={r.month} className="border-b">
-                      <td className="py-2">{r.month}</td>
-                      <td className="py-2">¥{r.taxableCumulative.toLocaleString()}</td>
-                      <td className="py-2">¥{r.taxThisMonth.toLocaleString()}</td>
-                      <td className="py-2">¥{r.taxDueCumulative.toLocaleString()}</td>
-                      <td className="py-2">¥{r.net.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

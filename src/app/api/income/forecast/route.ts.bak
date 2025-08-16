@@ -1,0 +1,226 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import {
+  calcMonthlyWithholdingCumulative,
+  TaxParams,
+  createTaxService,
+} from "@/lib/tax";
+import { ZodError } from "zod";
+import { fetchHangzhouParams } from "@/lib/sources/hz-params";
+
+function ymToDateEnd(ym: string): Date {
+  const [y, m] = ym.split("-").map((n) => Number(n));
+  return new Date(y, m, 0);
+}
+
+function iterateMonths(
+  start: Date,
+  end: Date
+): { y: number; m: number; endDate: Date }[] {
+  const res: { y: number; m: number; endDate: Date }[] = [];
+  const d = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endKey = end.getFullYear() * 100 + end.getMonth();
+  while (d.getFullYear() * 100 + d.getMonth() <= endKey) {
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    res.push({ y, m, endDate: new Date(y, m, 0) });
+    d.setMonth(d.getMonth() + 1);
+  }
+  return res;
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const city = searchParams.get("city") || "Hangzhou";
+  const startYM = searchParams.get("start");
+  const endYM = searchParams.get("end");
+  const year = Number(searchParams.get("year"));
+  const horizon = Number(searchParams.get("months") || "12");
+  if (!year && !(startYM && endYM))
+    return NextResponse.json(
+      { error: "year or start/end required" },
+      { status: 400 }
+    );
+  const user = await prisma.user.findFirst();
+  if (!user) return NextResponse.json({ results: [] });
+
+  // 时间范围
+  let rangeStart: Date;
+  let rangeEnd: Date;
+  if (startYM && endYM) {
+    rangeStart = new Date(
+      Number(startYM.slice(0, 4)),
+      Number(startYM.slice(5, 7)) - 1,
+      1
+    );
+    rangeEnd = ymToDateEnd(endYM);
+  } else {
+    const y = year || new Date().getFullYear();
+    rangeStart = new Date(y, 0, 1);
+    rangeEnd = new Date(y, Math.min(11, horizon - 1), 0);
+  }
+
+  const [changes, bonuses] = await Promise.all([
+    prisma.incomeChange.findMany({
+      where: { userId: user.id, city, effectiveFrom: { lte: rangeEnd } },
+      orderBy: { effectiveFrom: "asc" },
+    }),
+    prisma.bonusPlan.findMany({
+      where: {
+        userId: user.id,
+        city,
+        effectiveDate: { gte: rangeStart, lte: rangeEnd },
+      },
+      orderBy: { effectiveDate: "asc" },
+    }),
+  ]);
+
+  async function paramsForMonth(
+    y: number,
+    m: number
+  ): Promise<TaxParams | null> {
+    const taxService = createTaxService(prisma);
+    const asOf = new Date(y, m, 0);
+    // 从新税务系统按月份查询有效配置
+    let current = await taxService.getCurrentTaxConfig(city, asOf);
+
+    // 若缺失则对杭州尝试自动引导，导入当年参数
+    if (
+      (!current?.taxBrackets?.length || !current?.socialInsurance) &&
+      city === "Hangzhou"
+    ) {
+      const params = await fetchHangzhouParams({ year: y, city });
+      await taxService.importHangzhouParams(params);
+      current = await taxService.getCurrentTaxConfig(city, asOf);
+    }
+
+    if (!current?.taxBrackets?.length || !current?.socialInsurance) return null;
+
+    // 构造旧计算器所需的 TaxParams 结构（按累计预扣口径，阈值为年度累计应税所得额）
+    const tp: TaxParams = {
+      city,
+      year: y,
+      monthlyBasicDeduction: 5000,
+      brackets: current.taxBrackets
+        .map((b: any) => ({
+          threshold: Number(b.minIncome),
+          rate: Number(b.taxRate),
+          quickDeduction: Number(b.quickDeduction),
+        }))
+        .sort((a: any, b: any) => a.threshold - b.threshold),
+      sihfRates: {
+        pension: Number(current.socialInsurance.pensionRate),
+        medical: Number(current.socialInsurance.medicalRate),
+        unemployment: Number(current.socialInsurance.unemploymentRate),
+      },
+      sihfBase: {
+        min: Number(current.socialInsurance.socialMinBase),
+        max: Number(current.socialInsurance.socialMaxBase),
+      },
+      housingFund: {
+        rate: Number(current.socialInsurance.housingFundRate),
+        baseMin: Number(current.socialInsurance.housingFundMinBase),
+        baseMax: Number(current.socialInsurance.housingFundMaxBase),
+      },
+      specialDeductions: {},
+    };
+
+    return tp;
+  }
+
+  try {
+    const months = iterateMonths(rangeStart, rangeEnd);
+    function grossForMonth(y: number, m: number): number {
+      const end = new Date(y, m, 0).getTime();
+      let g = 0;
+      for (const c of changes)
+        if (c.effectiveFrom.getTime() <= end) g = Number(c.grossMonthly);
+      return g;
+    }
+    function bonusForMonth(y: number, m: number): number | undefined {
+      let s = 0;
+      for (const b of bonuses) {
+        const d = b.effectiveDate;
+        if (d.getFullYear() === y && d.getMonth() + 1 === m)
+          s += Number(b.amount);
+      }
+      return s || undefined;
+    }
+    const monthParams: (TaxParams | null)[] = [];
+    for (const it of months) monthParams.push(await paramsForMonth(it.y, it.m));
+    if (monthParams.some((p) => p == null))
+      return NextResponse.json(
+        { error: "tax params missing for some months" },
+        { status: 400 }
+      );
+    const base = monthParams[0]!;
+    const inputs = months.map((it, idx) => ({
+      month: it.m,
+      gross: grossForMonth(it.y, it.m),
+      bonus: bonusForMonth(it.y, it.m),
+      overrides: monthParams[idx] || undefined,
+    }));
+    const results = calcMonthlyWithholdingCumulative(inputs, base, {
+      mergeBonusIntoComprehensive: true,
+    });
+    const changeMonths = new Set(
+      changes.map(
+        (c) =>
+          c.effectiveFrom.getFullYear() * 100 + (c.effectiveFrom.getMonth() + 1)
+      )
+    );
+    const bonusMonths = new Set(
+      bonuses.map(
+        (b) =>
+          b.effectiveDate.getFullYear() * 100 + (b.effectiveDate.getMonth() + 1)
+      )
+    );
+    const taxMonths = new Set(
+      months
+        .filter((_, i) => {
+          if (i === 0) return false;
+          const a = monthParams[i]!.brackets.map(
+            (b) => `${b.threshold}-${b.rate}-${b.quickDeduction}`
+          ).join("|");
+          const b = monthParams[i - 1]!.brackets.map(
+            (b) => `${b.threshold}-${b.rate}-${b.quickDeduction}`
+          ).join("|");
+          return a !== b;
+        })
+        .map((it) => it.y * 100 + it.m)
+    );
+    const annotated = results.map((r, i) => ({
+      ...r,
+      markers: {
+        salaryChange: changeMonths.has(months[i].y * 100 + months[i].m),
+        bonusPaid: bonusMonths.has(months[i].y * 100 + months[i].m),
+        taxChange: taxMonths.has(months[i].y * 100 + months[i].m),
+      },
+      ym: `${months[i].y}-${String(months[i].m).padStart(2, "0")}`,
+      salaryThisMonth: inputs[i].gross || 0,
+      bonusThisMonth: inputs[i].bonus || 0,
+    }));
+    // 汇总
+    const totals = annotated.reduce(
+      (acc: any, x: any) => {
+        acc.totalSalary += Number(x.salaryThisMonth || 0);
+        acc.totalBonus += Number(x.bonusThisMonth || 0);
+        acc.totalGross += Number(x.grossThisMonth || 0);
+        acc.totalNet += Number(x.net || 0);
+        acc.totalTax += Number(x.taxThisMonth || 0);
+        return acc;
+      },
+      { totalSalary: 0, totalBonus: 0, totalGross: 0, totalNet: 0, totalTax: 0 }
+    );
+    return NextResponse.json({ results: annotated, totals });
+  } catch (err: unknown) {
+    if (err instanceof ZodError) {
+      return NextResponse.json(
+        { error: "invalid tax params shape", issues: err.issues },
+        { status: 400 }
+      );
+    }
+    console.error("/api/income/forecast parse error", err);
+    return NextResponse.json({ error: "internal error" }, { status: 500 });
+  }
+}
