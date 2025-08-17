@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatCurrencyWithSeparator } from "@/lib/currency";
 
 interface IncomeRecord {
   month: number;
@@ -22,6 +30,7 @@ export default function IncomeForm() {
   
   // 共同状态
   const [city, setCity] = useState("Hangzhou");
+  const [cities, setCities] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -33,6 +42,24 @@ export default function IncomeForm() {
   // 奖金收入表单状态
   const [bonusAmount, setBonusAmount] = useState(0);
   const [bonusEffectiveDate, setBonusEffectiveDate] = useState<string>(new Date().toISOString().slice(0,10));
+
+  // 获取有税务信息的城市列表
+  useEffect(() => {
+    async function loadCities() {
+      try {
+        const response = await fetch("/api/config/tax-params/cities");
+        const data = await response.json();
+        if (data.cities && data.cities.length > 0) {
+          setCities(data.cities);
+        }
+      } catch (err) {
+        console.error("Failed to load cities:", err);
+        // Fallback to default cities if API fails
+        setCities(["Hangzhou", "Shanghai", "Beijing", "Shenzhen"]);
+      }
+    }
+    loadCities();
+  }, []);
 
   async function submitSalaryChange() {
     if (!session) return;
@@ -149,96 +176,104 @@ export default function IncomeForm() {
         <CardContent>
           <div className="space-y-2">
             <Label htmlFor="city">城市</Label>
-            <Input
-              id="city"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="请输入城市"
-              className="max-w-xs"
-            />
+            <Select value={city} onValueChange={setCity}>
+              <SelectTrigger className="max-w-xs">
+                <SelectValue placeholder="选择城市" />
+              </SelectTrigger>
+              <SelectContent>
+                {cities.map((cityName) => (
+                  <SelectItem key={cityName} value={cityName}>
+                    {cityName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
-      {/* 工资变化表单 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>工资变化</CardTitle>
-          <p className="text-sm text-gray-600">记录月薪变化，用于收入预测计算</p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="salaryGross">月薪 (元)</Label>
-              <Input
-                id="salaryGross"
-                type="number"
-                value={salaryGross}
-                onChange={(e) => setSalaryGross(Number(e.target.value))}
-                placeholder="请输入月薪"
-              />
+      {/* 工资变化和奖金收入卡片容器 - 响应式布局 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 工资变化表单 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>工资变化</CardTitle>
+            <p className="text-sm text-gray-600">记录月薪变化，用于收入预测计算</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="salaryGross">月薪 (元)</Label>
+                <Input
+                  id="salaryGross"
+                  type="number"
+                  value={salaryGross}
+                  onChange={(e) => setSalaryGross(Number(e.target.value))}
+                  placeholder="请输入月薪"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="salaryEffectiveDate">生效日期</Label>
+                <Input 
+                  id="salaryEffectiveDate" 
+                  type="date" 
+                  value={salaryEffectiveDate} 
+                  onChange={(e)=> setSalaryEffectiveDate(e.target.value)} 
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="salaryEffectiveDate">生效日期</Label>
-              <Input 
-                id="salaryEffectiveDate" 
-                type="date" 
-                value={salaryEffectiveDate} 
-                onChange={(e)=> setSalaryEffectiveDate(e.target.value)} 
-              />
+            
+            <div className="mt-6">
+              <Button 
+                onClick={submitSalaryChange} 
+                disabled={loading || !salaryGross}
+              >
+                {loading ? "保存中..." : "保存工资变更"}
+              </Button>
             </div>
-          </div>
-          
-          <div className="mt-6">
-            <Button 
-              onClick={submitSalaryChange} 
-              disabled={loading || !salaryGross}
-            >
-              {loading ? "保存中..." : "保存工资变更"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* 奖金收入表单 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>奖金收入</CardTitle>
-          <p className="text-sm text-gray-600">添加奖金计划，系统将在预测中自动计算相关税费</p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="bonusAmount">奖金金额 (元)</Label>
-              <Input
-                id="bonusAmount"
-                type="number"
-                value={bonusAmount}
-                onChange={(e) => setBonusAmount(Number(e.target.value))}
-                placeholder="请输入奖金金额"
-              />
+        {/* 奖金收入表单 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>奖金收入</CardTitle>
+            <p className="text-sm text-gray-600">添加奖金计划，系统将在预测中自动计算相关税费</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="bonusAmount">奖金金额 (元)</Label>
+                <Input
+                  id="bonusAmount"
+                  type="number"
+                  value={bonusAmount}
+                  onChange={(e) => setBonusAmount(Number(e.target.value))}
+                  placeholder="请输入奖金金额"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bonusEffectiveDate">发放日期</Label>
+                <Input 
+                  id="bonusEffectiveDate" 
+                  type="date" 
+                  value={bonusEffectiveDate} 
+                  onChange={(e)=> setBonusEffectiveDate(e.target.value)} 
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="bonusEffectiveDate">发放日期</Label>
-              <Input 
-                id="bonusEffectiveDate" 
-                type="date" 
-                value={bonusEffectiveDate} 
-                onChange={(e)=> setBonusEffectiveDate(e.target.value)} 
-              />
+            
+            <div className="mt-6">
+              <Button 
+                onClick={submitBonusPlan} 
+                disabled={loading || !bonusAmount}
+              >
+                {loading ? "添加中..." : "添加奖金计划"}
+              </Button>
             </div>
-          </div>
-          
-          <div className="mt-6">
-            <Button 
-              onClick={submitBonusPlan} 
-              disabled={loading || !bonusAmount}
-            >
-              {loading ? "添加中..." : "添加奖金计划"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

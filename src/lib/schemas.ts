@@ -35,15 +35,10 @@ export const accountCreateResponse = z.object({ id: z.string() });
 
 export const transactionCreateRequest = z.object({
   accountId: z.string().uuid(),
-  type: z.string(),
+  type: z.enum(["DEPOSIT", "WITHDRAW", "TRANSFER_IN", "TRANSFER_OUT"]),
   tradeDate: z.string(),
-  instrumentSymbol: z.string().optional(),
-  quantity: z.number().optional(),
-  price: z.number().optional(),
-  cashAmount: z.number().optional(),
-  currency: z.string(),
-  fee: z.number().optional(),
-  tax: z.number().optional(),
+  cashAmount: z.number(),
+  currency: z.string().default("CNY"),
   note: z.string().optional(),
 });
 

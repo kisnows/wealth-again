@@ -155,11 +155,7 @@ export class TaxService {
     const ordered = [...args.months].sort((a, b) =>
       a.year === b.year ? a.month - b.month : a.year - b.year
     );
-    let cumulativeGross = 0;
-    let cumulativeSIHF = 0;
-    const monthlyBasicDeduction = 5000;
-    let cumulativeTaxed = 0;
-
+    
     const results: Array<{
       month: number;
       ym: string;
@@ -174,73 +170,118 @@ export class TaxService {
       paramsSig: string;
     }> = [];
 
-    for (let i = 0; i < ordered.length; i++) {
-      const { year, month, gross, bonus = 0 } = ordered[i];
-      const asOf = new Date(year, month, 0);
-
-      // 读取当月配置
-      const taxBrackets = await this.repository.getTaxBrackets(args.city, asOf);
-      const socialConfig = await this.repository.getSocialInsuranceConfig(
-        args.city,
-        asOf
-      );
-      if (taxBrackets.length === 0 || !socialConfig) {
-        throw new Error(
-          `缺少 ${args.city} 在 ${year}-${month} 的税务或社保配置`
-        );
+    // 按年份分组处理
+    const groupedByYear: Record<number, typeof ordered> = {};
+    for (const item of ordered) {
+      if (!groupedByYear[item.year]) {
+        groupedByYear[item.year] = [];
       }
-
-      const taxCalc = new TaxCalculator(taxBrackets);
-      const socialCalc = new SocialInsuranceCalculator(socialConfig);
-
-      // 社保/公积金仅按工资计提
-      const si = socialCalc.calculateSocialInsurance(gross, undefined);
-      const hf = socialCalc.calculateHousingFund(gross, undefined);
-      const sihfThisMonth = si.total + hf.amount;
-
-      // 累计口径数据
-      const monthGross = gross + bonus;
-      cumulativeGross += monthGross;
-      cumulativeSIHF += sihfThisMonth;
-      const monthsElapsed = i + 1;
-      const taxableCumulative = Math.max(
-        0,
-        cumulativeGross - cumulativeSIHF - monthlyBasicDeduction * monthsElapsed
-      );
-      const calc = taxCalc.calculateTax(taxableCumulative);
-      const taxDueCumulative = calc.tax;
-      // 累计预扣：当期应预扣=累计应纳税额-累计已预扣；若为负则当期不预扣，负数结转后续抵减
-      const delta = taxDueCumulative - cumulativeTaxed;
-      const taxThisMonth = Math.max(0, delta);
-      // 当累计应纳税额下降（delta<0）时，不显示负税，但将累计已预扣基线同步到“当前应缴”
-      // 这样后续月份在新配置下会重新累计，而不会长时间为 0
-      cumulativeTaxed = Math.min(
-        taxDueCumulative,
-        cumulativeTaxed + taxThisMonth
-      );
-
-      const net = monthGross - sihfThisMonth - taxThisMonth;
-
-      const paramsSig = taxBrackets
-        .map((b) => `${b.minIncome}-${b.taxRate}-${b.quickDeduction}`)
-        .join("|");
-
-      results.push({
-        month,
-        ym: `${year}-${String(month).padStart(2, "0")}`,
-        grossThisMonth: round2(monthGross),
-        cumulativeIncome: round2(cumulativeGross),
-        socialInsuranceThisMonth: round2(si.total),
-        housingFundThisMonth: round2(hf.amount),
-        totalDeductionsThisMonth: round2(sihfThisMonth),
-        taxThisMonth: round2(taxThisMonth),
-        net: round2(net),
-        appliedTaxRate: round2(calc.bracket.taxRate * 100),
-        paramsSig,
-      });
+      groupedByYear[item.year].push(item);
     }
 
-    return results;
+    // 处理每一年的数据
+    for (const year of Object.keys(groupedByYear).map(Number).sort()) {
+      const monthsInYear = groupedByYear[year];
+      
+      // 为了正确计算税率，我们需要从1月开始计算到目标月份
+      // 获取从1月到目标月份的所有月份数据
+      const allMonthsForYear = [];
+      for (let m = 1; m <= 12; m++) {
+        const monthData = monthsInYear.find(item => item.month === m) || { 
+          year, 
+          month: m, 
+          gross: 0, 
+          bonus: 0 
+        };
+        allMonthsForYear.push(monthData);
+      }
+
+      // 先计算从1月到每个目标月份的累计值
+      let cumulativeGross = 0;
+      let cumulativeSIHF = 0;
+      const monthlyBasicDeduction = 5000;
+      let cumulativeTaxed = 0;
+      
+      const cumulativeResults: Record<number, any> = {};
+      for (let i = 0; i < allMonthsForYear.length; i++) {
+        const { year, month, gross, bonus = 0 } = allMonthsForYear[i];
+        const asOf = new Date(year, month, 0);
+
+        // 读取当月配置
+        const taxBrackets = await this.repository.getTaxBrackets(args.city, asOf);
+        const socialConfig = await this.repository.getSocialInsuranceConfig(
+          args.city,
+          asOf
+        );
+        if (taxBrackets.length === 0 || !socialConfig) {
+          throw new Error(
+            `缺少 ${args.city} 在 ${year}-${month} 的税务或社保配置`
+          );
+        }
+
+        const taxCalc = new TaxCalculator(taxBrackets);
+        const socialCalc = new SocialInsuranceCalculator(socialConfig);
+
+        // 社保/公积金仅按工资计提
+        const si = socialCalc.calculateSocialInsurance(gross, undefined);
+        const hf = socialCalc.calculateHousingFund(gross, undefined);
+        const sihfThisMonth = si.total + hf.amount;
+
+        // 累计口径数据
+        const monthGross = gross + bonus;
+        cumulativeGross += monthGross;
+        cumulativeSIHF += sihfThisMonth;
+        const monthsElapsed = i + 1;
+        const taxableCumulative = Math.max(
+          0,
+          cumulativeGross - cumulativeSIHF - monthlyBasicDeduction * monthsElapsed
+        );
+        const calc = taxCalc.calculateTax(taxableCumulative);
+        const taxDueCumulative = calc.tax;
+        // 累计预扣：当期应预扣=累计应纳税额-累计已预扣；若为负则当期不预扣，负数结转后续抵减
+        const delta = taxDueCumulative - cumulativeTaxed;
+        const taxThisMonth = Math.max(0, delta);
+        // 当累计应纳税额下降（delta<0）时，不显示负税，但将累计已预扣基线同步到"当前应缴"
+        // 这样后续月份在新配置下会重新累计，而不会长时间为 0
+        cumulativeTaxed = Math.min(
+          taxDueCumulative,
+          cumulativeTaxed + taxThisMonth
+        );
+
+        const net = monthGross - sihfThisMonth - taxThisMonth;
+
+        const paramsSig = taxBrackets
+          .map((b) => `${b.minIncome}-${b.taxRate}-${b.quickDeduction}`)
+          .join("|");
+
+        cumulativeResults[month] = {
+          month,
+          ym: `${year}-${String(month).padStart(2, "0")}`,
+          grossThisMonth: round2(monthGross),
+          cumulativeIncome: round2(cumulativeGross),
+          socialInsuranceThisMonth: round2(si.total),
+          housingFundThisMonth: round2(hf.amount),
+          totalDeductionsThisMonth: round2(sihfThisMonth),
+          taxThisMonth: round2(taxThisMonth),
+          net: round2(net),
+          appliedTaxRate: round2(calc.bracket.taxRate * 100),
+          paramsSig,
+        };
+      }
+
+      // 只返回请求的月份数据
+      for (const requestedMonth of monthsInYear) {
+        results.push(cumulativeResults[requestedMonth.month]);
+      }
+    }
+
+    // 按原始顺序排序返回结果
+    const resultDict: Record<string, any> = {};
+    for (const result of results) {
+      resultDict[`${result.ym}`] = result;
+    }
+    
+    return ordered.map(item => resultDict[`${item.year}-${String(item.month).padStart(2, "0")}`]);
   }
 
   /**

@@ -9,7 +9,7 @@ const navigation = [
   { name: "仪表板", href: "/dashboard" },
   { name: "收入管理", href: "/income" },
   { name: "投资管理", href: "/investment" },
-  { name: "税务管理", href: "/tax/calculator" },
+  { name: "税务管理", href: "/tax/config" },
   { name: "系统设置", href: "/settings" },
 ];
 
@@ -30,7 +30,7 @@ export default function Navbar() {
               财富管理系统
             </Link>
           </div>
-          
+
           {session && (
             <>
               <nav className="hidden md:flex space-x-8">
@@ -48,7 +48,7 @@ export default function Navbar() {
                   </Link>
                 ))}
               </nav>
-              
+
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-700">
                   欢迎, {session.user?.name || session.user?.email}

@@ -6,6 +6,7 @@ coverage
 *.sqlite*
 dev.db*
 .env
+.env*.local
 playwright-report
 test-results
 /.turbo

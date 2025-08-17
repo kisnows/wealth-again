@@ -6,6 +6,7 @@ import { z } from "zod";
 const schema = z.object({
   name: z.string().min(1, "账户名称不能为空"),
   baseCurrency: z.string().default("CNY"),
+  initialBalance: z.number().default(0), // 添加初始资金字段
 });
 
 export async function POST(req: NextRequest) {
@@ -26,12 +27,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const account = await prisma.account.create({
-      data: { 
-        name: body.name, 
-        baseCurrency: body.baseCurrency, 
-        userId 
-      },
+    // 使用事务创建账户和初始资金记录
+    const account = await prisma.$transaction(async (tx) => {
+      // 创建账户
+      const newAccount = await tx.account.create({
+        data: { 
+          name: body.name, 
+          baseCurrency: body.baseCurrency, 
+          initialBalance: body.initialBalance.toString(), // 保存初始资金
+          userId 
+        },
+      });
+
+      // 如果有初始资金，创建一个快照记录，确保账户概览能正确显示
+      if (body.initialBalance > 0) {
+        const now = new Date();
+        await tx.valuationSnapshot.create({
+          data: {
+            accountId: newAccount.id,
+            asOf: now,
+            totalValue: body.initialBalance.toString(),
+          },
+        });
+      }
+
+      return newAccount;
     });
 
     return NextResponse.json({ 
@@ -147,7 +167,6 @@ export async function DELETE(req: NextRequest) {
     await prisma.$transaction(async (tx) => {
       await tx.transaction.deleteMany({ where: { accountId: id } });
       await tx.valuationSnapshot.deleteMany({ where: { accountId: id } });
-      await tx.lot.deleteMany({ where: { accountId: id } });
       await tx.account.delete({ where: { id } });
     });
 

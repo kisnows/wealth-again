@@ -11,6 +11,7 @@ interface Account {
   id: string;
   name: string;
   baseCurrency: string;
+  initialBalance: string;
   createdAt: string;
   _count: {
     transactions: number;
@@ -22,6 +23,7 @@ export default function AccountManager() {
   const { data: session } = useSession();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [newAccountName, setNewAccountName] = useState("");
+  const [initialBalance, setInitialBalance] = useState(0); // 添加初始资金状态
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
@@ -89,7 +91,11 @@ export default function AccountManager() {
       const res = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newAccountName, baseCurrency: "CNY" }),
+        body: JSON.stringify({ 
+          name: newAccountName, 
+          baseCurrency: "CNY",
+          initialBalance: initialBalance // 添加初始资金
+        }),
       });
       
       const data = await res.json();
@@ -97,6 +103,7 @@ export default function AccountManager() {
       if (data.success) {
         setSuccess("账户创建成功");
         setNewAccountName("");
+        setInitialBalance(0); // 重置初始资金
         await fetchAccounts();
       } else {
         setError(data.error?.message || "创建账户失败");
@@ -138,8 +145,8 @@ export default function AccountManager() {
             </div>
           )}
           
-          <div className="flex gap-2">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               <Label htmlFor="accountName">账户名称</Label>
               <Input
                 id="accountName"
@@ -149,11 +156,21 @@ export default function AccountManager() {
                 onKeyDown={(e) => e.key === "Enter" && createAccount()}
               />
             </div>
-            <div className="self-end">
-              <Button onClick={createAccount} disabled={loading}>
-                {loading ? "创建中..." : "创建账户"}
-              </Button>
+            <div>
+              <Label htmlFor="initialBalance">初始资金</Label>
+              <Input
+                id="initialBalance"
+                type="number"
+                value={initialBalance}
+                onChange={(e) => setInitialBalance(Number(e.target.value))}
+                placeholder="请输入初始资金"
+              />
             </div>
+          </div>
+          <div className="mt-4">
+            <Button onClick={createAccount} disabled={loading}>
+              {loading ? "创建中..." : "创建账户"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -178,6 +195,10 @@ export default function AccountManager() {
                     </div>
                     
                     <div className="space-y-2 mb-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">初始资金：</span>
+                        <span className="font-medium">¥{Number(account.initialBalance || 0).toLocaleString()}</span>
+                      </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">交易记录：</span>
                         <span className="font-medium">{account._count.transactions}</span>

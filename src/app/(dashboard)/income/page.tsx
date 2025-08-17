@@ -16,12 +16,15 @@ import {
   LineChart,
   Line,
 } from "recharts";
+import { formatCurrencyWithSeparator } from "@/lib/currency";
 
 export default function IncomePage() {
   const [bonuses, setBonuses] = useState<any[]>([]);
   const [changes, setChanges] = useState<any[]>([]);
-  const [months, setMonths] = useState(12);
   const [forecast, setForecast] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [startYM, setStartYM] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -36,13 +39,93 @@ export default function IncomePage() {
     const [b, c, f] = await Promise.all([
       fetch(`/api/income/bonus?page=1&pageSize=50`).then((r) => r.json()),
       fetch(`/api/income/changes?page=1&pageSize=50`).then((r) => r.json()),
-      fetch(`/api/income/forecast?start=${startYM}&end=${endYM}`).then((r) => r.json()),
+      fetch(`/api/income/forecast?start=${startYM}&end=${endYM}`).then((r) =>
+        r.json()
+      ),
     ]);
     // 修复奖金API返回结构不一致的问题
     setBonuses(b.success ? b.data || [] : b.records || []);
     setChanges(c.records || []);
     setForecast((f.results || []).map((x: any) => ({ ...x })));
-    setTotals(f.totals || { totalSalary:0,totalBonus:0,totalGross:0,totalNet:0,totalTax:0 });
+    setTotals(
+      f.totals || {
+        totalSalary: 0,
+        totalBonus: 0,
+        totalGross: 0,
+        totalNet: 0,
+        totalTax: 0,
+      }
+    );
+  }
+
+  async function deleteIncomeChange(id: string) {
+    if (!confirm("确定要删除这条工资变更记录吗？")) return;
+
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch(`/api/income/changes?id=${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error?.message || "删除工资变更记录失败");
+        return;
+      }
+
+      setSuccess("工资变更记录删除成功");
+      // 重新加载数据
+      await load();
+
+      // 通知其他组件刷新
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("income:refresh"));
+      }
+    } catch (error) {
+      console.error("Error deleting income change:", error);
+      setError("网络错误，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteBonusPlan(id: string) {
+    if (!confirm("确定要删除这条奖金计划吗？")) return;
+
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch(`/api/income/bonus?id=${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error?.message || "删除奖金计划失败");
+        return;
+      }
+
+      setSuccess("奖金计划删除成功");
+      // 重新加载数据
+      await load();
+
+      // 通知其他组件刷新
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("income:refresh"));
+      }
+    } catch (error) {
+      console.error("Error deleting bonus plan:", error);
+      setError("网络错误，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -56,13 +139,21 @@ export default function IncomePage() {
         window.removeEventListener("income:refresh", handler);
       }
     };
-  }, [months, startYM, endYM]);
+  }, [startYM, endYM]);
 
-  const [totals, setTotals] = useState<any>({ totalSalary:0,totalBonus:0,totalGross:0,totalNet:0,totalTax:0 });
+  const [totals, setTotals] = useState<any>({
+    totalSalary: 0,
+    totalBonus: 0,
+    totalGross: 0,
+    totalNet: 0,
+    totalTax: 0,
+  });
   const chartData = useMemo(() => {
     const arr = forecast
       .map((r: any) => ({
-        ym: r.ym || `${new Date().getFullYear()}-${String(r.month).padStart(2, "0")}`,
+        ym:
+          r.ym ||
+          `${new Date().getFullYear()}-${String(r.month).padStart(2, "0")}`,
         taxBefore: Number(r.grossThisMonth || 0),
         taxAfter: Number(r.net || 0),
       }))
@@ -84,61 +175,203 @@ export default function IncomePage() {
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">个人收入管理</h1>
-        <Link href="/income/summary"><Button variant="outline">查看汇总报表</Button></Link>
+        <Link href="/income/summary">
+          <Button variant="outline">查看汇总报表</Button>
+        </Link>
       </div>
+
+      {/* 消息提示 */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+          {success}
+        </div>
+      )}
+
       <IncomeForm />
 
-      <Card>
-        <CardHeader><CardTitle>工资变更记录（最近）</CardTitle></CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead><tr className="border-b"><th className="text-left py-2">生效日期</th><th className="text-left py-2">月薪</th></tr></thead>
-              <tbody>
-                {changes.map((r)=> (
-                  <tr key={r.id} className="border-b"><td className="py-2">{new Date(r.effectiveFrom).toLocaleDateString()}</td><td className="py-2">¥{Number(r.grossMonthly).toLocaleString()}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>工资变更记录（最近）</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">生效日期</th>
+                    <th className="text-left py-2">月薪</th>
+                    <th className="text-left py-2">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {changes.map((r) => (
+                    <tr key={r.id} className="border-b">
+                      <td className="py-2">
+                        {new Date(r.effectiveFrom).toLocaleDateString()}
+                      </td>
+                      <td className="py-2">
+                        {formatCurrencyWithSeparator(r.grossMonthly)}
+                      </td>
+                      <td className="py-2">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => deleteIncomeChange(r.id)}
+                          disabled={loading}
+                        >
+                          删除
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>奖金计划（最近）</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">生效日期</th>
+                    <th className="text-left py-2">金额</th>
+                    <th className="text-left py-2">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bonuses.map((r) => (
+                    <tr key={r.id} className="border-b">
+                      <td className="py-2">
+                        {new Date(r.effectiveDate).toLocaleDateString()}
+                      </td>
+                      <td className="py-2">
+                        {formatCurrencyWithSeparator(r.amount)}
+                      </td>
+                      <td className="py-2">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => deleteBonusPlan(r.id)}
+                          disabled={loading}
+                        >
+                          删除
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
-        <CardHeader><CardTitle>奖金计划（最近）</CardTitle></CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead><tr className="border-b"><th className="text-left py-2">生效日期</th><th className="text-left py-2">金额</th></tr></thead>
-              <tbody>
-                {bonuses.map((r)=> (
-                  <tr key={r.id} className="border-b"><td className="py-2">{new Date(r.effectiveDate).toLocaleDateString()}</td><td className="py-2">¥{Number(r.amount).toLocaleString()}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>收入预测</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>收入预测</CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="mb-2 text-sm text-gray-600">
-            总工资收入：¥{totals.totalSalary.toLocaleString()} ｜ 总奖金收入：¥{totals.totalBonus.toLocaleString()} ｜ 总税前：¥{totals.totalGross.toLocaleString()} ｜ 总税收：¥{totals.totalTax.toLocaleString()} ｜ 总税后：¥{totals.totalNet.toLocaleString()}
+            总工资收入：{formatCurrencyWithSeparator(totals.totalSalary)} ｜
+            总奖金收入：{formatCurrencyWithSeparator(totals.totalBonus)} ｜
+            总税前：{formatCurrencyWithSeparator(totals.totalGross)} ｜ 总税收：
+            {formatCurrencyWithSeparator(totals.totalTax)} ｜ 总税后：
+            {formatCurrencyWithSeparator(totals.totalNet)}
           </div>
           <div className="flex gap-4 mb-4 items-center flex-wrap">
             <span>预测区间：</span>
-            <select
-              className="border rounded px-2 py-1"
-              value={months}
-              onChange={(e) => setMonths(Number(e.target.value))}
-            >
-              <option value={3}>3 个月</option>
-              <option value={6}>6 个月</option>
-              <option value={12}>12 个月</option>
-              <option value={36}>3 年</option>
-            </select>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  const currentYear = d.getFullYear();
+                  setStartYM(`${currentYear - 3}-01`);
+                  setEndYM(`${currentYear}-12`);
+                }}
+              >
+                过去三年
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  const currentYear = d.getFullYear();
+                  setStartYM(`${currentYear - 2}-01`);
+                  setEndYM(`${currentYear}-12`);
+                }}
+              >
+                过去两年
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  const currentYear = d.getFullYear();
+                  setStartYM(`${currentYear - 1}-01`);
+                  setEndYM(`${currentYear - 1}-12`);
+                }}
+              >
+                去年
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  const currentYear = d.getFullYear();
+                  const currentMonth = String(d.getMonth() + 1).padStart(
+                    2,
+                    "0"
+                  );
+                  setStartYM(`${currentYear}-01`);
+                  setEndYM(`${currentYear}-${currentMonth}`);
+                }}
+              >
+                今年
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  const currentYear = d.getFullYear();
+                  setStartYM(`${currentYear + 1}-01`);
+                  setEndYM(`${currentYear + 1}-12`);
+                }}
+              >
+                明年
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  const currentYear = d.getFullYear();
+                  setStartYM(`${currentYear + 1}-01`);
+                  setEndYM(`${currentYear + 3}-12`);
+                }}
+              >
+                未来三年
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
               <span>开始</span>
               <input
                 type="month"
@@ -153,20 +386,6 @@ export default function IncomePage() {
                 value={endYM}
                 onChange={(e) => setEndYM(e.target.value)}
               />
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const d = new Date();
-                  const s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-                  const e = new Date(d);
-                  e.setMonth(d.getMonth() + months - 1);
-                  const end = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}`;
-                  setStartYM(s);
-                  setEndYM(end);
-                }}
-              >
-                应用快捷区间
-              </Button>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -186,23 +405,52 @@ export default function IncomePage() {
                 </tr>
               </thead>
               <tbody>
-                {forecast.map((r:any)=> (
+                {forecast.map((r: any) => (
                   <tr key={r.month} className="border-b">
-                    <td className="py-2">{r.ym || `${new Date().getFullYear()}-${String(r.month).padStart(2, "0")}`}</td>
-                    <td className="py-2 font-semibold">¥{Number(r.grossThisMonth||0).toLocaleString()}</td>
-                    <td className="py-2">¥{Number(r.cumulativeIncome||0).toLocaleString()}</td>
-                    <td className="py-2 text-blue-600">¥{Number(r.totalDeductionsThisMonth||0).toLocaleString()}</td>
-                    <td className="py-2 text-red-600">¥{Number(r.taxThisMonth||0).toLocaleString()}</td>
-                    <td className="py-2 font-semibold text-green-600">¥{Number(r.net||0).toLocaleString()}</td>
-                    <td className="py-2">¥{Number(r.salaryThisMonth||0).toLocaleString()}</td>
-                    <td className="py-2 font-medium text-orange-600">
-                      {r.bonusThisMonth && Number(r.bonusThisMonth) > 0 
-                        ? `¥${Number(r.bonusThisMonth).toLocaleString()}`
-                        : "-"
-                      }
+                    <td className="py-2">
+                      {r.ym ||
+                        `${new Date().getFullYear()}-${String(r.month).padStart(
+                          2,
+                          "0"
+                        )}`}
                     </td>
-                    <td className="py-2">{r.appliedTaxRate != null ? `${Number(r.appliedTaxRate).toFixed(2)}%` : "-"}</td>
-                    <td className="py-2 text-sm text-gray-600">{[r.markers?.salaryChange?"工资变动":null, r.markers?.bonusPaid?"奖金":null, r.markers?.taxChange?"税务调整":null].filter(Boolean).join(" / ")||"-"}</td>
+                    <td className="py-2 font-semibold">
+                      {formatCurrencyWithSeparator(r.grossThisMonth)}
+                    </td>
+                    <td className="py-2">
+                      {formatCurrencyWithSeparator(r.cumulativeIncome)}
+                    </td>
+                    <td className="py-2 text-blue-600">
+                      {formatCurrencyWithSeparator(r.totalDeductionsThisMonth)}
+                    </td>
+                    <td className="py-2 text-red-600">
+                      {formatCurrencyWithSeparator(r.taxThisMonth)}
+                    </td>
+                    <td className="py-2 font-semibold text-green-600">
+                      {formatCurrencyWithSeparator(r.net)}
+                    </td>
+                    <td className="py-2">
+                      {formatCurrencyWithSeparator(r.salaryThisMonth)}
+                    </td>
+                    <td className="py-2 font-medium text-orange-600">
+                      {r.bonusThisMonth && Number(r.bonusThisMonth) > 0
+                        ? formatCurrencyWithSeparator(r.bonusThisMonth)
+                        : "-"}
+                    </td>
+                    <td className="py-2">
+                      {r.appliedTaxRate != null
+                        ? `${Number(r.appliedTaxRate).toFixed(2)}%`
+                        : "-"}
+                    </td>
+                    <td className="py-2 text-sm text-gray-600">
+                      {[
+                        r.markers?.salaryChange ? "工资变动" : null,
+                        r.markers?.bonusPaid ? "奖金" : null,
+                        r.markers?.taxChange ? "税务调整" : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -231,8 +479,18 @@ export default function IncomePage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="cumBefore" name="累计税前收入" stroke="#8884d8" />
-                  <Line type="monotone" dataKey="cumAfter" name="累计税后收入" stroke="#82ca9d" />
+                  <Line
+                    type="monotone"
+                    dataKey="cumBefore"
+                    name="累计税前收入"
+                    stroke="#8884d8"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="cumAfter"
+                    name="累计税后收入"
+                    stroke="#82ca9d"
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import AccountDetail from "@/components/investment/account-detail";
+import AccountOverview from "@/components/investment/account-overview";
 
 export default async function AccountDetailPage({
   params,
@@ -12,7 +12,7 @@ export default async function AccountDetailPage({
   return (
     <div className="space-y-6 py-6">
       <h1 className="text-2xl font-bold">账户详情：{account.name}</h1>
-      <AccountDetail accountId={account.id} baseCurrency={account.baseCurrency} />
+      <AccountOverview accountId={account.id} baseCurrency={account.baseCurrency} />
     </div>
   );
 }

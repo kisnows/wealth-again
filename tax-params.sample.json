@@ -1,1 +1,0 @@
-{"city": "Hangzhou", "year": 2025, "monthlyBasicDeduction": 5000, "brackets": [{"threshold": 0, "rate": 0.03, "quickDeduction": 0}], "sihfRates": {"pension": 0.08}, "sihfBase": {"min": 5000, "max": 30000}, "specialDeductions": {"children": 1000}}

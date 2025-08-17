@@ -48,30 +48,15 @@ export interface Transaction extends BaseEntity {
   accountId: string;
   type: TransactionType;
   tradeDate: string;
-  instrumentId?: string;
-  quantity?: string;
-  price?: string;
-  cashAmount: string;
+  amount: string;
   currency: string;
-  fee?: string;
-  tax?: string;
   note?: string;
   status?: TransactionStatus;
   account?: Pick<Account, 'name'>;
-  instrument?: Pick<Instrument, 'symbol' | 'type'>;
 }
 
-export type TransactionType = 'BUY' | 'SELL' | 'DEPOSIT' | 'WITHDRAW' | 'DIVIDEND' | 'FEE';
+export type TransactionType = 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER_IN' | 'TRANSFER_OUT';
 export type TransactionStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED';
-
-export interface Instrument extends BaseEntity {
-  symbol: string;
-  market?: string;
-  currency: string;
-  type: InstrumentType;
-}
-
-export type InstrumentType = 'EQUITY' | 'FUND' | 'BOND' | 'CRYPTO' | 'OTHER';
 
 export interface ValuationSnapshot extends BaseEntity {
   accountId: string;

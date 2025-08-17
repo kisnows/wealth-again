@@ -2,7 +2,6 @@ import { z } from 'zod';
 import type { 
   TransactionType, 
   TransactionStatus, 
-  InstrumentType,
   NotificationType 
 } from '@/types';
 
@@ -62,32 +61,19 @@ export const updateAccountSchema = z.object({
   baseCurrency: z.string().optional(),
 });
 
-export const transactionTypeSchema = z.enum(['BUY', 'SELL', 'DEPOSIT', 'WITHDRAW', 'DIVIDEND', 'FEE']);
+export const transactionTypeSchema = z.enum(['DEPOSIT', 'WITHDRAW', 'TRANSFER_IN', 'TRANSFER_OUT']);
 export const transactionStatusSchema = z.enum(['PENDING', 'CONFIRMED', 'CANCELLED']);
-export const instrumentTypeSchema = z.enum(['EQUITY', 'FUND', 'BOND', 'CRYPTO', 'OTHER']);
 
 export const createTransactionSchema = z.object({
   accountId: uuidSchema,
   type: transactionTypeSchema,
   tradeDate: dateStringSchema,
-  instrumentId: uuidSchema.optional(),
-  quantity: positiveNumberSchema.optional(),
-  price: positiveNumberSchema.optional(),
   cashAmount: z.number(),
   currency: z.string().default('CNY'),
-  fee: nonNegativeNumberSchema.default(0),
-  tax: nonNegativeNumberSchema.default(0),
   note: z.string().optional(),
 });
 
 export const updateTransactionSchema = createTransactionSchema.partial().omit({ accountId: true });
-
-export const createInstrumentSchema = z.object({
-  symbol: z.string().min(1, '交易代码不能为空'),
-  market: z.string().optional(),
-  currency: z.string().default('CNY'),
-  type: instrumentTypeSchema.default('EQUITY'),
-});
 
 export const valuationSnapshotSchema = z.object({
   accountId: uuidSchema,
@@ -251,34 +237,3 @@ export type PaginationParams = z.infer<typeof paginationParamsSchema>;
 export type IncomeForecastParams = z.infer<typeof incomeForecastParamsSchema>;
 export type TransactionQueryParams = z.infer<typeof transactionQuerySchema>;
 export type IncomeRecordQueryParams = z.infer<typeof incomeRecordQuerySchema>;
-
-// 验证工具函数
-export function validateInput<T>(schema: z.ZodSchema<T>, input: unknown): {
-  success: boolean;
-  data?: T;
-  errors?: z.ZodError;
-} {
-  try {
-    const data = schema.parse(input);
-    return { success: true, data };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, errors: error };
-    }
-    throw error;
-  }
-}
-
-// 表单验证辅助函数
-export function getFieldErrors(error: z.ZodError): Record<string, string> {
-  const fieldErrors: Record<string, string> = {};
-  
-  error.errors.forEach((err) => {
-    if (err.path.length > 0) {
-      const field = err.path.join('.');
-      fieldErrors[field] = err.message;
-    }
-  });
-  
-  return fieldErrors;
-}

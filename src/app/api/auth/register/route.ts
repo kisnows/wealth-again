@@ -44,17 +44,6 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // 创建用户默认偏好设置
-    await prisma.userPreference.create({
-      data: {
-        userId: user.id,
-        theme: "light",
-        language: "zh-CN",
-        timezone: "Asia/Shanghai",
-        currency: "CNY",
-      }
-    });
-
     return NextResponse.json({
       message: "注册成功",
       user
