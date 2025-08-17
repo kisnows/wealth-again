@@ -70,9 +70,9 @@ export async function POST(req: NextRequest) {
           { threshold: 960000, rate: 0.45, quickDeduction: 181920 },
         ],
         sihfRates: {
-          pension,
-          ...(medical ? { medical } : {}),
-          ...(unemployment ? { unemployment } : {}),
+          "pension": pension,
+          ...(medical ? { "medical": medical } : {}),
+          ...(unemployment ? { "unemployment": unemployment } : {}),
         },
         sihfBase: { min: baseMin, max: baseMax },
         ...(gjjRate && (gjjBaseMin || gjjBaseMax)
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   // 使用新的税务服务保存参数
   try {
-    await taxService.importHangzhouParams(params);
+    await taxService.importHangzhouParams(params as any);
   } catch (error) {
     console.warn("Failed to save to new tax system:", error);
   }

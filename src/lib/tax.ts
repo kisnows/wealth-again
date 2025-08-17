@@ -12,12 +12,12 @@ export const taxParamsSchema = z.object({
   year: z.number(),
   brackets: z.array(taxBracketSchema).min(1),
   monthlyBasicDeduction: z.number(),
-  sihfRates: z.record(z.number()).default({}),
+  sihfRates: z.record(z.string(), z.number()).default({}),
   sihfBase: z.object({ min: z.number(), max: z.number() }),
   housingFund: z
     .object({ rate: z.number(), baseMin: z.number(), baseMax: z.number() })
     .optional(),
-  specialDeductions: z.record(z.number()).default({}),
+  specialDeductions: z.record(z.string(), z.number()).default({}),
 });
 
 export type TaxParams = z.infer<typeof taxParamsSchema>;

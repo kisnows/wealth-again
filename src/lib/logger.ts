@@ -248,8 +248,8 @@ export async function logBusinessOperation(
         resourceId,
         oldValues: oldValues ? JSON.stringify(oldValues) : undefined,
         newValues: newValues ? JSON.stringify(newValues) : undefined,
-        ipAddress: context.request?.ip,
-        userAgent: context.request?.userAgent,
+        ipAddress: (context as any).request?.ip,
+        userAgent: (context as any).request?.userAgent,
       },
     });
 
@@ -312,8 +312,8 @@ export async function logUserAction(
         action: 'USER_ACTION',
         resource: action,
         newValues: JSON.stringify(details),
-        ipAddress: context.request?.ip,
-        userAgent: context.request?.userAgent,
+        ipAddress: (context as any).request?.ip,
+        userAgent: (context as any).request?.userAgent,
       },
     });
   } catch (error) {
@@ -369,8 +369,8 @@ export async function logSecurityEvent(
           message,
           details,
         }),
-        ipAddress: context.request?.ip,
-        userAgent: context.request?.userAgent,
+        ipAddress: (context as any).request?.ip,
+        userAgent: (context as any).request?.userAgent,
       },
     });
   } catch (error) {

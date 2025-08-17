@@ -71,10 +71,10 @@ export async function fetchHangzhouParams(
             { threshold: 960000, rate: 0.45, quickDeduction: 181920 },
           ],
           sihfRates: {
-            pension: pension,
-            ...(medical ? { medical } : {}),
-            ...(unemployment ? { unemployment } : {}),
-          },
+            "pension": pension,
+            ...(medical ? { "medical": medical } : {}),
+            ...(unemployment ? { "unemployment": unemployment } : {}),
+          } as any,
           sihfBase: { min: baseMin, max: baseMax },
           ...(gjjRate && (gjjBaseMin || gjjBaseMax)
             ? {
@@ -85,7 +85,7 @@ export async function fetchHangzhouParams(
                 },
               }
             : {}),
-          specialDeductions: { children: 1000 },
+          specialDeductions: { children: 1000 } as any,
         };
         return taxParamsSchema.parse(dynamic);
       }
@@ -113,11 +113,11 @@ export async function fetchHangzhouParams(
       pension: 0.08,
       medical: 0.02,
       unemployment: 0.005,
-    },
+    } as any,
     sihfBase: { min: 5000, max: 30000 },
     // Optional housing fund example (commonly 7%-12%, varies by employer)
     housingFund: { rate: 0.12, baseMin: 5000, baseMax: 30000 },
-    specialDeductions: { children: 1000 },
+    specialDeductions: { children: 1000 } as any,
   };
 
   return taxParamsSchema.parse(fallback);

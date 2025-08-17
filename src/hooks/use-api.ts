@@ -180,7 +180,7 @@ export function useAccounts() {
 // 专用Hook：获取收入记录
 export function useIncomeRecords(params: { year?: number; month?: number } = {}) {
   const queryString = new URLSearchParams(
-    Object.entries(params).filter(([, value]) => value !== undefined) as [string, string][]
+    Object.entries(params).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)]) as [string, string][]
   ).toString();
   
   const url = queryString ? `/api/income/monthly?${queryString}` : '/api/income/monthly';

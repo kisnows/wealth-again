@@ -11,9 +11,12 @@ const updateTransactionSchema = z.object({
   note: z.string().optional(),
 });
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+type Params = Promise<{ id: string }>;
+
+export async function GET(req: NextRequest, props: { params: Params }) {
   try {
     const userId = await getCurrentUser(req);
+    const params = await props.params;
     const { id } = params;
 
     const transaction = await prisma.transaction.findFirst({
@@ -52,9 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Params }) {
   try {
     const userId = await getCurrentUser(req);
+    const params = await props.params;
     const { id } = params;
     const body = updateTransactionSchema.parse(await req.json());
 
@@ -96,7 +100,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { success: false, error: { code: "VALIDATION_ERROR", message: error.errors[0].message } },
+        { success: false, error: { code: "VALIDATION_ERROR", message: error.issues[0].message } },
         { status: 400 }
       );
     }
@@ -115,9 +119,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Params }) {
   try {
     const userId = await getCurrentUser(req);
+    const params = await props.params;
     const { id } = params;
 
     // 验证交易记录存在且用户有权限

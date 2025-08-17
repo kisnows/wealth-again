@@ -15,7 +15,7 @@ export async function logApiRequest(
     const userAgent = req.headers.get('user-agent') || undefined;
     const ipAddress = req.headers.get('x-forwarded-for') || 
                      req.headers.get('x-real-ip') || 
-                     req.ip || 
+                     (req as any).ip || 
                      undefined;
 
     // 只记录重要的操作和错误
@@ -47,7 +47,7 @@ export async function logApiRequest(
 export function getClientIP(req: NextRequest): string | undefined {
   return req.headers.get('x-forwarded-for')?.split(',')[0] ||
          req.headers.get('x-real-ip') ||
-         req.ip;
+         (req as any).ip;
 }
 
 // 获取用户代理信息

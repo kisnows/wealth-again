@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
         city === "Hangzhou"
       ) {
         const params = await fetchHangzhouParams({ year: it.y, city });
-        await taxService.importHangzhouParams(params);
+        await taxService.importHangzhouParams(params as any);
       }
     }
     const results = await taxService.calculateForecastWithholdingCumulative({

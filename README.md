@@ -58,33 +58,6 @@
 
 ---
 
-## 运行与测试
-
-- 安装依赖：
-  - `pnpm i`（或 `npm i`）
-- 生成 Prisma Client：
-  - `npx prisma generate`
-- 同步数据库（本地 SQLite）：
-  - `npx prisma migrate dev --skip-seed`
-- 运行测试：
-  - 全量：`npx -y vitest run`
-  - 单测：`npx -y vitest run src/tests/<file>.test.ts`
-
-### 关键 API（示例）
-
-- 税务参数刷新（杭州演示）：
-  - `POST /api/config/tax-params/refresh?city=Hangzhou&year=2025`
-- 工资变更：
-  - `POST /api/income/changes`，字段：`city`、`grossMonthly`、`effectiveFrom`
-- 奖金计划（按月末生效）：
-  - `POST /api/income/bonus`，字段：`city`、`amount`、`effectiveDate`
-- 收入预测（按月末配置逐月计算，标注变动点）：
-  - `GET /api/income/forecast?year=2025&city=Hangzhou`
-- 月度计算与年度汇总：
-  - `POST /api/income/calculate`，`GET /api/income/calculate?userId=...&year=2025`
-- 估值快照分页：
-  - `GET /api/accounts/{id}/snapshots?page=1&pageSize=50`
-
 ## 其他需求
 
 1. **分页功能**：对于估值快照、现金流、交易记录等信息，若记录超过 50 行，需进行分页展示。

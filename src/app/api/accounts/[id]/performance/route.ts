@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+type Params = Promise<{ id: string }>;
+
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Params }
 ) {
+  const params = await props.params;
   const accountId = params.id;
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account) {

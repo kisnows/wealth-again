@@ -23,6 +23,7 @@ model User {
   incomes       IncomeRecord[] /// 用户的收入记录
   incomeChanges IncomeChange[] /// 用户的收入变更记录
   bonusPlans    BonusPlan[] /// 用户的奖金计划
+  auditLogs     AuditLog[] /// 用户的审计日志
 
   @@index([email])
   @@index([isActive])
@@ -208,4 +209,25 @@ model BonusPlan {
   user User @relation(fields: [userId], references: [id]) /// 所属用户
 
   @@index([userId, effectiveDate]) /// 按用户和发放日期建立复合索引
+}
+
+/// 审计日志表 - 记录系统操作日志
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String? /// 操作用户ID，系统操作时可为空
+  action      String /// 操作类型（CREATE、UPDATE、DELETE等）
+  resource    String /// 操作资源类型（User、Account、Transaction等）
+  resourceId  String? /// 操作资源ID
+  oldValues   String? /// 操作前的值（JSON格式）
+  newValues   String? /// 操作后的值（JSON格式）
+  ipAddress   String? /// IP地址
+  userAgent   String? /// 用户代理
+  createdAt   DateTime @default(now())
+
+  // 关联关系
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
 }

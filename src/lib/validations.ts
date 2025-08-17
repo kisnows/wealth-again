@@ -79,7 +79,7 @@ export const valuationSnapshotSchema = z.object({
   accountId: uuidSchema,
   asOf: dateStringSchema,
   totalValue: positiveNumberSchema,
-  breakdown: z.record(z.number()).optional(),
+  breakdown: z.record(z.string(), z.number()).optional(),
 });
 
 // 收入相关验证模式
@@ -94,7 +94,7 @@ export const createIncomeRecordSchema = z.object({
   specialDeductions: nonNegativeNumberSchema.optional(),
   otherDeductions: nonNegativeNumberSchema.optional(),
   charityDonations: nonNegativeNumberSchema.optional(),
-  overrides: z.record(z.any()).optional(),
+  overrides: z.record(z.string(), z.any()).optional(),
   effectiveDate: dateStringSchema.optional(),
 });
 

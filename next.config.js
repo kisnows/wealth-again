@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // 性能优化
-  swcMinify: true,
   poweredByHeader: false,
 
   // 安全配置

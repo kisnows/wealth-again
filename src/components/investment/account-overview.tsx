@@ -102,7 +102,7 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
       
       // 合并交易记录和快照记录，创建统一的变更记录
       const allChanges = [
-        ...txs.map(tx => ({
+        ...txs.map((tx: any) => ({
           id: tx.id,
           date: tx.tradeDate,
           type: tx.type,
@@ -111,7 +111,7 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
           note: tx.note,
           isTransaction: true
         })),
-        ...snaps.map(snap => ({
+        ...snaps.map((snap: any) => ({
           id: snap.id,
           date: snap.asOf,
           type: "VALUATION",
@@ -171,7 +171,7 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
     if (transactionFilter === "ALL") {
       setFilteredTransactions(transactions);
     } else if (transactionFilter === "VALUATION") {
-      setFilteredTransactions(transactions.filter(tx => tx.isSnapshot));
+      setFilteredTransactions(transactions.filter(tx => (tx as any).isSnapshot));
     } else {
       setFilteredTransactions(transactions.filter(tx => tx.type === transactionFilter));
     }
@@ -307,42 +307,6 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
       setError("网络错误，请稍后重试");
     } finally {
       setLoading(false);
-    }
-  }
-
-  // 自动更新账户市值
-  async function updateAccountValueAutomatically(transactionType: string, amount: number) {
-    try {
-      // 获取最新的账户市值
-      const latestSnapshot = await fetch(`/api/accounts/${accountId}/snapshots?pageSize=1`);
-      const snapshotData = await latestSnapshot.json();
-      const latestValue = snapshotData.snapshots && snapshotData.snapshots.length > 0 
-        ? Number(snapshotData.snapshots[0].totalValue || 0)
-        : 0;
-      
-      // 根据交易类型计算新的市值
-      let newValue = latestValue;
-      if (transactionType === "DEPOSIT" || transactionType === "TRANSFER_IN") {
-        newValue = latestValue + amount;
-      } else if (transactionType === "WITHDRAW" || transactionType === "TRANSFER_OUT") {
-        newValue = latestValue - amount;
-      }
-      
-      // 创建新的快照记录
-      if (newValue >= 0) {
-        await fetch(`/api/valuations/snapshot`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            accountId,
-            asOf: new Date().toISOString().split('T')[0], // 使用当前日期
-            totalValue: newValue
-          }),
-        });
-      }
-    } catch (error) {
-      console.error("Error updating account value automatically:", error);
-      // 不中断主流程，即使自动更新失败也继续
     }
   }
 
@@ -681,30 +645,29 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
               <tbody>
                 {filteredTransactions.map((tx) => (
                   <tr key={tx.id} className="border-b">
-                    <td className="py-2">{new Date(tx.date).toLocaleDateString()}</td>
+                    <td className="py-2">{new Date((tx as any).date).toLocaleDateString()}</td>
                     <td className="py-2">
-                      {tx.isSnapshot ? "估值快照" : getTransactionTypeName(tx.type)}
+                      {(tx as any).isSnapshot ? "估值快照" : getTransactionTypeName(tx.type)}
                     </td>
                     <td className="py-2">
                       {formatCurrency(
-                        tx.isSnapshot 
+                        (tx as any).isSnapshot 
                           ? Number(tx.amount || 0)
                           : Number(tx.amount || 0) * (tx.type === "WITHDRAW" || tx.type === "TRANSFER_OUT" ? -1 : 1), 
                         tx.currency
                       )}
                     </td>
                     <td className="py-2">
-                      {tx.isTransaction && (
+                      {(tx as any).isTransaction && (
                         <Button 
                           variant="destructive" 
                           size="sm" 
                           onClick={() => deleteTransaction(tx.id)}
-                          disabled={loading}
                         >
                           删除
                         </Button>
                       )}
-                      {tx.isSnapshot && (
+                      {(tx as any).isSnapshot && (
                         <span className="text-gray-400 text-sm">-</span>
                       )}
                     </td>

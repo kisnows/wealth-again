@@ -1,4 +1,4 @@
-import { OpenAPIRegistry, OpenApiGeneratorV3 } from "zod-to-openapi";
+import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { writeFileSync } from "fs";
 import path from "path";
 import {

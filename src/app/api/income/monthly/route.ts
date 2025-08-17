@@ -9,7 +9,7 @@ const schema = z.object({
   month: z.number().int().min(1).max(12),
   gross: z.number().positive(),
   bonus: z.number().optional(),
-  overrides: z.record(z.any()).optional(),
+  overrides: z.record(z.string(), z.any()).optional(),
   effectiveDate: z.string().optional(),
 });
 
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { success: false, error: { code: "VALIDATION_ERROR", message: error.errors[0].message } },
+        { success: false, error: { code: "VALIDATION_ERROR", message: error.issues[0].message } },
         { status: 400 }
       );
     }

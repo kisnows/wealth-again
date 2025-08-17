@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import AccountOverview from "@/components/investment/account-overview";
 
-export default async function AccountDetailPage({
-  params,
-}: {
-  params: { id: string };
+type Params = Promise<{ id: string }>;
+
+export default async function AccountDetailPage(props: {
+  params: Params;
 }) {
+  const params = await props.params;
   const account = await prisma.account.findUnique({ where: { id: params.id } });
   if (!account) return <div className="py-8">账户不存在</div>;
 

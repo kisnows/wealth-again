@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     } else {
       // 兼容旧格式：导入杭州参数
       const params = taxParamsSchema.parse(body);
-      const result = await taxService.importHangzhouParams(params);
+      const result = await taxService.importHangzhouParams(params as any);
 
       // 同时保存到Config表（向后兼容）
       const key = `tax:${params.city}:${params.year}`;
@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
         const params = await fetchHangzhouParams({ year: Number(year), city });
 
         // 保存到新系统
-        await taxService.importHangzhouParams(params);
+        await taxService.importHangzhouParams(params as any);
 
         // 同时保存到旧系统（兼容性）
         const rec = await prisma.config.create({

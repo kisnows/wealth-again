@@ -7,7 +7,7 @@ const payloadSchema = z.object({
   accountId: z.string().uuid(),
   csv: z.string(),
   delimiter: z.string().length(1).default(","),
-  mapping: z.record(z.string()).optional(),
+  mapping: z.record(z.string(), z.string()).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
             accountId: body.accountId,
             type: type as any,
             tradeDate,
-            amount: amount?.toString(),
+            amount: amount !== undefined ? amount.toString() : "0",
             currency,
           },
         });
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { success: false, error: { code: "VALIDATION_ERROR", message: error.errors[0].message } },
+        { success: false, error: { code: "VALIDATION_ERROR", message: error.issues[0].message } },
         { status: 400 }
       );
     }

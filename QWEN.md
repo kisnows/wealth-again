@@ -47,6 +47,7 @@ Wealth-Again 是一个使用 Next.js、TypeScript 和 Prisma 构建的个人财�
 - **UI 组件**: shadcn/ui
 - **数据可视化**: recharts
 - **状态管理**: React 内置状态管理
+- 依赖管理使用 pnpm
 
 ### 后端技术栈
 
@@ -71,19 +72,13 @@ Wealth-Again 是一个使用 Next.js、TypeScript 和 Prisma 构建的个人财�
 - 自动计算社保和公积金扣除
 - 支持专项附加扣除和其他法定扣除
 
-### 投资绩效分析
-
-- 实现了时间加权收益率(TWR)计算
-- 实现了内部收益率(XIRR)计算
-- 支持多账户、多货币的投资组合绩效分析
-
 ## 开发和部署
 
 ### 常用开发命令
 
 ```bash
 # 安装依赖
-npm install
+pnpm install
 
 # 运行开发服务器
 npm run dev
@@ -94,14 +89,6 @@ npm run build
 # 运行测试
 npm run test
 
-# 运行代码检查
-npm run lint
-
-# 生成 Prisma 客户端
-npm run prisma:generate
-
-# 运行数据库迁移
-npm run prisma:migrate
 ```
 
 ### 部署要求
@@ -128,21 +115,3 @@ src/
 ├── tests/               # 单元测试
 └── prisma/              # Prisma 模式和迁移
 ```
-
-## 当前状态和未来发展方向
-
-### 当前状态
-
-- 系统已完成核心功能开发
-- 具备完整的收入管理和投资管理功能
-- 实现了符合中国税法的税务计算
-- 提供了基本的 UI 界面和 API 接口
-
-### 未来发展方向
-
-1. 增强数据可视化功能
-2. 添加更多财务分析工具
-3. 支持更多城市的税务政策配置
-4. 完善移动端适配
-5. 增加数据导入/导出功能
-6. 实现更复杂的税务优化建议
