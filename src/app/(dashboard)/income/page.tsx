@@ -336,6 +336,18 @@ export default function IncomePage() {
                 onClick={() => {
                   const d = new Date();
                   const currentYear = d.getFullYear();
+                  setStartYM(`${currentYear}-01`);
+                  setEndYM(`${currentYear}-12`);
+                }}
+              >
+                今年（全年）
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  const currentYear = d.getFullYear();
                   const currentMonth = String(d.getMonth() + 1).padStart(
                     2,
                     "0"
@@ -344,7 +356,7 @@ export default function IncomePage() {
                   setEndYM(`${currentYear}-${currentMonth}`);
                 }}
               >
-                今年
+                今年（至当前月）
               </Button>
               <Button
                 variant="outline"
@@ -353,10 +365,10 @@ export default function IncomePage() {
                   const d = new Date();
                   const currentYear = d.getFullYear();
                   setStartYM(`${currentYear + 1}-01`);
-                  setEndYM(`${currentYear + 1}-12`);
+                  setEndYM(`${currentYear + 2}-12`);
                 }}
               >
-                明年
+                未来两年
               </Button>
               <Button
                 variant="outline"
@@ -394,14 +406,15 @@ export default function IncomePage() {
                 <tr className="border-b">
                   <th className="text-left py-2">月份</th>
                   <th className="text-left py-2">税前总收入</th>
-                  <th className="text-left py-2">累计总收入</th>
-                  <th className="text-left py-2">社保</th>
-                  <th className="text-left py-2">税</th>
                   <th className="text-left py-2">税后总收入</th>
+                  <th className="text-left py-2">社保</th>
+                  <th className="text-left py-2">公积金</th>
+                  <th className="text-left py-2">税</th>
                   <th className="text-left py-2">工资</th>
                   <th className="text-left py-2">奖金</th>
                   <th className="text-left py-2">适用税率</th>
                   <th className="text-left py-2">备注</th>
+                  <th className="text-left py-2">累计总收入</th>
                 </tr>
               </thead>
               <tbody>
@@ -417,17 +430,17 @@ export default function IncomePage() {
                     <td className="py-2 font-semibold">
                       {formatCurrencyWithSeparator(r.grossThisMonth)}
                     </td>
-                    <td className="py-2">
-                      {formatCurrencyWithSeparator(r.cumulativeIncome)}
+                    <td className="py-2 font-semibold text-green-600">
+                      {formatCurrencyWithSeparator(r.net)}
                     </td>
                     <td className="py-2 text-blue-600">
-                      {formatCurrencyWithSeparator(r.totalDeductionsThisMonth)}
+                      {formatCurrencyWithSeparator(r.socialInsuranceThisMonth)}
+                    </td>
+                    <td className="py-2 text-purple-600">
+                      {formatCurrencyWithSeparator(r.housingFundThisMonth)}
                     </td>
                     <td className="py-2 text-red-600">
                       {formatCurrencyWithSeparator(r.taxThisMonth)}
-                    </td>
-                    <td className="py-2 font-semibold text-green-600">
-                      {formatCurrencyWithSeparator(r.net)}
                     </td>
                     <td className="py-2">
                       {formatCurrencyWithSeparator(r.salaryThisMonth)}
@@ -450,6 +463,9 @@ export default function IncomePage() {
                       ]
                         .filter(Boolean)
                         .join(" / ") || "-"}
+                    </td>
+                    <td className="py-2">
+                      {formatCurrencyWithSeparator(r.cumulativeIncome)}
                     </td>
                   </tr>
                 ))}

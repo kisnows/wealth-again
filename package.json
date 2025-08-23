@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "PORT=4000 next dev --turbopack",
+    "dev": "PORT=4000 next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "prisma:generate": "prisma generate",

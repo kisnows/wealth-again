@@ -76,22 +76,29 @@ export default function TaxConfigPage() {
 
   async function loadConfig() {
     try {
+      // 加载当前配置
       const res = await fetch(`/api/config/tax-params?city=Hangzhou&year=2025&page=${page}&pageSize=50`);
       if (res.ok) {
         const data = await res.json();
         // 处理新格式或旧格式的数据
-        if (data.config) {
+        if (data && data.config) {
           // 新格式数据
           setJson(JSON.stringify(data.config, null, 2));
-        } else if (data.params) {
+        } else if (data && data.params) {
           // 旧格式数据，需要转换为新格式
           const converted = convertLegacyToNewFormat(data.params);
           setJson(JSON.stringify(converted, null, 2));
         }
-        setRecords(data.records || []);
+      }
+      
+      // 加载历史记录
+      const historyRes = await fetch(`/api/config/tax-params/history?city=Hangzhou&page=1&pageSize=50`);
+      if (historyRes.ok) {
+        const historyData = await historyRes.json();
+        setRecords(historyData.records || []);
       }
     } catch (err) {
-      console.log("No existing config found, using default");
+      console.log("No existing config found, using default", err);
     }
   }
 
@@ -113,11 +120,43 @@ export default function TaxConfigPage() {
       
       if (res.ok) {
         setMsg("税务信息保存成功！");
+        // 重新加载历史记录
+        loadConfig();
       } else {
         setError(data.error || "保存失败");
       }
     } catch (err: any) {
       setError(err.message || "保存失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteHistoryRecord(id: string) {
+    if (!confirm("确定要删除这条历史记录吗？此操作不可撤销。")) {
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setMsg("");
+    
+    try {
+      const res = await fetch(`/api/config/tax-params/history/${id}`, {
+        method: "DELETE",
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        setMsg("历史记录删除成功！");
+        // 重新加载历史记录
+        loadConfig();
+      } else {
+        setError(data.error || "删除失败");
+      }
+    } catch (err: any) {
+      setError(err.message || "删除失败");
     } finally {
       setLoading(false);
     }
@@ -522,12 +561,38 @@ export default function TaxConfigPage() {
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="border-b"><th className="text-left py-2">生效日期</th><th className="text-left py-2">版本摘要</th></tr></thead>
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">生效日期</th>
+                  <th className="text-left py-2">社保基数范围</th>
+                  <th className="text-left py-2">公积金基数范围</th>
+                  <th className="text-left py-2">社保比例</th>
+                  <th className="text-left py-2">公积金比例</th>
+                  <th className="text-left py-2">操作</th>
+                </tr>
+              </thead>
               <tbody>
                 {records.map((r:any)=> (
                   <tr key={r.id} className="border-b">
                     <td className="py-2">{new Date(r.effectiveFrom).toLocaleDateString()}</td>
-                    <td className="py-2 text-sm">{r.key}</td>
+                    <td className="py-2">¥{r.socialMinBase?.toLocaleString()} - ¥{r.socialMaxBase?.toLocaleString()}</td>
+                    <td className="py-2">¥{r.housingFundMinBase?.toLocaleString()} - ¥{r.housingFundMaxBase?.toLocaleString()}</td>
+                    <td className="py-2">
+                      养老{((r.pensionRate || 0) * 100).toFixed(1)}% + 
+                      医疗{((r.medicalRate || 0) * 100).toFixed(1)}% + 
+                      失业{((r.unemploymentRate || 0) * 100).toFixed(1)}%
+                    </td>
+                    <td className="py-2">{((r.housingFundRate || 0) * 100).toFixed(1)}%</td>
+                    <td className="py-2">
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        onClick={() => deleteHistoryRecord(r.id)}
+                        disabled={loading}
+                      >
+                        删除
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
