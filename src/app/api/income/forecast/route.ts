@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { createTaxService } from "@/lib/tax";
 import { ZodError } from "zod";
 import { fetchHangzhouParams } from "@/lib/sources/hz-params";
+import { convertCurrency } from "@/lib/currency";
 
 function ymToDateEnd(ym: string): Date {
   const [y, m] = ym.split("-").map((n) => Number(n));
@@ -29,6 +30,11 @@ function iterateMonths(
 export async function GET(req: NextRequest) {
   try {
     const userId = await getCurrentUser(req);
+    // 获取用户信息以获取基准币种
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    
     const { searchParams } = new URL(req.url);
     const city = searchParams.get("city") || "Hangzhou";
     const startYM = searchParams.get("start");
@@ -57,7 +63,7 @@ export async function GET(req: NextRequest) {
       rangeEnd = new Date(y, Math.min(11, horizon - 1), 0);
     }
 
-    const [changes, bonuses] = await Promise.all([
+    const [changes, bonuses, longTermCash] = await Promise.all([
       prisma.incomeChange.findMany({
         where: { userId, city, effectiveFrom: { lte: rangeEnd } },
         orderBy: { effectiveFrom: "asc" },
@@ -70,26 +76,89 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { effectiveDate: "asc" },
       }),
+      prisma.longTermCash.findMany({
+        where: {
+          userId,
+          city,
+          effectiveDate: { lte: rangeEnd },
+        },
+        orderBy: { effectiveDate: "asc" },
+      }),
     ]);
 
     const taxService = createTaxService(prisma);
 
     const months = iterateMonths(rangeStart, rangeEnd);
-    function grossForMonth(y: number, m: number): number {
-      const end = new Date(y, m, 0).getTime();
+    // 获取用户基准币种（默认人民币）
+    const baseCurrency = user?.baseCurrency || "CNY";
+    
+    async function convertToBaseCurrency(amount: number, fromCurrency: string, date: Date): Promise<number> {
+      if (fromCurrency === baseCurrency) {
+        return amount;
+      }
+      return await convertCurrency(amount, fromCurrency, baseCurrency, date);
+    }
+    
+    async function grossForMonth(y: number, m: number): Promise<number> {
+      const end = new Date(y, m, 0);
       let g = 0;
-      for (const c of changes)
-        if (c.effectiveFrom.getTime() <= end) g = Number(c.grossMonthly);
+      for (const c of changes) {
+        if (c.effectiveFrom.getTime() <= end.getTime()) {
+          // 转换币种到基准币种
+          g = await convertToBaseCurrency(Number(c.grossMonthly), c.currency, end);
+        }
+      }
       return g;
     }
-    function bonusForMonth(y: number, m: number): number | undefined {
+    
+    async function bonusForMonth(y: number, m: number): Promise<number> {
+      const end = new Date(y, m, 0);
       let s = 0;
       for (const b of bonuses) {
         const d = b.effectiveDate;
-        if (d.getFullYear() === y && d.getMonth() + 1 === m)
-          s += Number(b.amount);
+        if (d.getFullYear() === y && d.getMonth() + 1 === m) {
+          // 转换币种到基准币种
+          s += await convertToBaseCurrency(Number(b.amount), b.currency, end);
+        }
       }
-      return s || undefined;
+      return s;
+    }
+    
+    // 计算长期现金在指定月份的发放金额和笔数
+    async function longTermCashForMonth(y: number, m: number): Promise<{ amount: number, count: number }> {
+      const end = new Date(y, m, 0);
+      let amount = 0;
+      let count = 0;
+      for (const ltc of longTermCash) {
+        // 检查是否在发放期内（每年1、4、7、10月）
+        if ([1, 4, 7, 10].includes(m)) {
+          // 计算生效日期与当前日期的季度差
+          const startDate = new Date(ltc.effectiveDate);
+          const currentDate = new Date(y, m - 1, 1); // 月份从0开始
+          
+          // 计算季度数（每年4个季度）
+          const startYear = startDate.getFullYear();
+          const startMonth = startDate.getMonth();
+          const currentYear = currentDate.getFullYear();
+          const currentMonth = currentDate.getMonth();
+          
+          const startQuarter = Math.floor(startMonth / 3);
+          const currentQuarter = Math.floor(currentMonth / 3);
+          
+          const quartersDiff = 
+            (currentYear - startYear) * 4 + 
+            (currentQuarter - startQuarter);
+          
+          // 检查是否在16个季度的发放期内
+          if (quartersDiff >= 0 && quartersDiff < 16) {
+            // 计算每季度应发放的金额并转换币种
+            const quarterlyAmount = Number(ltc.totalAmount) / 16;
+            amount += await convertToBaseCurrency(quarterlyAmount, ltc.currency, end);
+            count++;
+          }
+        }
+      }
+      return { amount, count };
     }
     // 方案B：调用服务层计算累计预扣
     // 自动导入杭州配置（若缺失）
@@ -103,14 +172,35 @@ export async function GET(req: NextRequest) {
         await taxService.importHangzhouParams(params as any);
       }
     }
-    const results = await taxService.calculateForecastWithholdingCumulative({
-      city,
-      months: months.map((it) => ({
+    
+    // 计算每个月的收入并转换为基准币种
+    const monthlyData = [];
+    const monthlyValues = []; // 存储每月的具体值用于后续映射
+    
+    for (const it of months) {
+      const gross = await grossForMonth(it.y, it.m);
+      const bonus = await bonusForMonth(it.y, it.m);
+      const longTermCashInfo = await longTermCashForMonth(it.y, it.m);
+      
+      monthlyData.push({
         year: it.y,
         month: it.m,
-        gross: grossForMonth(it.y, it.m),
-        bonus: bonusForMonth(it.y, it.m) || 0,
-      })),
+        gross: gross,
+        bonus: bonus + longTermCashInfo.amount,
+        longTermCashAmount: longTermCashInfo.amount,
+        longTermCashCount: longTermCashInfo.count
+      });
+      
+      monthlyValues.push({
+        gross: gross,
+        bonus: bonus,
+        longTermCash: longTermCashInfo
+      });
+    }
+    
+    const results = await taxService.calculateForecastWithholdingCumulative({
+      city,
+      months: monthlyData,
     });
     const changeMonths = new Set(
       changes.map(
@@ -141,23 +231,27 @@ export async function GET(req: NextRequest) {
       markers: {
         salaryChange: changeMonths.has(months[i].y * 100 + months[i].m),
         bonusPaid: bonusMonths.has(months[i].y * 100 + months[i].m),
+        longTermCashPaid: monthlyValues[i].longTermCash.count > 0 ? true : undefined,
         taxChange: taxMonths.has(months[i].y * 100 + months[i].m),
       },
       ym: `${months[i].y}-${String(months[i].m).padStart(2, "0")}`,
-      salaryThisMonth: grossForMonth(months[i].y, months[i].m) || 0,
-      bonusThisMonth: bonusForMonth(months[i].y, months[i].m) || 0,
+      salaryThisMonth: monthlyValues[i].gross || 0,
+      bonusThisMonth: (monthlyValues[i].bonus || 0) + (monthlyValues[i].longTermCash.amount || 0),
+      longTermCashThisMonth: monthlyValues[i].longTermCash.amount || 0,
+      longTermCashCount: monthlyValues[i].longTermCash.count || 0,
     }));
     // 汇总
     const totals = annotated.reduce(
       (acc: any, x: any) => {
         acc.totalSalary += Number(x.salaryThisMonth || 0);
         acc.totalBonus += Number(x.bonusThisMonth || 0);
+        acc.totalLongTermCash += Number(x.longTermCashThisMonth || 0);
         acc.totalGross += Number(x.grossThisMonth || 0);
         acc.totalNet += Number(x.net || 0);
         acc.totalTax += Number(x.taxThisMonth || 0);
         return acc;
       },
-      { totalSalary: 0, totalBonus: 0, totalGross: 0, totalNet: 0, totalTax: 0 }
+      { totalSalary: 0, totalBonus: 0, totalLongTermCash: 0, totalGross: 0, totalNet: 0, totalTax: 0 }
     );
     return NextResponse.json({ results: annotated, totals });
   } catch (err: unknown) {

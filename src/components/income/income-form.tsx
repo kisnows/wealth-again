@@ -31,6 +31,8 @@ export default function IncomeForm() {
   // 共同状态
   const [city, setCity] = useState("Hangzhou");
   const [cities, setCities] = useState<string[]>([]);
+  const [currency, setCurrency] = useState("CNY");
+  const [userBaseCurrency, setUserBaseCurrency] = useState("CNY");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -43,22 +45,31 @@ export default function IncomeForm() {
   const [bonusAmount, setBonusAmount] = useState(0);
   const [bonusEffectiveDate, setBonusEffectiveDate] = useState<string>(new Date().toISOString().slice(0,10));
 
-  // 获取有税务信息的城市列表
+  // 获取用户配置和城市列表
   useEffect(() => {
-    async function loadCities() {
+    async function loadConfig() {
       try {
+        // 获取用户配置
+        const userResponse = await fetch("/api/user/profile");
+        const userData = await userResponse.json();
+        if (userData.success && userData.data?.baseCurrency) {
+          setUserBaseCurrency(userData.data.baseCurrency);
+          setCurrency(userData.data.baseCurrency);
+        }
+        
+        // 获取城市列表
         const response = await fetch("/api/config/tax-params/cities");
         const data = await response.json();
         if (data.cities && data.cities.length > 0) {
           setCities(data.cities);
         }
       } catch (err) {
-        console.error("Failed to load cities:", err);
+        console.error("Failed to load config:", err);
         // Fallback to default cities if API fails
         setCities(["Hangzhou", "Shanghai", "Beijing", "Shenzhen"]);
       }
     }
-    loadCities();
+    loadConfig();
   }, []);
 
   async function submitSalaryChange() {
@@ -74,7 +85,8 @@ export default function IncomeForm() {
         body: JSON.stringify({ 
           city, 
           grossMonthly: salaryGross,
-          effectiveFrom: salaryEffectiveDate
+          effectiveFrom: salaryEffectiveDate,
+          currency
         }),
         headers: { "Content-Type": "application/json" },
       });
@@ -116,7 +128,8 @@ export default function IncomeForm() {
         body: JSON.stringify({ 
           city, 
           amount: bonusAmount, 
-          effectiveDate: bonusEffectiveDate 
+          effectiveDate: bonusEffectiveDate,
+          currency
         }),
       });
 
@@ -168,26 +181,42 @@ export default function IncomeForm() {
         </div>
       )}
 
-      {/* 全局城市设置 */}
+      {/* 全局设置 */}
       <Card>
         <CardHeader>
           <CardTitle>基本设置</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="city">城市</Label>
-            <Select value={city} onValueChange={setCity}>
-              <SelectTrigger className="max-w-xs">
-                <SelectValue placeholder="选择城市" />
-              </SelectTrigger>
-              <SelectContent>
-                {cities.map((cityName) => (
-                  <SelectItem key={cityName} value={cityName}>
-                    {cityName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="city">城市</Label>
+              <Select value={city} onValueChange={setCity}>
+                <SelectTrigger className="max-w-xs">
+                  <SelectValue placeholder="选择城市" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map((cityName) => (
+                    <SelectItem key={cityName} value={cityName}>
+                      {cityName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="currency">币种</Label>
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger className="max-w-xs">
+                  <SelectValue placeholder="选择币种" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CNY">人民币 (¥)</SelectItem>
+                  <SelectItem value="HKD">港元 (HK$)</SelectItem>
+                  <SelectItem value="USD">美元 ($)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -203,13 +232,13 @@ export default function IncomeForm() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="salaryGross">月薪 (元)</Label>
+                <Label htmlFor="salaryGross">月薪 ({currency === "CNY" ? "元" : currency === "HKD" ? "港元" : "美元"})</Label>
                 <Input
                   id="salaryGross"
                   type="number"
                   value={salaryGross}
                   onChange={(e) => setSalaryGross(Number(e.target.value))}
-                  placeholder="请输入月薪"
+                  placeholder={`请输入月薪 (${currency})`}
                 />
               </div>
               <div className="space-y-2">
@@ -243,13 +272,13 @@ export default function IncomeForm() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="bonusAmount">奖金金额 (元)</Label>
+                <Label htmlFor="bonusAmount">奖金金额 ({currency === "CNY" ? "元" : currency === "HKD" ? "港元" : "美元"})</Label>
                 <Input
                   id="bonusAmount"
                   type="number"
                   value={bonusAmount}
                   onChange={(e) => setBonusAmount(Number(e.target.value))}
-                  placeholder="请输入奖金金额"
+                  placeholder={`请输入奖金金额 (${currency})`}
                 />
               </div>
               <div className="space-y-2">

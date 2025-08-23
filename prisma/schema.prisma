@@ -17,6 +17,8 @@ model User {
   password      String
   /// 用户姓名，可选字段
   name          String?
+  /// 用户基准货币，默认人民币
+  baseCurrency  String         @default("CNY")
   /// 用户账户是否激活
   isActive      Boolean        @default(true)
   /// 最后登录时间
@@ -30,6 +32,7 @@ model User {
   bonusPlans    BonusPlan[]
   incomeChanges IncomeChange[]
   incomes       IncomeRecord[]
+  longTermCash  LongTermCash[]
 
   @@index([email])
   @@index([isActive])
@@ -264,6 +267,8 @@ model IncomeChange {
   grossMonthly  Decimal
   /// 变更生效日期
   effectiveFrom DateTime
+  /// 收入币种
+  currency      String   @default("CNY")
   /// 记录创建时间
   createdAt     DateTime @default(now())
   user          User     @relation(fields: [userId], references: [id])
@@ -283,8 +288,33 @@ model BonusPlan {
   amount        Decimal
   /// 奖金发放日期
   effectiveDate DateTime
+  /// 奖金币种
+  currency      String   @default("CNY")
   /// 记录创建时间
   createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, effectiveDate])
+}
+
+/// 长期现金表 - 记录用户的长期现金发放计划
+model LongTermCash {
+  /// 长期现金计划唯一标识符
+  id            String   @id @default(uuid())
+  /// 所属用户ID
+  userId        String
+  /// 工作城市
+  city          String
+  /// 总金额
+  totalAmount   Decimal
+  /// 生效日期
+  effectiveDate DateTime
+  /// 长期现金币种
+  currency      String   @default("CNY")
+  /// 记录创建时间
+  createdAt     DateTime @default(now())
+  /// 计划完成时间
+  completedAt   DateTime?
   user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId, effectiveDate])

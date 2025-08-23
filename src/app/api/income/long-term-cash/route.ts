@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
-import { endOfMonth, parseYMD } from "@/lib/date";
 
 const postSchema = z.object({
   city: z.string(),
-  amount: z.number().positive(),
+  totalAmount: z.number().positive(),
   effectiveDate: z.string(), // YYYY-MM-DD
   currency: z.string().optional(),
 });
@@ -16,18 +15,13 @@ export async function POST(req: NextRequest) {
     const userId = await getCurrentUser(req);
     const body = postSchema.parse(await req.json());
 
-    const rec = await prisma.bonusPlan.create({
+    const rec = await prisma.longTermCash.create({
       data: {
         userId,
         city: body.city,
-        amount: body.amount.toString(),
+        totalAmount: body.totalAmount.toString(),
+        effectiveDate: new Date(body.effectiveDate),
         currency: body.currency || "CNY",
-        // 规则：按自然月最后一天生效；为避免时区导致 ISO 日期回退，设置到当天中午
-        effectiveDate: (() => {
-          const d = endOfMonth(parseYMD(body.effectiveDate));
-          d.setHours(12, 0, 0, 0);
-          return d;
-        })(),
       },
     });
 
@@ -36,7 +30,7 @@ export async function POST(req: NextRequest) {
       data: { id: rec.id },
     });
   } catch (error) {
-    console.error("Bonus API error:", error);
+    console.error("Long term cash API error:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -87,8 +81,8 @@ export async function GET(req: NextRequest) {
     }
 
     const [total, records] = await Promise.all([
-      prisma.bonusPlan.count({ where }),
-      prisma.bonusPlan.findMany({
+      prisma.longTermCash.count({ where }),
+      prisma.longTermCash.findMany({
         where,
         orderBy: { effectiveDate: "desc" },
         skip,
@@ -107,7 +101,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Bonus GET error:", error);
+    console.error("Long term cash GET error:", error);
 
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json(
@@ -139,37 +133,37 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: { code: "VALIDATION_ERROR", message: "缺少奖金计划ID" },
+          error: { code: "VALIDATION_ERROR", message: "缺少长期现金计划ID" },
         },
         { status: 400 }
       );
     }
 
-    // 确保用户只能删除自己的奖金计划
-    const bonusPlan = await prisma.bonusPlan.findFirst({
+    // 确保用户只能删除自己的长期现金计划
+    const longTermCash = await prisma.longTermCash.findFirst({
       where: { id, userId },
     });
 
-    if (!bonusPlan) {
+    if (!longTermCash) {
       return NextResponse.json(
         {
           success: false,
-          error: { code: "NOT_FOUND", message: "奖金计划不存在" },
+          error: { code: "NOT_FOUND", message: "长期现金计划不存在" },
         },
         { status: 404 }
       );
     }
 
-    await prisma.bonusPlan.delete({
+    await prisma.longTermCash.delete({
       where: { id },
     });
 
     return NextResponse.json({
       success: true,
-      data: { message: "奖金计划已删除" },
+      data: { message: "长期现金计划已删除" },
     });
   } catch (error) {
-    console.error("Bonus DELETE error:", error);
+    console.error("Long term cash DELETE error:", error);
 
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json(

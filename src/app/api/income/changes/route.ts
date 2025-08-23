@@ -7,6 +7,7 @@ const postSchema = z.object({
   city: z.string(),
   grossMonthly: z.number().positive(),
   effectiveFrom: z.string(),
+  currency: z.string().optional(),
   userId: z.string().uuid().optional(),
 });
 
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
         city: body.city,
         grossMonthly: body.grossMonthly.toString(),
         effectiveFrom: new Date(body.effectiveFrom),
+        currency: body.currency || "CNY",
       },
     });
     return NextResponse.json({ id: rec.id });
