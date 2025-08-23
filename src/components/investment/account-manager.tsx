@@ -12,7 +12,10 @@ interface Account {
   name: string;
   baseCurrency: string;
   initialBalance: string;
+  totalDeposits: string;
+  totalWithdrawals: string;
   createdAt: string;
+  updatedAt: string;
   _count: {
     transactions: number;
     snapshots: number;
@@ -198,6 +201,14 @@ export default function AccountManager() {
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">初始资金：</span>
                         <span className="font-medium">¥{Number(account.initialBalance || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">累计存款：</span>
+                        <span className="font-medium">¥{Number(account.totalDeposits || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">累计取款：</span>
+                        <span className="font-medium">¥{Number(account.totalWithdrawals || 0).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">交易记录：</span>

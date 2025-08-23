@@ -1,150 +1,130 @@
-/**
- * 货币格式化工具
- */
+import { prisma } from "@/lib/prisma";
 
 /**
- * 将数字格式化为货币显示格式
+ * 格式化货币金额，添加千位分隔符
  * @param amount 金额
- * @param currency 货币代码，默认为CNY
- * @param decimals 小数位数，默认为2
+ * @param currency 货币符号，默认为¥
  * @returns 格式化后的货币字符串
  */
-export function formatCurrency(
-  amount: number | string | null | undefined,
-  currency: string = "CNY",
-  decimals: number = 2
-): string {
-  // 处理空值
-  if (amount === null || amount === undefined) {
-    return "-";
-  }
-
+export function formatCurrencyWithSeparator(amount: number | string, currency: string = "¥"): string {
   // 转换为数字
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   
-  // 处理NaN
+  // 检查是否为有效数字
   if (isNaN(num)) {
-    return "-";
+    return `${currency}0.00`;
   }
-
-  // 四舍五入到指定小数位
-  const rounded = Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals);
-
-  // 根据货币类型格式化
-  switch (currency) {
-    case "CNY":
-      return `¥${rounded.toFixed(decimals)}`;
-    case "USD":
-      return `$${rounded.toFixed(decimals)}`;
-    case "EUR":
-      return `€${rounded.toFixed(decimals)}`;
-    default:
-      return `${rounded.toFixed(decimals)} ${currency}`;
-  }
+  
+  // 格式化为带有千位分隔符的字符串
+  return `${currency}${num.toLocaleString("zh-CN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
 }
 
 /**
- * 将货币字符串解析为数字
- * @param currencyStr 货币字符串
- * @returns 解析后的数字
+ * 获取指定日期的汇率
+ * @param base 基础货币
+ * @param quote 报价货币
+ * @param asOf 日期
+ * @returns 汇率值
  */
-export function parseCurrency(currencyStr: string): number {
-  if (!currencyStr) return 0;
-  
-  // 移除货币符号和逗号
-  const cleaned = currencyStr
-    .replace(/[¥$€,]/g, "")
-    .trim();
-  
-  const num = parseFloat(cleaned);
-  return isNaN(num) ? 0 : num;
-}
-
-/**
- * 将数字格式化为千分位分隔的字符串
- * @param amount 金额
- * @param decimals 小数位数
- * @returns 格式化后的字符串
- */
-export function formatWithThousandsSeparator(
-  amount: number | string | null | undefined,
-  decimals: number = 2
-): string {
-  // 处理空值
-  if (amount === null || amount === undefined) {
-    return "-";
+export async function getFxRate(base: string, quote: string, asOf: Date): Promise<number> {
+  // 如果基础货币和报价货币相同，返回1
+  if (base === quote) {
+    return 1;
   }
-
-  // 转换为数字
-  const num = typeof amount === "string" ? parseFloat(amount) : amount;
   
-  // 处理NaN
-  if (isNaN(num)) {
-    return "-";
-  }
-
-  // 四舍五入到指定小数位
-  const rounded = Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals);
-  
-  // 添加千分位分隔符
-  return rounded.toLocaleString("zh-CN", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
+  // 查找指定日期或之前的最近汇率
+  const fxRate = await prisma.fxRate.findFirst({
+    where: {
+      base,
+      quote,
+      asOf: {
+        lte: asOf
+      }
+    },
+    orderBy: {
+      asOf: 'desc'
+    }
   });
+  
+  return fxRate ? Number(fxRate.rate) : 1;
 }
 
 /**
- * 格式化为带千分位分隔符的货币显示
+ * 货币转换
  * @param amount 金额
- * @param currency 货币代码
- * @param decimals 小数位数
- * @returns 格式化后的货币字符串
+ * @param fromCurrency 源货币
+ * @param toCurrency 目标货币
+ * @param asOf 日期
+ * @returns 转换后的金额
  */
-export function formatCurrencyWithSeparator(
-  amount: number | string | null | undefined,
-  currency: string = "CNY",
-  decimals: number = 2
-): string {
-  // 处理空值
-  if (amount === null || amount === undefined) {
-    return "-";
+export async function convertCurrency(
+  amount: number, 
+  fromCurrency: string, 
+  toCurrency: string, 
+  asOf: Date
+): Promise<number> {
+  // 如果源货币和目标货币相同，直接返回原金额
+  if (fromCurrency === toCurrency) {
+    return amount;
   }
-
-  // 转换为数字
-  const num = typeof amount === "string" ? parseFloat(amount) : amount;
   
-  // 处理NaN
-  if (isNaN(num)) {
-    return "-";
-  }
-
-  // 四舍五入到指定小数位
-  const rounded = Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  // 获取汇率
+  const rate = await getFxRate(fromCurrency, toCurrency, asOf);
   
-  // 根据货币类型格式化
-  switch (currency) {
-    case "CNY":
-      return `¥${rounded.toLocaleString("zh-CN", {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-      })}`;
-    case "USD":
-      return `$${rounded.toLocaleString("en-US", {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-      })}`;
-    case "EUR":
-      return `€${rounded.toLocaleString("de-DE", {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-      })}`;
-    default:
-      return `${rounded.toLocaleString("zh-CN", {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-      })} ${currency}`;
-  }
+  // 转换金额
+  return amount * rate;
 }
 
-// 默认导出常用的格式化方法
-export default formatCurrencyWithSeparator;
+/**
+ * 获取账户以基础货币计算的价值
+ * @param accountId 账户ID
+ * @param asOf 日期
+ * @returns 以账户基础货币计算的价值
+ */
+export async function getAccountValueInBaseCurrency(accountId: string, asOf: Date): Promise<number> {
+  // 获取账户信息
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: {
+      snapshots: {
+        where: {
+          asOf: {
+            lte: asOf
+          }
+        },
+        orderBy: {
+          asOf: 'desc'
+        },
+        take: 1
+      }
+    }
+  });
+  
+  if (!account) {
+    throw new Error("账户不存在");
+  }
+  
+  // 获取最新的快照价值
+  const snapshot = account.snapshots[0];
+  const snapshotValue = snapshot ? Number(snapshot.totalValue) : 0;
+  
+  // 如果快照货币与账户基础货币相同，直接返回
+  if (snapshot && account.baseCurrency === snapshot.currency) {
+    return snapshotValue;
+  }
+  
+  // 否则进行货币转换
+  if (snapshot) {
+    return await convertCurrency(
+      snapshotValue,
+      snapshot.currency,
+      account.baseCurrency,
+      asOf
+    );
+  }
+  
+  return 0;
+}

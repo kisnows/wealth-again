@@ -29,24 +29,28 @@ export async function POST(req: NextRequest) {
 
     // 使用事务创建账户和初始资金记录
     const account = await prisma.$transaction(async (tx) => {
+      // 计算初始存款金额（如果有）
+      const initialDeposit = body.initialBalance > 0 ? body.initialBalance : 0;
+      
       // 创建账户
       const newAccount = await tx.account.create({
         data: { 
           name: body.name, 
           baseCurrency: body.baseCurrency, 
-          initialBalance: body.initialBalance.toString(), // 保存初始资金
+          initialBalance: initialDeposit.toString(), // 保存初始资金
+          totalDeposits: initialDeposit.toString(), // 如果有初始资金，也算作存款
           userId 
         },
       });
 
       // 如果有初始资金，创建一个快照记录，确保账户概览能正确显示
-      if (body.initialBalance > 0) {
+      if (initialDeposit > 0) {
         const now = new Date();
         await tx.valuationSnapshot.create({
           data: {
             accountId: newAccount.id,
             asOf: now,
-            totalValue: body.initialBalance.toString(),
+            totalValue: initialDeposit.toString(),
           },
         });
       }

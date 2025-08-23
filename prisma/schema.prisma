@@ -9,21 +9,27 @@ datasource db {
 
 /// 用户表 - 系统的核心用户实体
 model User {
-  id          String    @id @default(uuid()) /// 用户唯一标识符，使用UUID
-  email       String    @unique /// 用户邮箱，用于登录和身份识别，必须唯一
-  password    String /// 用户密码，加密存储
-  name        String? /// 用户姓名，可选字段
-  isActive    Boolean   @default(true) /// 用户账户是否激活
-  lastLoginAt DateTime? /// 最后登录时间
-  createdAt   DateTime  @default(now()) /// 用户创建时间，自动设置为当前时间
-  updatedAt   DateTime  @updatedAt /// 用户信息更新时间
-
-  // 关联关系
-  accounts      Account[] /// 用户拥有的投资账户列表
-  incomes       IncomeRecord[] /// 用户的收入记录
-  incomeChanges IncomeChange[] /// 用户的收入变更记录
-  bonusPlans    BonusPlan[] /// 用户的奖金计划
-  auditLogs     AuditLog[] /// 用户的审计日志
+  /// 用户唯一标识符，使用UUID
+  id            String         @id @default(uuid())
+  /// 用户邮箱，用于登录和身份识别，必须唯一
+  email         String         @unique
+  /// 用户密码，加密存储
+  password      String
+  /// 用户姓名，可选字段
+  name          String?
+  /// 用户账户是否激活
+  isActive      Boolean        @default(true)
+  /// 最后登录时间
+  lastLoginAt   DateTime?
+  /// 用户创建时间，自动设置为当前时间
+  createdAt     DateTime       @default(now())
+  /// 用户信息更新时间
+  updatedAt     DateTime       @updatedAt
+  accounts      Account[]
+  auditLogs     AuditLog[]
+  bonusPlans    BonusPlan[]
+  incomeChanges IncomeChange[]
+  incomes       IncomeRecord[]
 
   @@index([email])
   @@index([isActive])
@@ -31,201 +37,280 @@ model User {
 
 /// 投资账户表 - 用户的各种投资账户（如券商账户、基金账户等）
 model Account {
-  id             String   @id @default(uuid()) /// 账户唯一标识符
-  userId         String /// 所属用户ID，外键关联User表
-  name           String /// 账户名称（如"招商证券账户"）
-  baseCurrency   String   @default("CNY") /// 账户基础货币，默认人民币
-  initialBalance Decimal  @default(0) /// 账户初始资金
-  createdAt      DateTime @default(now()) /// 账户创建时间
+  /// 账户唯一标识符
+  id             String              @id @default(uuid())
+  /// 所属用户ID，外键关联User表
+  userId         String
+  /// 账户名称（如"招商证券账户"）
+  name           String
+  /// 账户基础货币，默认人民币
+  baseCurrency   String              @default("CNY")
+  /// 账户初始资金
+  initialBalance Decimal             @default(0)
+  /// 累计存入金额
+  totalDeposits  Decimal             @default(0)
+  /// 累计取出金额
+  totalWithdrawals Decimal           @default(0)
+  /// 账户创建时间
+  createdAt      DateTime            @default(now())
+  /// 账户更新时间
+  updatedAt      DateTime            @updatedAt
+  user           User                @relation(fields: [userId], references: [id])
+  transactions   Transaction[]
+  snapshots      ValuationSnapshot[]
 
-  // 关联关系
-  user         User                @relation(fields: [userId], references: [id]) /// 所属用户
-  transactions Transaction[] /// 账户下的所有交易记录
-  snapshots    ValuationSnapshot[] /// 账户估值快照
-
-  @@unique([userId, name]) /// 同一用户下账户名称必须唯一
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 /// 交易记录表 - 记录账户的存取款操作
 model Transaction {
-  id        String   @id @default(uuid()) /// 交易唯一标识符
-  accountId String /// 所属账户ID，外键关联Account表
-  type      String /// 交易类型（DEPOSIT存款、WITHDRAW取款）
-  tradeDate DateTime /// 交易日期
-  amount    Decimal /// 金额（正数表示存款，负数表示取款）
-  currency  String   @default("CNY") /// 交易货币，默认人民币
-  note      String? /// 交易备注信息
-  createdAt DateTime @default(now()) /// 记录创建时间
+  /// 交易唯一标识符
+  id        String   @id @default(uuid())
+  /// 所属账户ID，外键关联Account表
+  accountId String
+  /// 交易类型（DEPOSIT存款、WITHDRAW取款）
+  type      String
+  /// 交易日期
+  tradeDate DateTime
+  /// 金额（正数表示存款，负数表示取款）
+  amount    Decimal
+  /// 交易货币
+  currency  String   @default("CNY")
+  /// 交易备注信息
+  note      String?
+  /// 记录创建时间
+  createdAt DateTime @default(now())
+  /// 记录更新时间
+  updatedAt DateTime @updatedAt
+  account   Account  @relation(fields: [accountId], references: [id])
 
-  // 关联关系
-  account Account @relation(fields: [accountId], references: [id]) /// 所属账户
-
-  @@index([accountId, tradeDate]) /// 按账户和交易日期建立复合索引
+  @@index([accountId, tradeDate])
+  @@index([currency])
 }
 
 /// 账户估值快照表 - 定期记录账户总价值，用于性能分析
 model ValuationSnapshot {
-  id         String   @id @default(uuid()) /// 快照唯一标识符
-  accountId  String /// 所属账户ID
-  asOf       DateTime /// 快照时间点
-  totalValue Decimal /// 账户总价值
-  createdAt  DateTime @default(now()) /// 快照创建时间
+  /// 快照唯一标识符
+  id         String   @id @default(uuid())
+  /// 所属账户ID
+  accountId  String
+  /// 快照时间点
+  asOf       DateTime
+  /// 账户总价值
+  totalValue Decimal
+  /// 快照创建时间
+  createdAt  DateTime @default(now())
+  account    Account  @relation(fields: [accountId], references: [id])
 
-  // 关联关系
-  account Account @relation(fields: [accountId], references: [id]) /// 所属账户
-
-  @@unique([accountId, asOf]) /// 同一账户在同一时间点只能有一个快照
+  @@unique([accountId, asOf])
 }
 
 /// 汇率表 - 存储不同货币之间的汇率信息
 model FxRate {
-  id    String   @id @default(uuid()) /// 汇率记录唯一标识符
-  base  String /// 基础货币（如"USD"）
-  quote String /// 计价货币（如"CNY"）
-  asOf  DateTime /// 汇率日期
-  rate  Decimal /// 汇率值（1单位基础货币=rate单位计价货币）
+  /// 汇率记录唯一标识符
+  id    String   @id @default(uuid())
+  /// 基础货币（如"USD"）
+  base  String
+  /// 计价货币（如"CNY"）
+  quote String
+  /// 汇率日期
+  asOf  DateTime
+  /// 汇率值（1单位基础货币=rate单位计价货币）
+  rate  Decimal
+  /// 记录创建时间
+  createdAt DateTime @default(now())
+  /// 记录更新时间
+  updatedAt DateTime @updatedAt
 
-  @@unique([base, quote, asOf]) /// 同一货币对在同一日期只能有一个汇率记录
+  @@unique([base, quote, asOf])
+  @@index([base, quote, asOf])
 }
 
 /// 系统配置表 - 存储系统级配置参数（如税率参数等）
 model Config {
-  id            String    @id @default(uuid()) /// 配置记录唯一标识符
-  key           String /// 配置键名（如"tax.rate.shanghai"）
-  value         String /// 配置值（JSON格式存储复杂配置）
-  effectiveFrom DateTime /// 配置生效开始时间
-  effectiveTo   DateTime? /// 配置生效结束时间，null表示永久有效
-  createdAt     DateTime  @default(now()) /// 配置创建时间
+  /// 配置记录唯一标识符
+  id            String    @id @default(uuid())
+  /// 配置键名（如"tax.rate.shanghai"）
+  key           String
+  /// 配置值（JSON格式存储复杂配置）
+  value         String
+  /// 配置生效开始时间
+  effectiveFrom DateTime
+  /// 配置生效结束时间，null表示永久有效
+  effectiveTo   DateTime?
+  /// 配置创建时间
+  createdAt     DateTime  @default(now())
 
-  @@index([key, effectiveFrom]) /// 按配置键名和生效时间建立复合索引
-  @@index([key, effectiveFrom, effectiveTo]) /// 按时间范围查询建立索引
+  @@index([key, effectiveFrom])
+  @@index([key, effectiveFrom, effectiveTo])
 }
 
 /// 税率表 - 存储个人所得税税率档次信息
 model TaxBracket {
-  id             String    @id @default(uuid()) /// 税率档次唯一标识符
-  city           String /// 适用城市
-  minIncome      Decimal /// 收入区间下限（年度）
-  maxIncome      Decimal? /// 收入区间上限，null表示无上限
-  taxRate        Decimal /// 税率（小数，如0.03表示3%）
-  quickDeduction Decimal /// 速算扣除数
-  effectiveFrom  DateTime /// 生效开始时间
-  effectiveTo    DateTime? /// 生效结束时间，null表示永久有效
-  createdAt      DateTime  @default(now()) /// 创建时间
+  /// 税率档次唯一标识符
+  id             String    @id @default(uuid())
+  /// 适用城市
+  city           String
+  /// 收入区间下限（年度）
+  minIncome      Decimal
+  /// 收入区间上限，null表示无上限
+  maxIncome      Decimal?
+  /// 税率（小数，如0.03表示3%）
+  taxRate        Decimal
+  /// 速算扣除数
+  quickDeduction Decimal
+  /// 生效开始时间
+  effectiveFrom  DateTime
+  /// 生效结束时间，null表示永久有效
+  effectiveTo    DateTime?
+  /// 创建时间
+  createdAt      DateTime  @default(now())
 
-  @@index([city, effectiveFrom]) /// 按城市和生效时间建立索引
-  @@index([city, effectiveFrom, effectiveTo]) /// 按时间范围查询建立索引
+  @@index([city, effectiveFrom])
+  @@index([city, effectiveFrom, effectiveTo])
 }
 
 /// 社保公积金配置表 - 存储各城市的社保公积金政策参数
 model SocialInsuranceConfig {
-  id   String @id @default(uuid()) /// 配置唯一标识符
-  city String /// 适用城市
+  /// 配置唯一标识符
+  id                 String    @id @default(uuid())
+  /// 适用城市
+  city               String
+  /// 社保最低缴费基数
+  socialMinBase      Decimal
+  /// 社保最高缴费基数
+  socialMaxBase      Decimal
+  /// 养老保险个人缴费比例
+  pensionRate        Decimal
+  /// 医疗保险个人缴费比例
+  medicalRate        Decimal
+  /// 失业保险个人缴费比例
+  unemploymentRate   Decimal
+  /// 公积金最低缴费基数
+  housingFundMinBase Decimal
+  /// 公积金最高缴费基数
+  housingFundMaxBase Decimal
+  /// 公积金个人缴费比例
+  housingFundRate    Decimal
+  /// 生效开始时间
+  effectiveFrom      DateTime
+  /// 生效结束时间，null表示永久有效
+  effectiveTo        DateTime?
+  /// 创建时间
+  createdAt          DateTime  @default(now())
 
-  // 社保相关
-  socialMinBase    Decimal /// 社保最低缴费基数
-  socialMaxBase    Decimal /// 社保最高缴费基数
-  pensionRate      Decimal /// 养老保险个人缴费比例
-  medicalRate      Decimal /// 医疗保险个人缴费比例
-  unemploymentRate Decimal /// 失业保险个人缴费比例
-
-  // 公积金相关
-  housingFundMinBase Decimal /// 公积金最低缴费基数
-  housingFundMaxBase Decimal /// 公积金最高缴费基数
-  housingFundRate    Decimal /// 公积金个人缴费比例
-
-  effectiveFrom DateTime /// 生效开始时间
-  effectiveTo   DateTime? /// 生效结束时间，null表示永久有效
-  createdAt     DateTime  @default(now()) /// 创建时间
-
-  @@unique([city, effectiveFrom]) /// 同一城市在同一时间点只能有一个配置
-  @@index([city, effectiveFrom, effectiveTo]) /// 按时间范围查询建立索引
+  @@unique([city, effectiveFrom])
+  @@index([city, effectiveFrom, effectiveTo])
 }
 
 /// 收入记录表 - 记录用户每月的收入详情
 model IncomeRecord {
-  id     String   @id @default(uuid()) /// 收入记录唯一标识符
-  userId String /// 所属用户ID
-  city   String /// 工作城市（影响税率计算）
-  year   Int /// 收入年份
-  month  Int /// 收入月份（1-12）
-  gross  Decimal /// 税前总收入
-  bonus  Decimal? @default(0) /// 当月奖金（如季度奖、年终奖等）
+  /// 收入记录唯一标识符
+  id                  String   @id @default(uuid())
+  /// 所属用户ID
+  userId              String
+  /// 工作城市（影响税率计算）
+  city                String
+  /// 收入年份
+  year                Int
+  /// 收入月份（1-12）
+  month               Int
+  /// 税前总收入
+  gross               Decimal
+  /// 当月奖金（如季度奖、年终奖等）
+  bonus               Decimal? @default(0)
+  /// 社保缴费基数
+  socialInsuranceBase Decimal?
+  /// 公积金缴费基数
+  housingFundBase     Decimal?
+  /// 实际社保缴费金额
+  socialInsurance     Decimal? @default(0)
+  /// 实际公积金缴费金额
+  housingFund         Decimal? @default(0)
+  /// 专项附加扣除总额（含子女教育、继续教育、大病医疗、住房贷款利息、住房租金、赡养老人、婴幼儿照护等）
+  specialDeductions   Decimal? @default(0)
+  /// 其他法定扣除
+  otherDeductions     Decimal? @default(0)
+  /// 公益慈善捐赠
+  charityDonations    Decimal? @default(0)
+  /// 应纳税所得额
+  taxableIncome       Decimal?
+  /// 应缴个人所得税
+  incomeTax           Decimal?
+  /// 税后收入
+  netIncome           Decimal?
+  /// 覆盖参数（JSON格式，用于特殊情况）
+  overrides           String?
+  /// 记录创建时间
+  createdAt           DateTime @default(now())
+  /// 记录更新时间
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id])
 
-  // 社保公积金相关
-  socialInsuranceBase Decimal? /// 社保缴费基数
-  housingFundBase     Decimal? /// 公积金缴费基数
-  socialInsurance     Decimal? @default(0) /// 实际社保缴费金额
-  housingFund         Decimal? @default(0) /// 实际公积金缴费金额
-
-  // 专项附加扣除（简化为总额）
-  specialDeductions Decimal? @default(0) /// 专项附加扣除总额（含子女教育、继续教育、大病医疗、住房贷款利息、住房租金、赡养老人、婴幼儿照护等）
-
-  // 其他扣除
-  otherDeductions  Decimal? @default(0) /// 其他法定扣除
-  charityDonations Decimal? @default(0) /// 公益慈善捐赠
-
-  // 计算结果
-  taxableIncome Decimal? /// 应纳税所得额
-  incomeTax     Decimal? /// 应缴个人所得税
-  netIncome     Decimal? /// 税后收入
-
-  overrides String? /// 覆盖参数（JSON格式，用于特殊情况）
-  createdAt DateTime @default(now()) /// 记录创建时间
-  updatedAt DateTime @updatedAt /// 记录更新时间
-
-  // 关联关系
-  user User @relation(fields: [userId], references: [id]) /// 所属用户
-
-  @@unique([userId, year, month]) /// 同一用户在同一年月只能有一条收入记录
-  @@index([userId, year]) /// 按用户和年份建立索引，便于年度汇算
+  @@unique([userId, year, month])
+  @@index([userId, year])
 }
 
 /// 收入变更记录表 - 记录用户薪资的历史变更
 model IncomeChange {
-  id            String   @id @default(uuid()) /// 收入变更记录唯一标识符
-  userId        String /// 所属用户ID
-  city          String /// 工作城市
-  grossMonthly  Decimal /// 新的月度税前收入
-  effectiveFrom DateTime /// 变更生效日期
-  createdAt     DateTime @default(now()) /// 记录创建时间
+  /// 收入变更记录唯一标识符
+  id            String   @id @default(uuid())
+  /// 所属用户ID
+  userId        String
+  /// 工作城市
+  city          String
+  /// 新的月度税前收入
+  grossMonthly  Decimal
+  /// 变更生效日期
+  effectiveFrom DateTime
+  /// 记录创建时间
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
 
-  // 关联关系
-  user User @relation(fields: [userId], references: [id]) /// 所属用户
-
-  @@index([userId, effectiveFrom]) /// 按用户和生效日期建立复合索引
+  @@index([userId, effectiveFrom])
 }
 
 /// 奖金计划表 - 记录用户的奖金发放计划
 model BonusPlan {
-  id            String   @id @default(uuid()) /// 奖金计划唯一标识符
-  userId        String /// 所属用户ID
-  city          String /// 工作城市
-  amount        Decimal /// 奖金金额
-  effectiveDate DateTime /// 奖金发放日期
-  createdAt     DateTime @default(now()) /// 记录创建时间
+  /// 奖金计划唯一标识符
+  id            String   @id @default(uuid())
+  /// 所属用户ID
+  userId        String
+  /// 工作城市
+  city          String
+  /// 奖金金额
+  amount        Decimal
+  /// 奖金发放日期
+  effectiveDate DateTime
+  /// 记录创建时间
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
 
-  // 关联关系
-  user User @relation(fields: [userId], references: [id]) /// 所属用户
-
-  @@index([userId, effectiveDate]) /// 按用户和发放日期建立复合索引
+  @@index([userId, effectiveDate])
 }
 
 /// 审计日志表 - 记录系统操作日志
 model AuditLog {
-  id          String   @id @default(uuid())
-  userId      String? /// 操作用户ID，系统操作时可为空
-  action      String /// 操作类型（CREATE、UPDATE、DELETE等）
-  resource    String /// 操作资源类型（User、Account、Transaction等）
-  resourceId  String? /// 操作资源ID
-  oldValues   String? /// 操作前的值（JSON格式）
-  newValues   String? /// 操作后的值（JSON格式）
-  ipAddress   String? /// IP地址
-  userAgent   String? /// 用户代理
-  createdAt   DateTime @default(now())
-
-  // 关联关系
-  user User? @relation(fields: [userId], references: [id])
+  id         String   @id @default(uuid())
+  /// 操作用户ID，系统操作时可为空
+  userId     String?
+  /// 操作类型（CREATE、UPDATE、DELETE等）
+  action     String
+  /// 操作资源类型（User、Account、Transaction等）
+  resource   String
+  /// 操作资源ID
+  resourceId String?
+  /// 操作前的值（JSON格式）
+  oldValues  String?
+  /// 操作后的值（JSON格式）
+  newValues  String?
+  /// IP地址
+  ipAddress  String?
+  /// 用户代理
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([resource, resourceId])

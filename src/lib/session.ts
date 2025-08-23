@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
 
-export async function getCurrentUser() {
+export async function getCurrentUser(req?: NextRequest) {
   // 在Next.js App Router的API路由中，getServerSession应该能自动获取会话
   // 如果遇到问题，我们可以尝试显式传递req和res对象
   const session = await getServerSession(authOptions);

@@ -37,20 +37,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const transaction = await prisma.transaction.create({
-      data: {
-        accountId: body.accountId,
-        type: body.type,
-        tradeDate: new Date(body.tradeDate),
-        amount: body.cashAmount.toString(),
-        currency: body.currency,
-        note: body.note,
-      },
+    // 使用事务确保数据一致性
+    const result = await prisma.$transaction(async (tx) => {
+      // 创建交易记录
+      const transaction = await tx.transaction.create({
+        data: {
+          accountId: body.accountId,
+          type: body.type,
+          tradeDate: new Date(body.tradeDate),
+          amount: body.cashAmount.toString(),
+          currency: body.currency,
+          note: body.note,
+        },
+      });
+
+      // 更新账户的累计存款/取款金额
+      let updateData: any = {};
+      
+      if (body.type === "DEPOSIT" || body.type === "TRANSFER_IN") {
+        updateData.totalDeposits = {
+          increment: body.cashAmount
+        };
+      } else if (body.type === "WITHDRAW" || body.type === "TRANSFER_OUT") {
+        updateData.totalWithdrawals = {
+          increment: body.cashAmount
+        };
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await tx.account.update({
+          where: { id: body.accountId },
+          data: updateData
+        });
+      }
+
+      return transaction;
     });
 
     return NextResponse.json({ 
       success: true,
-      data: { id: transaction.id }
+      data: { id: result.id }
     });
 
   } catch (error) {
