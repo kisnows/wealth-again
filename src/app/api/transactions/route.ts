@@ -1,8 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
+import {
+  withApiHandler,
+  withValidation,
+  successResponse,
+  errorResponse,
+  parsePaginationParams,
+  buildPaginatedResponse,
+  ApiContext,
+} from "@/lib/api-handler";
 
+// 数据验证模式
 const createTransactionSchema = z.object({
   accountId: z.string().uuid(),
   type: z.enum(["DEPOSIT", "WITHDRAW", "TRANSFER_IN", "TRANSFER_OUT"]),
@@ -12,175 +21,112 @@ const createTransactionSchema = z.object({
   note: z.string().optional(),
 });
 
-const updateTransactionSchema = z.object({
-  type: z.enum(["DEPOSIT", "WITHDRAW", "TRANSFER_IN", "TRANSFER_OUT"]).optional(),
-  tradeDate: z.string().optional(),
-  cashAmount: z.number().optional(),
-  currency: z.string().optional(),
-  note: z.string().optional(),
-});
+// 业务逻辑处理器
+async function createTransaction(
+  { userId }: ApiContext,
+  data: z.infer<typeof createTransactionSchema>
+) {
+  // 验证账户所有权
+  const account = await prisma.account.findFirst({
+    where: { id: data.accountId, userId }
+  });
 
-export async function POST(req: NextRequest) {
-  try {
-    const userId = await getCurrentUser(req);
-    const body = createTransactionSchema.parse(await req.json());
-
-    // 验证账户所有权
-    const account = await prisma.account.findFirst({
-      where: { id: body.accountId, userId }
-    });
-
-    if (!account) {
-      return NextResponse.json(
-        { success: false, error: { code: "FORBIDDEN", message: "无权访问此账户" } },
-        { status: 403 }
-      );
-    }
-
-    // 使用事务确保数据一致性
-    const result = await prisma.$transaction(async (tx) => {
-      // 创建交易记录
-      const transaction = await tx.transaction.create({
-        data: {
-          accountId: body.accountId,
-          type: body.type,
-          tradeDate: new Date(body.tradeDate),
-          amount: body.cashAmount.toString(),
-          currency: body.currency,
-          note: body.note,
-        },
-      });
-
-      // 更新账户的累计存款/取款金额
-      let updateData: any = {};
-      
-      if (body.type === "DEPOSIT" || body.type === "TRANSFER_IN") {
-        updateData.totalDeposits = {
-          increment: body.cashAmount
-        };
-      } else if (body.type === "WITHDRAW" || body.type === "TRANSFER_OUT") {
-        updateData.totalWithdrawals = {
-          increment: body.cashAmount
-        };
-      }
-
-      if (Object.keys(updateData).length > 0) {
-        await tx.account.update({
-          where: { id: body.accountId },
-          data: updateData
-        });
-      }
-
-      return transaction;
-    });
-
-    return NextResponse.json({ 
-      success: true,
-      data: { id: result.id }
-    });
-
-  } catch (error) {
-    console.error("Transaction creation error:", error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: { code: "VALIDATION_ERROR", message: error.issues[0].message } },
-        { status: 400 }
-      );
-    }
-
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      return NextResponse.json(
-        { success: false, error: { code: "UNAUTHORIZED", message: "请先登录" } },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
-      { status: 500 }
-    );
+  if (!account) {
+    return errorResponse("FORBIDDEN", "无权访问此账户");
   }
-}
 
-export async function GET(req: NextRequest) {
-  try {
-    const userId = await getCurrentUser(req);
-    const { searchParams } = new URL(req.url);
-    
-    const accountId = searchParams.get("accountId");
-    const type = searchParams.get("type");
-    const page = Math.max(1, Number(searchParams.get("page") || "1"));
-    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") || "20")));
-    const skip = (page - 1) * pageSize;
+  // 使用事务确保数据一致性
+  const result = await prisma.$transaction(async (tx) => {
+    // 创建交易记录
+    const transaction = await tx.transaction.create({
+      data: {
+        accountId: data.accountId,
+        type: data.type,
+        tradeDate: new Date(data.tradeDate),
+        amount: data.cashAmount.toString(),
+        currency: data.currency,
+        note: data.note,
+      },
+    });
 
-    // 构建查询条件
-    const where: any = {};
+    // 更新账户的累计存款/取款金额
+    let updateData: any = {};
     
-    if (accountId) {
-      // 验证账户所有权
-      const account = await prisma.account.findFirst({
-        where: { id: accountId, userId }
-      });
-      
-      if (!account) {
-        return NextResponse.json(
-          { success: false, error: { code: "FORBIDDEN", message: "无权访问此账户" } },
-          { status: 403 }
-        );
-      }
-      
-      where.accountId = accountId;
-    } else {
-      // 如果不指定账户，则查询用户所有账户的交易
-      const userAccounts = await prisma.account.findMany({
-        where: { userId },
-        select: { id: true }
-      });
-      
-      where.accountId = {
-        in: userAccounts.map(acc => acc.id)
+    if (data.type === "DEPOSIT" || data.type === "TRANSFER_IN") {
+      updateData.totalDeposits = {
+        increment: data.cashAmount
+      };
+    } else if (data.type === "WITHDRAW" || data.type === "TRANSFER_OUT") {
+      updateData.totalWithdrawals = {
+        increment: data.cashAmount
       };
     }
 
-    if (type) {
-      where.type = type;
+    if (Object.keys(updateData).length > 0) {
+      await tx.account.update({
+        where: { id: data.accountId },
+        data: updateData
+      });
     }
 
-    const [total, transactions] = await Promise.all([
-      prisma.transaction.count({ where }),
-      prisma.transaction.findMany({
-        where,
-        orderBy: { tradeDate: "desc" },
-        skip,
-        take: pageSize,
-      })
-    ]);
+    return transaction;
+  });
 
-    return NextResponse.json({ 
-      success: true,
-      data: transactions,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize)
-      }
-    });
-
-  } catch (error) {
-    console.error("Transaction list error:", error);
-    
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      return NextResponse.json(
-        { success: false, error: { code: "UNAUTHORIZED", message: "请先登录" } },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
-      { status: 500 }
-    );
-  }
+  return successResponse({ id: result.id });
 }
+
+async function getTransactions({ userId, req }: ApiContext) {
+  const { searchParams } = new URL(req.url);
+  const accountId = searchParams.get("accountId");
+  const type = searchParams.get("type");
+  const { page, pageSize, skip } = parsePaginationParams(searchParams);
+
+  // 构建查询条件
+  const where: any = {};
+  
+  if (accountId) {
+    // 验证账户所有权
+    const account = await prisma.account.findFirst({
+      where: { id: accountId, userId }
+    });
+    
+    if (!account) {
+      return errorResponse("FORBIDDEN", "无权访问此账户");
+    }
+    
+    where.accountId = accountId;
+  } else {
+    // 如果不指定账户，则查询用户所有账户的交易
+    const userAccounts = await prisma.account.findMany({
+      where: { userId },
+      select: { id: true }
+    });
+    
+    where.accountId = {
+      in: userAccounts.map(acc => acc.id)
+    };
+  }
+
+  if (type) {
+    where.type = type;
+  }
+
+  const [total, transactions] = await Promise.all([
+    prisma.transaction.count({ where }),
+    prisma.transaction.findMany({
+      where,
+      orderBy: { tradeDate: "desc" },
+      skip,
+      take: pageSize,
+    })
+  ]);
+
+  return buildPaginatedResponse(transactions, total, page, pageSize);
+}
+
+// API路由处理器
+export const POST = withApiHandler(
+  withValidation(createTransactionSchema)(createTransaction)
+);
+
+export const GET = withApiHandler(getTransactions);

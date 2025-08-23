@@ -54,7 +54,6 @@ export const incomeCalculationInputSchema = z.object({
   userId: z.string(),
   year: z.number(),
   month: z.number().min(1).max(12),
-  city: z.string(),
 
   // 收入项
   gross: z.number().min(0),

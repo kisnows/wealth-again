@@ -107,24 +107,9 @@ export async function getAccountValueInBaseCurrency(accountId: string, asOf: Dat
     throw new Error("账户不存在");
   }
   
-  // 获取最新的快照价值
+  // 获取最新的快照价值（已经是账户基础货币）
   const snapshot = account.snapshots[0];
   const snapshotValue = snapshot ? Number(snapshot.totalValue) : 0;
   
-  // 如果快照货币与账户基础货币相同，直接返回
-  if (snapshot && account.baseCurrency === snapshot.currency) {
-    return snapshotValue;
-  }
-  
-  // 否则进行货币转换
-  if (snapshot) {
-    return await convertCurrency(
-      snapshotValue,
-      snapshot.currency,
-      account.baseCurrency,
-      asOf
-    );
-  }
-  
-  return 0;
+  return snapshotValue;
 }

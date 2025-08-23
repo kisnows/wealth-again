@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "internal error" }, { status: 500 });
     }
 
-    // 使用服务层累计逻辑，避免旧兼容路径
+    // 使用服务层累计逻辑，新版本使用userId动态查询城市
     const svc = new TaxService(new TaxConfigRepository(prisma));
     const months = incomeRecords.map((record: any) => ({
       year: record.year,
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       bonus: record.bonus ? Number(record.bonus) : 0,
     }));
     const results = await svc.calculateForecastWithholdingCumulative({
-      city,
+      userId,
       months,
     });
 

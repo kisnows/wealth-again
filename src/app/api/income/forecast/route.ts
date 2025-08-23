@@ -5,6 +5,7 @@ import { createTaxService } from "@/lib/tax";
 import { ZodError } from "zod";
 import { fetchHangzhouParams } from "@/lib/sources/hz-params";
 import { convertCurrency } from "@/lib/currency";
+import { getUserCitiesInRange } from "@/lib/user-city";
 
 function ymToDateEnd(ym: string): Date {
   const [y, m] = ym.split("-").map((n) => Number(n));
@@ -36,11 +37,11 @@ export async function GET(req: NextRequest) {
     });
     
     const { searchParams } = new URL(req.url);
-    const city = searchParams.get("city") || "Hangzhou";
     const startYM = searchParams.get("start");
     const endYM = searchParams.get("end");
     const year = Number(searchParams.get("year"));
     const horizon = Number(searchParams.get("months") || "12");
+    
     if (!year && !(startYM && endYM))
       return NextResponse.json(
         { error: "year or start/end required" },
@@ -63,15 +64,19 @@ export async function GET(req: NextRequest) {
       rangeEnd = new Date(y, Math.min(11, horizon - 1), 0);
     }
 
+    // 获取用户在时间范围内的城市变更情况
+    const userCities = await getUserCitiesInRange(userId, rangeStart, rangeEnd);
+    const representativeCity = userCities.length > 0 ? userCities[0].city : "Hangzhou";
+
+    // 查询收入相关数据（不再按城市过滤，因为这些表已经移除了city字段）
     const [changes, bonuses, longTermCash] = await Promise.all([
       prisma.incomeChange.findMany({
-        where: { userId, city, effectiveFrom: { lte: rangeEnd } },
+        where: { userId, effectiveFrom: { lte: rangeEnd } },
         orderBy: { effectiveFrom: "asc" },
       }),
       prisma.bonusPlan.findMany({
         where: {
           userId,
-          city,
           effectiveDate: { gte: rangeStart, lte: rangeEnd },
         },
         orderBy: { effectiveDate: "asc" },
@@ -79,7 +84,6 @@ export async function GET(req: NextRequest) {
       prisma.longTermCash.findMany({
         where: {
           userId,
-          city,
           effectiveDate: { lte: rangeEnd },
         },
         orderBy: { effectiveDate: "asc" },
@@ -160,22 +164,23 @@ export async function GET(req: NextRequest) {
       }
       return { amount, count };
     }
-    // 方案B：调用服务层计算累计预扣
-    // 自动导入杭州配置（若缺失）
+
+    // 自动导入税务配置（如果缺失）
+    // 这里使用代表性城市检查，实际计算会动态查询每个月的城市
     for (const it of months) {
-      const cfg = await taxService.getCurrentTaxConfig(city, it.endDate);
+      const cfg = await taxService.getCurrentTaxConfig(representativeCity, it.endDate);
       if (
         (!cfg?.taxBrackets?.length || !cfg?.socialInsurance) &&
-        city === "Hangzhou"
+        representativeCity === "Hangzhou"
       ) {
-        const params = await fetchHangzhouParams({ year: it.y, city });
+        const params = await fetchHangzhouParams({ year: it.y, city: representativeCity });
         await taxService.importHangzhouParams(params as any);
       }
     }
     
     // 计算每个月的收入并转换为基准币种
-    const monthlyData = [];
-    const monthlyValues = []; // 存储每月的具体值用于后续映射
+    const monthlyData: any[] = [];
+    const monthlyValues: any[] = []; // 存储每月的具体值用于后续映射
     
     for (const it of months) {
       const gross = await grossForMonth(it.y, it.m);
@@ -198,10 +203,12 @@ export async function GET(req: NextRequest) {
       });
     }
     
+    // 使用新的API签名，传入userId而不是city
     const results = await taxService.calculateForecastWithholdingCumulative({
-      city,
+      userId,
       months: monthlyData,
     });
+    
     const changeMonths = new Set(
       changes.map(
         (c) =>
@@ -240,6 +247,7 @@ export async function GET(req: NextRequest) {
       longTermCashThisMonth: monthlyValues[i].longTermCash.amount || 0,
       longTermCashCount: monthlyValues[i].longTermCash.count || 0,
     }));
+    
     // 汇总
     const totals = annotated.reduce(
       (acc: any, x: any) => {
@@ -253,6 +261,7 @@ export async function GET(req: NextRequest) {
       },
       { totalSalary: 0, totalBonus: 0, totalLongTermCash: 0, totalGross: 0, totalNet: 0, totalTax: 0 }
     );
+    
     return NextResponse.json({ results: annotated, totals });
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes("Unauthorized")) {

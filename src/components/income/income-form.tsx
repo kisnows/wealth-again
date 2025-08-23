@@ -1,21 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { CurrencySelect } from "@/components/ui/currency-display";
 import { SalaryChangeForm, BonusPlanForm } from "@/components/income/forms";
-import { MessagesContainer } from "@/components/ui/messages";
 import { useUserConfig } from "@/hooks/use-income-data";
 
 /**
  * 重构后的收入表单组件
- * 只负责表单组合和基本设置
+ * 移除城市选择功能，城市现在通过用户城市历史管理
  */
 export default function IncomeForm() {
-  const { baseCurrency, cities, updateUserConfig } = useUserConfig();
-  const [selectedCity, setSelectedCity] = useState("Hangzhou");
+  const { baseCurrency, updateUserConfig } = useUserConfig();
   const [selectedCurrency, setSelectedCurrency] = useState(baseCurrency);
+
+  const handleBaseCurrencyChange = (currency: string) => {
+    updateUserConfig({ baseCurrency: currency });
+  };
 
   return (
     <div className="space-y-6">
@@ -27,26 +30,30 @@ export default function IncomeForm() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="city">城市</Label>
-              <select
-                id="city"
-                value={selectedCity}
-                onChange={(e) => setSelectedCity(e.target.value)}
-                className="border rounded px-3 py-2 w-full"
-              >
-                {cities.map((city) => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
+              <Label>基准货币</Label>
+              <CurrencySelect 
+                value={baseCurrency} 
+                onChange={handleBaseCurrencyChange}
+              />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="currency">币种</Label>
+              <Label>操作币种</Label>
               <CurrencySelect 
                 value={selectedCurrency} 
                 onChange={setSelectedCurrency}
-                className="w-full"
               />
+            </div>
+          </div>
+          
+          {/* 城市管理提示 */}
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="text-blue-600 text-sm">
+              💡 <strong>城市管理：</strong>工作城市影响社保公积金计算。如需更改工作城市，请前往{" "}
+              <Link href="/settings/city" className="underline font-medium">
+                城市管理
+              </Link>{" "}
+              页面进行设置。
             </div>
           </div>
         </CardContent>
@@ -55,12 +62,10 @@ export default function IncomeForm() {
       {/* 工资变化和奖金收入表单 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <SalaryChangeForm
-          city={selectedCity}
           currency={selectedCurrency}
           onCurrencyChange={setSelectedCurrency}
         />
         <BonusPlanForm
-          city={selectedCity}
           currency={selectedCurrency}
           onCurrencyChange={setSelectedCurrency}
         />

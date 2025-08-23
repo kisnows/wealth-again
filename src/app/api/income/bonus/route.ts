@@ -1,192 +1,95 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
 import { endOfMonth, parseYMD } from "@/lib/date";
+import {
+  withApiHandler,
+  withValidation,
+  successResponse,
+  errorResponse,
+  parsePaginationParams,
+  buildPaginatedResponse,
+  ensureOwnership,
+  ApiContext,
+} from "@/lib/api-handler";
 
-const postSchema = z.object({
-  city: z.string(),
+// 数据验证模式 - 移除city字段，奖金与城市无关
+const createBonusSchema = z.object({
   amount: z.number().positive(),
   effectiveDate: z.string(), // YYYY-MM-DD
   currency: z.string().optional(),
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    const userId = await getCurrentUser(req);
-    const body = postSchema.parse(await req.json());
+// 业务逻辑处理器
+async function createBonus(
+  { userId }: ApiContext,
+  data: z.infer<typeof createBonusSchema>
+) {
+  const record = await prisma.bonusPlan.create({
+    data: {
+      userId,
+      amount: data.amount.toString(),
+      currency: data.currency || "CNY",
+      // 规则：按自然月最后一天生效；为避免时区导致 ISO 日期回退，设置到当天中午
+      effectiveDate: (() => {
+        const d = endOfMonth(parseYMD(data.effectiveDate));
+        d.setHours(12, 0, 0, 0);
+        return d;
+      })(),
+    },
+  });
 
-    const rec = await prisma.bonusPlan.create({
-      data: {
-        userId,
-        city: body.city,
-        amount: body.amount.toString(),
-        currency: body.currency || "CNY",
-        // 规则：按自然月最后一天生效；为避免时区导致 ISO 日期回退，设置到当天中午
-        effectiveDate: (() => {
-          const d = endOfMonth(parseYMD(body.effectiveDate));
-          d.setHours(12, 0, 0, 0);
-          return d;
-        })(),
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: { id: rec.id },
-    });
-  } catch (error) {
-    console.error("Bonus API error:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: error.issues[0].message },
-        },
-        { status: 400 }
-      );
-    }
-
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "请先登录" },
-        },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: "INTERNAL_ERROR", message: "服务器内部错误" },
-      },
-      { status: 500 }
-    );
-  }
+  return successResponse({ id: record.id });
 }
 
-export async function GET(req: NextRequest) {
-  try {
-    const userId = await getCurrentUser(req);
-    const { searchParams } = new URL(req.url);
+async function getBonuses({ userId, req }: ApiContext) {
+  const { searchParams } = new URL(req.url);
+  const { page, pageSize, skip } = parsePaginationParams(searchParams);
 
-    const city = searchParams.get("city");
-    const page = Math.max(1, Number(searchParams.get("page") || "1"));
-    const pageSize = Math.min(
-      100,
-      Math.max(1, Number(searchParams.get("pageSize") || "20"))
-    );
-    const skip = (page - 1) * pageSize;
+  // 不再按城市过滤，因为奖金与城市无关
+  const where = { userId };
 
-    const where: any = { userId };
-    if (city) {
-      where.city = city;
-    }
+  const [total, records] = await Promise.all([
+    prisma.bonusPlan.count({ where }),
+    prisma.bonusPlan.findMany({
+      where,
+      orderBy: { effectiveDate: "desc" },
+      skip,
+      take: pageSize,
+    }),
+  ]);
 
-    const [total, records] = await Promise.all([
-      prisma.bonusPlan.count({ where }),
-      prisma.bonusPlan.findMany({
-        where,
-        orderBy: { effectiveDate: "desc" },
-        skip,
-        take: pageSize,
-      }),
-    ]);
-
-    return NextResponse.json({
-      success: true,
-      data: records,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-      },
-    });
-  } catch (error) {
-    console.error("Bonus GET error:", error);
-
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "请先登录" },
-        },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: "INTERNAL_ERROR", message: "服务器内部错误" },
-      },
-      { status: 500 }
-    );
-  }
+  return buildPaginatedResponse(records, total, page, pageSize);
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const userId = await getCurrentUser(req);
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-
-    if (!id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: "缺少奖金计划ID" },
-        },
-        { status: 400 }
-      );
-    }
-
-    // 确保用户只能删除自己的奖金计划
-    const bonusPlan = await prisma.bonusPlan.findFirst({
-      where: { id, userId },
-    });
-
-    if (!bonusPlan) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "NOT_FOUND", message: "奖金计划不存在" },
-        },
-        { status: 404 }
-      );
-    }
-
-    await prisma.bonusPlan.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: { message: "奖金计划已删除" },
-    });
-  } catch (error) {
-    console.error("Bonus DELETE error:", error);
-
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "请先登录" },
-        },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: "INTERNAL_ERROR", message: "服务器内部错误" },
-      },
-      { status: 500 }
-    );
+async function deleteBonus({ userId }: ApiContext, id: string) {
+  // 验证所有权
+  const hasOwnership = await ensureOwnership(prisma, "bonusPlan", id, userId);
+  if (!hasOwnership) {
+    return errorResponse("NOT_FOUND", "奖金计划不存在");
   }
+
+  await prisma.bonusPlan.delete({
+    where: { id },
+  });
+
+  return successResponse({ message: "奖金计划已删除" });
 }
+
+// API路由处理器
+export const POST = withApiHandler(
+  withValidation(createBonusSchema)(createBonus)
+);
+
+export const GET = withApiHandler(getBonuses);
+
+export const DELETE = withApiHandler(async (context: ApiContext) => {
+  const { searchParams } = new URL(context.req.url);
+  const id = searchParams.get("id");
+  
+  if (!id) {
+    return errorResponse("VALIDATION_ERROR", "缺少奖金计划ID");
+  }
+
+  return deleteBonus(context, id);
+});

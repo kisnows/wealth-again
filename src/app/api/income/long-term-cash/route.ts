@@ -1,186 +1,89 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
+import {
+  withApiHandler,
+  withValidation,
+  successResponse,
+  errorResponse,
+  parsePaginationParams,
+  buildPaginatedResponse,
+  ensureOwnership,
+  ApiContext,
+} from "@/lib/api-handler";
 
-const postSchema = z.object({
-  city: z.string(),
+// 数据验证模式 - 移除city字段，长期现金与城市无关
+const createLongTermCashSchema = z.object({
   totalAmount: z.number().positive(),
   effectiveDate: z.string(), // YYYY-MM-DD
   currency: z.string().optional(),
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    const userId = await getCurrentUser(req);
-    const body = postSchema.parse(await req.json());
+// 业务逻辑处理器
+async function createLongTermCash(
+  { userId }: ApiContext,
+  data: z.infer<typeof createLongTermCashSchema>
+) {
+  const record = await prisma.longTermCash.create({
+    data: {
+      userId,
+      totalAmount: data.totalAmount.toString(),
+      effectiveDate: new Date(data.effectiveDate),
+      currency: data.currency || "CNY",
+    },
+  });
 
-    const rec = await prisma.longTermCash.create({
-      data: {
-        userId,
-        city: body.city,
-        totalAmount: body.totalAmount.toString(),
-        effectiveDate: new Date(body.effectiveDate),
-        currency: body.currency || "CNY",
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: { id: rec.id },
-    });
-  } catch (error) {
-    console.error("Long term cash API error:", error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: error.issues[0].message },
-        },
-        { status: 400 }
-      );
-    }
-
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "请先登录" },
-        },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: "INTERNAL_ERROR", message: "服务器内部错误" },
-      },
-      { status: 500 }
-    );
-  }
+  return successResponse({ id: record.id });
 }
 
-export async function GET(req: NextRequest) {
-  try {
-    const userId = await getCurrentUser(req);
-    const { searchParams } = new URL(req.url);
+async function getLongTermCash({ userId, req }: ApiContext) {
+  const { searchParams } = new URL(req.url);
+  const { page, pageSize, skip } = parsePaginationParams(searchParams);
 
-    const city = searchParams.get("city");
-    const page = Math.max(1, Number(searchParams.get("page") || "1"));
-    const pageSize = Math.min(
-      100,
-      Math.max(1, Number(searchParams.get("pageSize") || "20"))
-    );
-    const skip = (page - 1) * pageSize;
+  // 不再按城市过滤，因为长期现金与城市无关
+  const where = { userId };
 
-    const where: any = { userId };
-    if (city) {
-      where.city = city;
-    }
+  const [total, records] = await Promise.all([
+    prisma.longTermCash.count({ where }),
+    prisma.longTermCash.findMany({
+      where,
+      orderBy: { effectiveDate: "desc" },
+      skip,
+      take: pageSize,
+    }),
+  ]);
 
-    const [total, records] = await Promise.all([
-      prisma.longTermCash.count({ where }),
-      prisma.longTermCash.findMany({
-        where,
-        orderBy: { effectiveDate: "desc" },
-        skip,
-        take: pageSize,
-      }),
-    ]);
-
-    return NextResponse.json({
-      success: true,
-      data: records,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-      },
-    });
-  } catch (error) {
-    console.error("Long term cash GET error:", error);
-
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "请先登录" },
-        },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: "INTERNAL_ERROR", message: "服务器内部错误" },
-      },
-      { status: 500 }
-    );
-  }
+  return buildPaginatedResponse(records, total, page, pageSize);
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const userId = await getCurrentUser(req);
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-
-    if (!id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: "缺少长期现金计划ID" },
-        },
-        { status: 400 }
-      );
-    }
-
-    // 确保用户只能删除自己的长期现金计划
-    const longTermCash = await prisma.longTermCash.findFirst({
-      where: { id, userId },
-    });
-
-    if (!longTermCash) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "NOT_FOUND", message: "长期现金计划不存在" },
-        },
-        { status: 404 }
-      );
-    }
-
-    await prisma.longTermCash.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: { message: "长期现金计划已删除" },
-    });
-  } catch (error) {
-    console.error("Long term cash DELETE error:", error);
-
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "请先登录" },
-        },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: "INTERNAL_ERROR", message: "服务器内部错误" },
-      },
-      { status: 500 }
-    );
+async function deleteLongTermCash({ userId }: ApiContext, id: string) {
+  // 验证所有权
+  const hasOwnership = await ensureOwnership(prisma, "longTermCash", id, userId);
+  if (!hasOwnership) {
+    return errorResponse("NOT_FOUND", "长期现金计划不存在");
   }
+
+  await prisma.longTermCash.delete({
+    where: { id },
+  });
+
+  return successResponse({ message: "长期现金计划已删除" });
 }
+
+// API路由处理器
+export const POST = withApiHandler(
+  withValidation(createLongTermCashSchema)(createLongTermCash)
+);
+
+export const GET = withApiHandler(getLongTermCash);
+
+export const DELETE = withApiHandler(async (context: ApiContext) => {
+  const { searchParams } = new URL(context.req.url);
+  const id = searchParams.get("id");
+  
+  if (!id) {
+    return errorResponse("VALIDATION_ERROR", "缺少长期现金计划ID");
+  }
+
+  return deleteLongTermCash(context, id);
+});

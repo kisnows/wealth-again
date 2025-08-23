@@ -287,7 +287,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
       </Card>
 
       {/* 估值快照记录 */}
-      <ValuationSnapshots accountId={params.id} />
+      <ValuationSnapshots accountId={accountId} />
     </div>
   );
 }

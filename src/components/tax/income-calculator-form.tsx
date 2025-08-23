@@ -13,20 +13,17 @@ import {
 
 interface IncomeCalculatorFormProps {
   userId: string;
-  defaultCity?: string;
   onCalculate?: (result: IncomeCalculationResult) => void;
   className?: string;
 }
 
 export function IncomeCalculatorForm({
   userId,
-  defaultCity = "Hangzhou",
   onCalculate,
   className,
 }: IncomeCalculatorFormProps) {
   const [formData, setFormData] = useState<Partial<IncomeCalculationInput>>({
     userId,
-    city: defaultCity,
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
     gross: 0,
@@ -82,18 +79,13 @@ export function IncomeCalculatorForm({
         <h2 className="text-xl font-semibold mb-4">个税及社保计算器</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="city">工作城市</Label>
-              <Input
-                id="city"
-                value={formData.city || ""}
-                onChange={(e) => handleInputChange("city", e.target.value)}
-                placeholder="如：Hangzhou"
-                required
-              />
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="text-blue-600 text-sm">
+              💡 <strong>工作城市：</strong>系统将自动使用您当前的工作城市进行社保公积金计算。如需更改，请前往城市管理页面。
             </div>
-
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="year">年份</Label>
               <Input

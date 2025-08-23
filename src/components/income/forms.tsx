@@ -9,15 +9,14 @@ import { CurrencySelect } from "@/components/ui/currency-display";
 import { useFormSubmit } from "@/hooks/use-income-data";
 
 interface SalaryChangeFormProps {
-  city: string;
   currency: string;
   onCurrencyChange: (currency: string) => void;
 }
 
 /**
- * 工资变更表单组件
+ * 工资变更表单组件 - 记录薪资变化，与城市无关
  */
-export function SalaryChangeForm({ city, currency, onCurrencyChange }: SalaryChangeFormProps) {
+export function SalaryChangeForm({ currency, onCurrencyChange }: SalaryChangeFormProps) {
   const [salary, setSalary] = useState(20000);
   const [effectiveDate, setEffectiveDate] = useState<string>(
     new Date().toISOString().slice(0, 10)
@@ -32,7 +31,6 @@ export function SalaryChangeForm({ city, currency, onCurrencyChange }: SalaryCha
 
   const handleSubmit = () => {
     submit({
-      city,
       grossMonthly: salary,
       effectiveFrom: effectiveDate,
       currency
@@ -95,10 +93,15 @@ export function SalaryChangeForm({ city, currency, onCurrencyChange }: SalaryCha
   );
 }
 
+interface BonusPlanFormProps {
+  currency: string;
+  onCurrencyChange: (currency: string) => void;
+}
+
 /**
- * 奖金计划表单组件
+ * 奖金计划表单组件 - 记录奖金发放计划，与城市无关
  */
-export function BonusPlanForm({ city, currency, onCurrencyChange }: SalaryChangeFormProps) {
+export function BonusPlanForm({ currency, onCurrencyChange }: BonusPlanFormProps) {
   const [amount, setAmount] = useState(0);
   const [effectiveDate, setEffectiveDate] = useState<string>(
     new Date().toISOString().slice(0, 10)
@@ -113,7 +116,6 @@ export function BonusPlanForm({ city, currency, onCurrencyChange }: SalaryChange
 
   const handleSubmit = () => {
     submit({
-      city,
       amount,
       effectiveDate,
       currency

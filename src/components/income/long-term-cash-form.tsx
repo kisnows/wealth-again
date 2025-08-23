@@ -14,11 +14,10 @@ import {
 import { formatCurrencyWithSeparator } from "@/lib/currency";
 
 interface LongTermCashFormProps {
-  onAdd: (data: { city: string; totalAmount: number; effectiveDate: string }) => Promise<void>;
+  onAdd: (data: { totalAmount: number; effectiveDate: string; currency?: string }) => Promise<void>;
 }
 
 export default function LongTermCashForm({ onAdd }: LongTermCashFormProps) {
-  const [city, setCity] = useState("Hangzhou");
   const [currency, setCurrency] = useState("CNY");
   const [userBaseCurrency, setUserBaseCurrency] = useState("CNY");
   const [totalAmount, setTotalAmount] = useState("");
@@ -58,7 +57,7 @@ export default function LongTermCashForm({ onAdd }: LongTermCashFormProps) {
         throw new Error("请选择生效日期");
       }
 
-      await onAdd({ city, totalAmount: amount, effectiveDate, currency });
+      await onAdd({ totalAmount: amount, effectiveDate, currency });
       
       // Reset form
       setTotalAmount("");
@@ -80,17 +79,7 @@ export default function LongTermCashForm({ onAdd }: LongTermCashFormProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="city">城市</Label>
-          <Input
-            id="city"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="例如：Hangzhou"
-          />
-        </div>
-        
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="currency">币种</Label>
           <Select value={currency} onValueChange={setCurrency}>

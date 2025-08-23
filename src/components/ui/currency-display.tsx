@@ -45,8 +45,8 @@ export function CurrencyDisplay({
   }, [amount, fromCurrency, toCurrency, userBaseCurrency, convert]);
 
   const formattedAmount = useMemo(() => {
-    return formatCurrencyWithSeparator(displayAmount.toString(), precision);
-  }, [displayAmount, precision]);
+    return formatCurrencyWithSeparator(displayAmount);
+  }, [displayAmount]);
 
   const currencySymbol = useMemo(() => {
     const currency = toCurrency || userBaseCurrency;

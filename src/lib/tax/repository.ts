@@ -158,12 +158,12 @@ export class TaxConfigRepository {
 
   /**
    * 保存或更新收入记录
+   * 注意：不再保存city字段，城市信息通过用户城市历史管理
    */
   async saveIncomeRecord(data: {
     userId: string;
     year: number;
     month: number;
-    city: string;
     gross: number;
     bonus?: number;
     socialInsuranceBase?: number;
@@ -186,7 +186,6 @@ export class TaxConfigRepository {
         },
       },
       update: {
-        city: data.city,
         gross: data.gross,
         bonus: data.bonus || 0,
         socialInsuranceBase: data.socialInsuranceBase,
@@ -204,7 +203,6 @@ export class TaxConfigRepository {
         userId: data.userId,
         year: data.year,
         month: data.month,
-        city: data.city,
         gross: data.gross,
         bonus: data.bonus || 0,
         socialInsuranceBase: data.socialInsuranceBase,

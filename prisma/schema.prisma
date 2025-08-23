@@ -10,29 +10,32 @@ datasource db {
 /// 用户表 - 系统的核心用户实体
 model User {
   /// 用户唯一标识符，使用UUID
-  id            String         @id @default(uuid())
+  id            String            @id @default(uuid())
   /// 用户邮箱，用于登录和身份识别，必须唯一
-  email         String         @unique
+  email         String            @unique
   /// 用户密码，加密存储
   password      String
   /// 用户姓名，可选字段
   name          String?
   /// 用户基准货币，默认人民币
-  baseCurrency  String         @default("CNY")
+  baseCurrency  String            @default("CNY")
+  /// 用户当前工作城市（用于快速查询，和社保公积金计算相关）
+  currentCity   String            @default("Hangzhou")
   /// 用户账户是否激活
-  isActive      Boolean        @default(true)
+  isActive      Boolean           @default(true)
   /// 最后登录时间
   lastLoginAt   DateTime?
   /// 用户创建时间，自动设置为当前时间
-  createdAt     DateTime       @default(now())
+  createdAt     DateTime          @default(now())
   /// 用户信息更新时间
-  updatedAt     DateTime       @updatedAt
+  updatedAt     DateTime          @updatedAt
   accounts      Account[]
   auditLogs     AuditLog[]
   bonusPlans    BonusPlan[]
   incomeChanges IncomeChange[]
   incomes       IncomeRecord[]
   longTermCash  LongTermCash[]
+  cityHistory   UserCityHistory[]
 
   @@index([email])
   @@index([isActive])
@@ -41,26 +44,26 @@ model User {
 /// 投资账户表 - 用户的各种投资账户（如券商账户、基金账户等）
 model Account {
   /// 账户唯一标识符
-  id             String              @id @default(uuid())
+  id               String              @id @default(uuid())
   /// 所属用户ID，外键关联User表
-  userId         String
+  userId           String
   /// 账户名称（如"招商证券账户"）
-  name           String
+  name             String
   /// 账户基础货币，默认人民币
-  baseCurrency   String              @default("CNY")
+  baseCurrency     String              @default("CNY")
   /// 账户初始资金
-  initialBalance Decimal             @default(0)
+  initialBalance   Decimal             @default(0)
   /// 累计存入金额
-  totalDeposits  Decimal             @default(0)
+  totalDeposits    Decimal             @default(0)
   /// 累计取出金额
-  totalWithdrawals Decimal           @default(0)
+  totalWithdrawals Decimal             @default(0)
   /// 账户创建时间
-  createdAt      DateTime            @default(now())
+  createdAt        DateTime            @default(now())
   /// 账户更新时间
-  updatedAt      DateTime            @updatedAt
-  user           User                @relation(fields: [userId], references: [id])
-  transactions   Transaction[]
-  snapshots      ValuationSnapshot[]
+  updatedAt        DateTime            @updatedAt
+  user             User                @relation(fields: [userId], references: [id])
+  transactions     Transaction[]
+  snapshots        ValuationSnapshot[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -112,15 +115,15 @@ model ValuationSnapshot {
 /// 汇率表 - 存储不同货币之间的汇率信息
 model FxRate {
   /// 汇率记录唯一标识符
-  id    String   @id @default(uuid())
+  id        String   @id @default(uuid())
   /// 基础货币（如"USD"）
-  base  String
+  base      String
   /// 计价货币（如"CNY"）
-  quote String
+  quote     String
   /// 汇率日期
-  asOf  DateTime
+  asOf      DateTime
   /// 汇率值（1单位基础货币=rate单位计价货币）
-  rate  Decimal
+  rate      Decimal
   /// 记录创建时间
   createdAt DateTime @default(now())
   /// 记录更新时间
@@ -213,8 +216,6 @@ model IncomeRecord {
   id                  String   @id @default(uuid())
   /// 所属用户ID
   userId              String
-  /// 工作城市（影响税率计算）
-  city                String
   /// 收入年份
   year                Int
   /// 收入月份（1-12）
@@ -255,14 +256,12 @@ model IncomeRecord {
   @@index([userId, year])
 }
 
-/// 收入变更记录表 - 记录用户薪资的历史变更
+/// 收入变更记录表 - 记录用户薪资的历史变更（与城市无关）
 model IncomeChange {
   /// 收入变更记录唯一标识符
   id            String   @id @default(uuid())
   /// 所属用户ID
   userId        String
-  /// 工作城市
-  city          String
   /// 新的月度税前收入
   grossMonthly  Decimal
   /// 变更生效日期
@@ -276,14 +275,12 @@ model IncomeChange {
   @@index([userId, effectiveFrom])
 }
 
-/// 奖金计划表 - 记录用户的奖金发放计划
+/// 奖金计划表 - 记录用户的奖金发放计划（与城市无关）
 model BonusPlan {
   /// 奖金计划唯一标识符
   id            String   @id @default(uuid())
   /// 所属用户ID
   userId        String
-  /// 工作城市
-  city          String
   /// 奖金金额
   amount        Decimal
   /// 奖金发放日期
@@ -297,27 +294,47 @@ model BonusPlan {
   @@index([userId, effectiveDate])
 }
 
-/// 长期现金表 - 记录用户的长期现金发放计划
+/// 长期现金表 - 记录用户的长期现金发放计划（与城市无关）
 model LongTermCash {
   /// 长期现金计划唯一标识符
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   /// 所属用户ID
   userId        String
-  /// 工作城市
-  city          String
   /// 总金额
   totalAmount   Decimal
   /// 生效日期
   effectiveDate DateTime
   /// 长期现金币种
-  currency      String   @default("CNY")
+  currency      String    @default("CNY")
   /// 记录创建时间
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
   /// 计划完成时间
   completedAt   DateTime?
-  user          User     @relation(fields: [userId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
 
   @@index([userId, effectiveDate])
+}
+
+/// 用户城市历史表 - 记录用户工作城市的变更历史（仅影响社保公积金计算）
+model UserCityHistory {
+  /// 城市历史记录唯一标识符
+  id            String    @id @default(uuid())
+  /// 所属用户ID
+  userId        String
+  /// 工作城市
+  city          String
+  /// 生效开始时间
+  effectiveFrom DateTime
+  /// 生效结束时间，null表示当前城市
+  effectiveTo   DateTime?
+  /// 备注信息
+  note          String?
+  /// 记录创建时间
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, effectiveFrom])
+  @@index([userId, effectiveFrom, effectiveTo])
 }
 
 /// 审计日志表 - 记录系统操作日志

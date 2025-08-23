@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
 
+// 移除city字段，因为收入记录与城市无关
 const schema = z.object({
-  city: z.string(),
   year: z.number().int(),
   month: z.number().int().min(1).max(12),
   gross: z.number().positive(),
@@ -27,14 +27,12 @@ export async function POST(req: NextRequest) {
         userId_year_month: { userId, year: body.year, month: body.month },
       },
       update: {
-        city: body.city,
         gross: body.gross.toString(),
         bonus: body.bonus?.toString(),
         overrides: body.overrides ? JSON.stringify(body.overrides) : undefined,
       },
       create: {
         userId,
-        city: body.city,
         year: body.year,
         month: body.month,
         gross: body.gross.toString(),
@@ -47,7 +45,6 @@ export async function POST(req: NextRequest) {
     await prisma.incomeChange.create({
       data: {
         userId,
-        city: body.city,
         grossMonthly: body.gross.toString(),
         effectiveFrom: effectiveDate,
       },
