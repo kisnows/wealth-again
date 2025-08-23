@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CurrencyDisplay } from "@/components/ui/currency-display";
-import { IncomeForecastChart } from "@/components/income/forecast-chart";
+import { formatCurrency } from "@/lib/utils";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface IncomeRecord {
   month: number;
@@ -15,10 +15,6 @@ interface IncomeRecord {
   net: number;
 }
 
-/**
- * 重构后的收入汇总组件
- * 职责单一：显示收入汇总数据和图表
- */
 export default function IncomeSummary() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [records, setRecords] = useState<IncomeRecord[]>([]);
@@ -43,24 +39,20 @@ export default function IncomeSummary() {
 
   // 准备图表数据
   const chartData = records.map(record => ({
-    ym: `${record.month}月`,
-    taxBefore: record.gross,
-    taxAfter: record.net,
+    month: `${record.month}月`,
+    税前收入: record.gross,
+    税后收入: record.net,
+    税额: record.taxThisMonth,
   }));
 
   // 计算年度汇总
-  const totals = {
-    totalGross: records.reduce((sum, record) => sum + record.gross, 0),
-    totalNet: records.reduce((sum, record) => sum + record.net, 0),
-    totalTax: records.reduce((sum, record) => sum + record.taxThisMonth, 0),
-    totalBonus: records.reduce((sum, record) => sum + (record.bonus || 0), 0),
-  };
-
-  const availableYears = [2023, 2024, 2025, 2026];
+  const totalGross = records.reduce((sum, record) => sum + record.gross, 0);
+  const totalNet = records.reduce((sum, record) => sum + record.net, 0);
+  const totalTax = records.reduce((sum, record) => sum + record.taxThisMonth, 0);
+  const totalBonus = records.reduce((sum, record) => sum + (record.bonus || 0), 0);
 
   return (
     <div className="space-y-6">
-      {/* 页面标题和年份选择 */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">收入汇总报表</h2>
         <div className="flex items-center gap-2">
@@ -71,7 +63,7 @@ export default function IncomeSummary() {
             onChange={(e) => setYear(Number(e.target.value))}
             className="border rounded px-2 py-1"
           >
-            {availableYears.map(y => (
+            {[2023, 2024, 2025, 2026].map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
@@ -85,46 +77,31 @@ export default function IncomeSummary() {
             <CardTitle className="text-sm font-medium">年度税前收入</CardTitle>
           </CardHeader>
           <CardContent>
-            <CurrencyDisplay 
-              amount={totals.totalGross}
-              className="text-2xl font-bold"
-            />
+            <div className="text-2xl font-bold">{formatCurrency(totalGross)}</div>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">年度奖金</CardTitle>
           </CardHeader>
           <CardContent>
-            <CurrencyDisplay 
-              amount={totals.totalBonus}
-              className="text-2xl font-bold"
-            />
+            <div className="text-2xl font-bold">{formatCurrency(totalBonus)}</div>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">年度税额</CardTitle>
           </CardHeader>
           <CardContent>
-            <CurrencyDisplay 
-              amount={totals.totalTax}
-              className="text-2xl font-bold text-red-600"
-            />
+            <div className="text-2xl font-bold">{formatCurrency(totalTax)}</div>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">年度税后收入</CardTitle>
           </CardHeader>
           <CardContent>
-            <CurrencyDisplay 
-              amount={totals.totalNet}
-              className="text-2xl font-bold text-green-600"
-            />
+            <div className="text-2xl font-bold">{formatCurrency(totalNet)}</div>
           </CardContent>
         </Card>
       </div>
@@ -135,21 +112,18 @@ export default function IncomeSummary() {
           <CardTitle>收入趋势</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="h-80 flex items-center justify-center">
-              <div className="text-gray-500">加载中...</div>
-            </div>
-          ) : (
-            <IncomeForecastChart 
-              data={chartData.map((item, index) => ({
-                ...item,
-                grossThisMonth: item.taxBefore,
-                net: item.taxAfter,
-                month: index + 1
-              }))} 
-              userBaseCurrency="CNY"
-            />
-          )}
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                <Bar dataKey="税前收入" fill="#8884d8" />
+                <Bar dataKey="税后收入" fill="#82ca9d" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
@@ -173,42 +147,17 @@ export default function IncomeSummary() {
                 </tr>
               </thead>
               <tbody>
-                {records.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-gray-500">
-                      {loading ? "加载中..." : "暂无数据"}
-                    </td>
+                {records.map((record) => (
+                  <tr key={record.month} className="border-b">
+                    <td className="py-2">{record.month}月</td>
+                    <td className="py-2">{formatCurrency(record.gross)}</td>
+                    <td className="py-2">{record.bonus ? formatCurrency(record.bonus) : "-"}</td>
+                    <td className="py-2">{formatCurrency(record.taxableCumulative)}</td>
+                    <td className="py-2">{formatCurrency(record.taxThisMonth)}</td>
+                    <td className="py-2">{formatCurrency(record.taxDueCumulative)}</td>
+                    <td className="py-2">{formatCurrency(record.net)}</td>
                   </tr>
-                ) : (
-                  records.map((record) => (
-                    <tr key={record.month} className="border-b">
-                      <td className="py-2">{record.month}月</td>
-                      <td className="py-2">
-                        <CurrencyDisplay amount={record.gross} />
-                      </td>
-                      <td className="py-2">
-                        {record.bonus ? (
-                          <CurrencyDisplay amount={record.bonus} />
-                        ) : "-"}
-                      </td>
-                      <td className="py-2">
-                        <CurrencyDisplay amount={record.taxableCumulative} />
-                      </td>
-                      <td className="py-2">
-                        <CurrencyDisplay amount={record.taxThisMonth} />
-                      </td>
-                      <td className="py-2">
-                        <CurrencyDisplay amount={record.taxDueCumulative} />
-                      </td>
-                      <td className="py-2">
-                        <CurrencyDisplay 
-                          amount={record.net}
-                          className="text-green-600 font-medium"
-                        />
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
