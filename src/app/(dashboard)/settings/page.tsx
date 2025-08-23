@@ -1,18 +1,9 @@
 "use client";
 
+import { ArrowRight, Bell, Coins, Database, MapPin, Settings, Shield, User } from "lucide-react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  User, 
-  MapPin, 
-  Coins, 
-  Settings, 
-  ArrowRight,
-  Shield,
-  Bell,
-  Database
-} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SettingsPage() {
   const settingsModules = [
@@ -23,7 +14,7 @@ export default function SettingsPage() {
       icon: User,
       color: "text-blue-600",
       bgColor: "bg-blue-50 hover:bg-blue-100",
-      status: "完善度: 80%"
+      status: "完善度: 80%",
     },
     {
       title: "城市管理",
@@ -32,7 +23,7 @@ export default function SettingsPage() {
       icon: MapPin,
       color: "text-green-600",
       bgColor: "bg-green-50 hover:bg-green-100",
-      status: "当前: 杭州"
+      status: "当前: 杭州",
     },
     {
       title: "货币设置",
@@ -41,8 +32,8 @@ export default function SettingsPage() {
       icon: Coins,
       color: "text-yellow-600",
       bgColor: "bg-yellow-50 hover:bg-yellow-100",
-      status: "默认: CNY"
-    }
+      status: "默认: CNY",
+    },
   ];
 
   const systemSettings = [
@@ -51,36 +42,36 @@ export default function SettingsPage() {
       description: "系统级参数和高级配置选项",
       icon: Settings,
       color: "text-gray-600",
-      status: "需要管理员权限"
+      status: "需要管理员权限",
     },
     {
       title: "安全设置",
       description: "登录安全、数据加密和隐私保护",
       icon: Shield,
       color: "text-red-600",
-      status: "安全级别: 高"
+      status: "安全级别: 高",
     },
     {
       title: "通知设置",
       description: "收入提醒、税务到期和系统通知",
       icon: Bell,
       color: "text-purple-600",
-      status: "已开启"
+      status: "已开启",
     },
     {
       title: "数据管理",
       description: "数据备份、导出和清理功能",
       icon: Database,
       color: "text-indigo-600",
-      status: "最近备份: 今天"
-    }
+      status: "最近备份: 今天",
+    },
   ];
 
   const quickActions = [
     { label: "修改密码", action: "profile" },
     { label: "更换工作城市", action: "city" },
     { label: "更新汇率", action: "currency" },
-    { label: "导出数据", action: "export" }
+    { label: "导出数据", action: "export" },
   ];
 
   return (
@@ -89,9 +80,7 @@ export default function SettingsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">设置</h1>
-          <p className="text-gray-600 mt-2">
-            管理个人信息、系统配置和应用偏好设置
-          </p>
+          <p className="text-gray-600 mt-2">管理个人信息、系统配置和应用偏好设置</p>
         </div>
         <Link href="/dashboard">
           <Button variant="outline">返回仪表板</Button>
@@ -114,19 +103,19 @@ export default function SettingsPage() {
                 <div className="text-sm text-gray-600">demo@example.com</div>
               </div>
             </div>
-            
+
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">¥</div>
               <div className="text-sm text-gray-600">默认货币</div>
               <div className="text-xs text-gray-500">人民币</div>
             </div>
-            
+
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">杭州</div>
               <div className="text-sm text-gray-600">工作城市</div>
               <div className="text-xs text-gray-500">影响社保计算</div>
             </div>
-            
+
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">3</div>
               <div className="text-sm text-gray-600">活跃月份</div>
@@ -186,9 +175,9 @@ export default function SettingsPage() {
                 className="justify-start"
                 onClick={() => {
                   // 根据action跳转到对应页面
-                  if (action.action === 'profile') window.location.href = '/settings/profile';
-                  if (action.action === 'city') window.location.href = '/settings/city';
-                  if (action.action === 'currency') window.location.href = '/settings/currency';
+                  if (action.action === "profile") window.location.href = "/settings/profile";
+                  if (action.action === "city") window.location.href = "/settings/city";
+                  if (action.action === "currency") window.location.href = "/settings/currency";
                 }}
               >
                 {action.label}
@@ -219,9 +208,7 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-gray-600 mb-2">{setting.description}</p>
-                  <div className="text-xs text-gray-500">
-                    {setting.status}
-                  </div>
+                  <div className="text-xs text-gray-500">{setting.status}</div>
                 </CardContent>
               </Card>
             );

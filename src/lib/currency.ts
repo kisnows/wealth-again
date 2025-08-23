@@ -6,19 +6,22 @@ import { prisma } from "@/lib/prisma";
  * @param currency 货币符号，默认为¥
  * @returns 格式化后的货币字符串
  */
-export function formatCurrencyWithSeparator(amount: number | string, currency: string = "¥"): string {
+export function formatCurrencyWithSeparator(
+  amount: number | string,
+  currency: string = "¥",
+): string {
   // 转换为数字
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
-  
+
   // 检查是否为有效数字
   if (isNaN(num)) {
     return `${currency}0.00`;
   }
-  
+
   // 格式化为带有千位分隔符的字符串
   return `${currency}${num.toLocaleString("zh-CN", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   })}`;
 }
 
@@ -34,21 +37,21 @@ export async function getFxRate(base: string, quote: string, asOf: Date): Promis
   if (base === quote) {
     return 1;
   }
-  
+
   // 查找指定日期或之前的最近汇率
   const fxRate = await prisma.fxRate.findFirst({
     where: {
       base,
       quote,
       asOf: {
-        lte: asOf
-      }
+        lte: asOf,
+      },
     },
     orderBy: {
-      asOf: 'desc'
-    }
+      asOf: "desc",
+    },
   });
-  
+
   return fxRate ? Number(fxRate.rate) : 1;
 }
 
@@ -61,19 +64,19 @@ export async function getFxRate(base: string, quote: string, asOf: Date): Promis
  * @returns 转换后的金额
  */
 export async function convertCurrency(
-  amount: number, 
-  fromCurrency: string, 
-  toCurrency: string, 
-  asOf: Date
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  asOf: Date,
 ): Promise<number> {
   // 如果源货币和目标货币相同，直接返回原金额
   if (fromCurrency === toCurrency) {
     return amount;
   }
-  
+
   // 获取汇率
   const rate = await getFxRate(fromCurrency, toCurrency, asOf);
-  
+
   // 转换金额
   return amount * rate;
 }
@@ -84,7 +87,10 @@ export async function convertCurrency(
  * @param asOf 日期
  * @returns 以账户基础货币计算的价值
  */
-export async function getAccountValueInBaseCurrency(accountId: string, asOf: Date): Promise<number> {
+export async function getAccountValueInBaseCurrency(
+  accountId: string,
+  asOf: Date,
+): Promise<number> {
   // 获取账户信息
   const account = await prisma.account.findUnique({
     where: { id: accountId },
@@ -92,24 +98,24 @@ export async function getAccountValueInBaseCurrency(accountId: string, asOf: Dat
       snapshots: {
         where: {
           asOf: {
-            lte: asOf
-          }
+            lte: asOf,
+          },
         },
         orderBy: {
-          asOf: 'desc'
+          asOf: "desc",
         },
-        take: 1
-      }
-    }
+        take: 1,
+      },
+    },
   });
-  
+
   if (!account) {
     throw new Error("账户不存在");
   }
-  
+
   // 获取最新的快照价值（已经是账户基础货币）
   const snapshot = account.snapshots[0];
   const snapshotValue = snapshot ? Number(snapshot.totalValue) : 0;
-  
+
   return snapshotValue;
 }

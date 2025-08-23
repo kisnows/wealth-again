@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { TaxService } from "@/lib/tax";
 
 describe("tax cumulative withholding (service)", () => {
@@ -39,7 +39,7 @@ describe("tax cumulative withholding (service)", () => {
     })() as any;
     const svc = new TaxService(repo);
     const res = await svc.calculateForecastWithholdingCumulative({
-      city,
+      userId: "test-user",
       months: [
         { year: 2025, month: 1, gross: 20000 },
         { year: 2025, month: 2, gross: 20000 },

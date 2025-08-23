@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 
 interface Snapshot {
@@ -24,7 +24,7 @@ export default function ValuationSnapshots({ accountId }: { accountId: string })
     page: 1,
     pageSize: 10,
     total: 0,
-    totalPages: 0
+    totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,16 +37,20 @@ export default function ValuationSnapshots({ accountId }: { accountId: string })
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await fetch(`/api/accounts/${accountId}/snapshots?page=${page}&pageSize=${pagination.pageSize}`);
+
+      const response = await fetch(
+        `/api/accounts/${accountId}/snapshots?page=${page}&pageSize=${pagination.pageSize}`,
+      );
       const data = await response.json();
-      
+
       if (data.success) {
-        setSnapshots(data.data.map((s: any) => ({
-          id: s.id,
-          asOf: s.asOf,
-          totalValue: Number(s.totalValue)
-        })));
+        setSnapshots(
+          data.data.map((s: any) => ({
+            id: s.id,
+            asOf: s.asOf,
+            totalValue: Number(s.totalValue),
+          })),
+        );
         setPagination(data.pagination);
       } else {
         setError(data.error?.message || "获取估值快照失败");
@@ -88,18 +92,14 @@ export default function ValuationSnapshots({ accountId }: { accountId: string })
                 <tbody>
                   {snapshots.map((snapshot) => (
                     <tr key={snapshot.id} className="border-b">
-                      <td className="py-2">
-                        {new Date(snapshot.asOf).toLocaleDateString()}
-                      </td>
-                      <td className="py-2">
-                        {formatCurrency(snapshot.totalValue)}
-                      </td>
+                      <td className="py-2">{new Date(snapshot.asOf).toLocaleDateString()}</td>
+                      <td className="py-2">{formatCurrency(snapshot.totalValue)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            
+
             {pagination.totalPages > 1 && (
               <div className="flex justify-between items-center mt-4">
                 <div className="text-sm text-gray-600">

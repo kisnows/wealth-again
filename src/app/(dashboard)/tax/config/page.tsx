@@ -1,10 +1,17 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const defaultParams = {
   city: "Hangzhou",
@@ -35,12 +42,13 @@ function convertLegacyToNewFormat(legacyParams: any) {
   return {
     city: legacyParams.city,
     monthlyBasicDeduction: legacyParams.monthlyBasicDeduction || 5000,
-    taxBrackets: legacyParams.brackets?.map((bracket: any, index: number, array: any[]) => ({
-      minIncome: bracket.threshold,
-      maxIncome: index < array.length - 1 ? array[index + 1].threshold : null,
-      taxRate: bracket.rate,
-      quickDeduction: bracket.quickDeduction,
-    })) || [],
+    taxBrackets:
+      legacyParams.brackets?.map((bracket: any, index: number, array: any[]) => ({
+        minIncome: bracket.threshold,
+        maxIncome: index < array.length - 1 ? array[index + 1].threshold : null,
+        taxRate: bracket.rate,
+        quickDeduction: bracket.quickDeduction,
+      })) || [],
     socialInsurance: {
       socialMinBase: legacyParams.sihfBase?.min || 5000,
       socialMaxBase: legacyParams.sihfBase?.max || 28017,
@@ -62,7 +70,7 @@ export default function TaxConfigPage() {
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<any[]>([]);
   const [page, setPage] = useState(1);
-  const [effectiveFrom, setEffectiveFrom] = useState<string>(new Date().toISOString().slice(0,10));
+  const [effectiveFrom, setEffectiveFrom] = useState<string>(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     // 尝试从服务器加载现有配置
@@ -77,7 +85,9 @@ export default function TaxConfigPage() {
   async function loadConfig() {
     try {
       // 加载当前配置
-      const res = await fetch(`/api/config/tax-params?city=Hangzhou&year=2025&page=${page}&pageSize=50`);
+      const res = await fetch(
+        `/api/config/tax-params?city=Hangzhou&year=2025&page=${page}&pageSize=50`,
+      );
       if (res.ok) {
         const data = await res.json();
         // 处理新格式或旧格式的数据
@@ -90,9 +100,11 @@ export default function TaxConfigPage() {
           setJson(JSON.stringify(converted, null, 2));
         }
       }
-      
+
       // 加载历史记录
-      const historyRes = await fetch(`/api/config/tax-params/history?city=Hangzhou&page=1&pageSize=50`);
+      const historyRes = await fetch(
+        `/api/config/tax-params/history?city=Hangzhou&page=1&pageSize=50`,
+      );
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         setRecords(historyData.records || []);
@@ -106,18 +118,18 @@ export default function TaxConfigPage() {
     setLoading(true);
     setError("");
     setMsg("");
-    
+
     try {
       const bodyObj = parsedParams;
-      
+
       const res = await fetch("/api/config/tax-params", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...bodyObj, effectiveFrom }),
       });
-      
+
       const data = await res.json();
-      
+
       if (res.ok) {
         setMsg("税务信息保存成功！");
         // 重新加载历史记录
@@ -140,14 +152,14 @@ export default function TaxConfigPage() {
     setLoading(true);
     setError("");
     setMsg("");
-    
+
     try {
       const res = await fetch(`/api/config/tax-params/history/${id}`, {
         method: "DELETE",
       });
-      
+
       const data = await res.json();
-      
+
       if (res.ok && data.success) {
         setMsg("历史记录删除成功！");
         // 重新加载历史记录
@@ -177,7 +189,7 @@ export default function TaxConfigPage() {
                 <Input
                   id="city"
                   value={parsedParams.city}
-                  onChange={(e) => setParsedParams({...parsedParams, city: e.target.value})}
+                  onChange={(e) => setParsedParams({ ...parsedParams, city: e.target.value })}
                   placeholder="请输入城市名称"
                 />
               </div>
@@ -187,7 +199,12 @@ export default function TaxConfigPage() {
                   id="monthlyBasicDeduction"
                   type="number"
                   value={parsedParams.monthlyBasicDeduction}
-                  onChange={(e) => setParsedParams({...parsedParams, monthlyBasicDeduction: Number(e.target.value)})}
+                  onChange={(e) =>
+                    setParsedParams({
+                      ...parsedParams,
+                      monthlyBasicDeduction: Number(e.target.value),
+                    })
+                  }
                   min="0"
                 />
               </div>
@@ -206,13 +223,15 @@ export default function TaxConfigPage() {
                       id="socialMinBase"
                       type="number"
                       value={parsedParams.socialInsurance.socialMinBase}
-                      onChange={(e) => setParsedParams({
-                        ...parsedParams, 
-                        socialInsurance: {
-                          ...parsedParams.socialInsurance,
-                          socialMinBase: Number(e.target.value)
-                        }
-                      })}
+                      onChange={(e) =>
+                        setParsedParams({
+                          ...parsedParams,
+                          socialInsurance: {
+                            ...parsedParams.socialInsurance,
+                            socialMinBase: Number(e.target.value),
+                          },
+                        })
+                      }
                       min="0"
                     />
                   </div>
@@ -222,18 +241,20 @@ export default function TaxConfigPage() {
                       id="socialMaxBase"
                       type="number"
                       value={parsedParams.socialInsurance.socialMaxBase}
-                      onChange={(e) => setParsedParams({
-                        ...parsedParams, 
-                        socialInsurance: {
-                          ...parsedParams.socialInsurance,
-                          socialMaxBase: Number(e.target.value)
-                        }
-                      })}
+                      onChange={(e) =>
+                        setParsedParams({
+                          ...parsedParams,
+                          socialInsurance: {
+                            ...parsedParams.socialInsurance,
+                            socialMaxBase: Number(e.target.value),
+                          },
+                        })
+                      }
                       min="0"
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="pensionRate">养老保险缴费比例 (%)</Label>
@@ -242,13 +263,15 @@ export default function TaxConfigPage() {
                       type="number"
                       step="0.1"
                       value={parsedParams.socialInsurance.pensionRate * 100}
-                      onChange={(e) => setParsedParams({
-                        ...parsedParams, 
-                        socialInsurance: {
-                          ...parsedParams.socialInsurance,
-                          pensionRate: Number(e.target.value) / 100
-                        }
-                      })}
+                      onChange={(e) =>
+                        setParsedParams({
+                          ...parsedParams,
+                          socialInsurance: {
+                            ...parsedParams.socialInsurance,
+                            pensionRate: Number(e.target.value) / 100,
+                          },
+                        })
+                      }
                       min="0"
                       max="100"
                     />
@@ -260,13 +283,15 @@ export default function TaxConfigPage() {
                       type="number"
                       step="0.1"
                       value={parsedParams.socialInsurance.medicalRate * 100}
-                      onChange={(e) => setParsedParams({
-                        ...parsedParams, 
-                        socialInsurance: {
-                          ...parsedParams.socialInsurance,
-                          medicalRate: Number(e.target.value) / 100
-                        }
-                      })}
+                      onChange={(e) =>
+                        setParsedParams({
+                          ...parsedParams,
+                          socialInsurance: {
+                            ...parsedParams.socialInsurance,
+                            medicalRate: Number(e.target.value) / 100,
+                          },
+                        })
+                      }
                       min="0"
                       max="100"
                     />
@@ -278,19 +303,21 @@ export default function TaxConfigPage() {
                       type="number"
                       step="0.1"
                       value={parsedParams.socialInsurance.unemploymentRate * 100}
-                      onChange={(e) => setParsedParams({
-                        ...parsedParams, 
-                        socialInsurance: {
-                          ...parsedParams.socialInsurance,
-                          unemploymentRate: Number(e.target.value) / 100
-                        }
-                      })}
+                      onChange={(e) =>
+                        setParsedParams({
+                          ...parsedParams,
+                          socialInsurance: {
+                            ...parsedParams.socialInsurance,
+                            unemploymentRate: Number(e.target.value) / 100,
+                          },
+                        })
+                      }
                       min="0"
                       max="100"
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="housingFundMinBase">公积金缴费基数下限 (元)</Label>
@@ -298,13 +325,15 @@ export default function TaxConfigPage() {
                       id="housingFundMinBase"
                       type="number"
                       value={parsedParams.socialInsurance.housingFundMinBase}
-                      onChange={(e) => setParsedParams({
-                        ...parsedParams, 
-                        socialInsurance: {
-                          ...parsedParams.socialInsurance,
-                          housingFundMinBase: Number(e.target.value)
-                        }
-                      })}
+                      onChange={(e) =>
+                        setParsedParams({
+                          ...parsedParams,
+                          socialInsurance: {
+                            ...parsedParams.socialInsurance,
+                            housingFundMinBase: Number(e.target.value),
+                          },
+                        })
+                      }
                       min="0"
                     />
                   </div>
@@ -314,18 +343,20 @@ export default function TaxConfigPage() {
                       id="housingFundMaxBase"
                       type="number"
                       value={parsedParams.socialInsurance.housingFundMaxBase}
-                      onChange={(e) => setParsedParams({
-                        ...parsedParams, 
-                        socialInsurance: {
-                          ...parsedParams.socialInsurance,
-                          housingFundMaxBase: Number(e.target.value)
-                        }
-                      })}
+                      onChange={(e) =>
+                        setParsedParams({
+                          ...parsedParams,
+                          socialInsurance: {
+                            ...parsedParams.socialInsurance,
+                            housingFundMaxBase: Number(e.target.value),
+                          },
+                        })
+                      }
                       min="0"
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="housingFundRate">公积金缴费比例 (%)</Label>
                   <Input
@@ -333,13 +364,15 @@ export default function TaxConfigPage() {
                     type="number"
                     step="0.1"
                     value={parsedParams.socialInsurance.housingFundRate * 100}
-                    onChange={(e) => setParsedParams({
-                      ...parsedParams, 
-                      socialInsurance: {
-                        ...parsedParams.socialInsurance,
-                        housingFundRate: Number(e.target.value) / 100
-                      }
-                    })}
+                    onChange={(e) =>
+                      setParsedParams({
+                        ...parsedParams,
+                        socialInsurance: {
+                          ...parsedParams.socialInsurance,
+                          housingFundRate: Number(e.target.value) / 100,
+                        },
+                      })
+                    }
                     min="0"
                     max="100"
                   />
@@ -365,7 +398,8 @@ export default function TaxConfigPage() {
                     {(parsedParams.taxBrackets || []).map((bracket, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          ¥{(bracket.minIncome || 0).toLocaleString()} - {bracket.maxIncome ? `¥${bracket.maxIncome.toLocaleString()}` : "以上"}
+                          ¥{(bracket.minIncome || 0).toLocaleString()} -{" "}
+                          {bracket.maxIncome ? `¥${bracket.maxIncome.toLocaleString()}` : "以上"}
                         </TableCell>
                         <TableCell>
                           <Input
@@ -376,11 +410,11 @@ export default function TaxConfigPage() {
                               const newBrackets = [...parsedParams.taxBrackets];
                               newBrackets[index] = {
                                 ...newBrackets[index],
-                                taxRate: Number(e.target.value) / 100
+                                taxRate: Number(e.target.value) / 100,
                               };
                               setParsedParams({
                                 ...parsedParams,
-                                taxBrackets: newBrackets
+                                taxBrackets: newBrackets,
                               });
                             }}
                             min="0"
@@ -396,11 +430,11 @@ export default function TaxConfigPage() {
                               const newBrackets = [...parsedParams.taxBrackets];
                               newBrackets[index] = {
                                 ...newBrackets[index],
-                                quickDeduction: Number(e.target.value)
+                                quickDeduction: Number(e.target.value),
                               };
                               setParsedParams({
                                 ...parsedParams,
-                                taxBrackets: newBrackets
+                                taxBrackets: newBrackets,
                               });
                             }}
                             min="0"
@@ -434,11 +468,11 @@ export default function TaxConfigPage() {
             <div className="flex gap-2">
               <div className="flex items-center gap-2">
                 <Label className="text-sm">生效日期</Label>
-                <Input 
-                  type="date" 
-                  className="border rounded px-2 py-1" 
-                  value={effectiveFrom} 
-                  onChange={(e)=>setEffectiveFrom(e.target.value)} 
+                <Input
+                  type="date"
+                  className="border rounded px-2 py-1"
+                  value={effectiveFrom}
+                  onChange={(e) => setEffectiveFrom(e.target.value)}
                 />
               </div>
               <Button onClick={save} disabled={loading}>
@@ -448,17 +482,9 @@ export default function TaxConfigPage() {
                 重置为默认值
               </Button>
             </div>
-            
-            {error && (
-              <div className="p-2 bg-red-100 text-red-800 rounded-md">
-                错误: {error}
-              </div>
-            )}
-            {msg && (
-              <div className="p-2 bg-green-100 text-green-800 rounded-md">
-                {msg}
-              </div>
-            )}
+
+            {error && <div className="p-2 bg-red-100 text-red-800 rounded-md">错误: {error}</div>}
+            {msg && <div className="p-2 bg-green-100 text-green-800 rounded-md">{msg}</div>}
           </div>
         </CardContent>
       </Card>
@@ -479,7 +505,9 @@ export default function TaxConfigPage() {
               </div>
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">月基本扣除额</p>
-                <p className="font-medium">¥{(parsedParams.monthlyBasicDeduction || 0).toLocaleString()}</p>
+                <p className="font-medium">
+                  ¥{(parsedParams.monthlyBasicDeduction || 0).toLocaleString()}
+                </p>
               </div>
             </div>
           </div>
@@ -499,7 +527,8 @@ export default function TaxConfigPage() {
                 {(parsedParams.taxBrackets || []).map((bracket, index) => (
                   <TableRow key={index}>
                     <TableCell>
-                      ¥{(bracket.minIncome || 0).toLocaleString()} - {bracket.maxIncome ? `¥${bracket.maxIncome.toLocaleString()}` : "以上"}
+                      ¥{(bracket.minIncome || 0).toLocaleString()} -{" "}
+                      {bracket.maxIncome ? `¥${bracket.maxIncome.toLocaleString()}` : "以上"}
                     </TableCell>
                     <TableCell>{((bracket.taxRate || 0) * 100).toFixed(1)}%</TableCell>
                     <TableCell>¥{(bracket.quickDeduction || 0).toLocaleString()}</TableCell>
@@ -515,29 +544,43 @@ export default function TaxConfigPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">养老保险</p>
-                <p className="font-medium">{((parsedParams.socialInsurance?.pensionRate || 0) * 100).toFixed(1)}%</p>
+                <p className="font-medium">
+                  {((parsedParams.socialInsurance?.pensionRate || 0) * 100).toFixed(1)}%
+                </p>
               </div>
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">医疗保险</p>
-                <p className="font-medium">{((parsedParams.socialInsurance?.medicalRate || 0) * 100).toFixed(1)}%</p>
+                <p className="font-medium">
+                  {((parsedParams.socialInsurance?.medicalRate || 0) * 100).toFixed(1)}%
+                </p>
               </div>
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">失业保险</p>
-                <p className="font-medium">{((parsedParams.socialInsurance?.unemploymentRate || 0) * 100).toFixed(1)}%</p>
+                <p className="font-medium">
+                  {((parsedParams.socialInsurance?.unemploymentRate || 0) * 100).toFixed(1)}%
+                </p>
               </div>
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">住房公积金</p>
-                <p className="font-medium">{((parsedParams.socialInsurance?.housingFundRate || 0) * 100).toFixed(1)}%</p>
+                <p className="font-medium">
+                  {((parsedParams.socialInsurance?.housingFundRate || 0) * 100).toFixed(1)}%
+                </p>
               </div>
             </div>
             <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">社保缴费基数范围</p>
-                <p className="font-medium">¥{(parsedParams.socialInsurance?.socialMinBase || 0).toLocaleString()} - ¥{(parsedParams.socialInsurance?.socialMaxBase || 0).toLocaleString()}</p>
+                <p className="font-medium">
+                  ¥{(parsedParams.socialInsurance?.socialMinBase || 0).toLocaleString()} - ¥
+                  {(parsedParams.socialInsurance?.socialMaxBase || 0).toLocaleString()}
+                </p>
               </div>
               <div className="p-3 border rounded-md">
                 <p className="text-sm text-gray-500">公积金缴费基数范围</p>
-                <p className="font-medium">¥{(parsedParams.socialInsurance?.housingFundMinBase || 0).toLocaleString()} - ¥{(parsedParams.socialInsurance?.housingFundMaxBase || 0).toLocaleString()}</p>
+                <p className="font-medium">
+                  ¥{(parsedParams.socialInsurance?.housingFundMinBase || 0).toLocaleString()} - ¥
+                  {(parsedParams.socialInsurance?.housingFundMaxBase || 0).toLocaleString()}
+                </p>
               </div>
             </div>
           </div>
@@ -557,7 +600,9 @@ export default function TaxConfigPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>税务信息变更历史</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>税务信息变更历史</CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -572,21 +617,26 @@ export default function TaxConfigPage() {
                 </tr>
               </thead>
               <tbody>
-                {records.map((r:any)=> (
+                {records.map((r: any) => (
                   <tr key={r.id} className="border-b">
                     <td className="py-2">{new Date(r.effectiveFrom).toLocaleDateString()}</td>
-                    <td className="py-2">¥{r.socialMinBase?.toLocaleString()} - ¥{r.socialMaxBase?.toLocaleString()}</td>
-                    <td className="py-2">¥{r.housingFundMinBase?.toLocaleString()} - ¥{r.housingFundMaxBase?.toLocaleString()}</td>
                     <td className="py-2">
-                      养老{((r.pensionRate || 0) * 100).toFixed(1)}% + 
-                      医疗{((r.medicalRate || 0) * 100).toFixed(1)}% + 
-                      失业{((r.unemploymentRate || 0) * 100).toFixed(1)}%
+                      ¥{r.socialMinBase?.toLocaleString()} - ¥{r.socialMaxBase?.toLocaleString()}
+                    </td>
+                    <td className="py-2">
+                      ¥{r.housingFundMinBase?.toLocaleString()} - ¥
+                      {r.housingFundMaxBase?.toLocaleString()}
+                    </td>
+                    <td className="py-2">
+                      养老{((r.pensionRate || 0) * 100).toFixed(1)}% + 医疗
+                      {((r.medicalRate || 0) * 100).toFixed(1)}% + 失业
+                      {((r.unemploymentRate || 0) * 100).toFixed(1)}%
                     </td>
                     <td className="py-2">{((r.housingFundRate || 0) * 100).toFixed(1)}%</td>
                     <td className="py-2">
-                      <Button 
-                        variant="destructive" 
-                        size="sm" 
+                      <Button
+                        variant="destructive"
+                        size="sm"
                         onClick={() => deleteHistoryRecord(r.id)}
                         disabled={loading}
                       >
@@ -599,8 +649,27 @@ export default function TaxConfigPage() {
             </table>
           </div>
           <div className="mt-3 flex gap-2">
-            <Button variant="outline" size="sm" onClick={()=>{setPage(Math.max(1,page-1)); loadConfig();}} disabled={page===1}>上一页</Button>
-            <Button variant="outline" size="sm" onClick={()=>{setPage(page+1); loadConfig();}}>下一页</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPage(Math.max(1, page - 1));
+                loadConfig();
+              }}
+              disabled={page === 1}
+            >
+              上一页
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPage(page + 1);
+                loadConfig();
+              }}
+            >
+              下一页
+            </Button>
           </div>
         </CardContent>
       </Card>

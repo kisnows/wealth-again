@@ -1,20 +1,20 @@
 // 错误类型定义
 export enum ErrorSeverity {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  CRITICAL = 'critical',
+  LOW = "low",
+  MEDIUM = "medium",
+  HIGH = "high",
+  CRITICAL = "critical",
 }
 
 export enum ErrorCategory {
-  VALIDATION = 'validation',
-  AUTHENTICATION = 'authentication',
-  AUTHORIZATION = 'authorization',
-  DATABASE = 'database',
-  EXTERNAL_API = 'external_api',
-  BUSINESS_LOGIC = 'business_logic',
-  SYSTEM = 'system',
-  NETWORK = 'network',
+  VALIDATION = "validation",
+  AUTHENTICATION = "authentication",
+  AUTHORIZATION = "authorization",
+  DATABASE = "database",
+  EXTERNAL_API = "external_api",
+  BUSINESS_LOGIC = "business_logic",
+  SYSTEM = "system",
+  NETWORK = "network",
 }
 
 // 基础错误类
@@ -34,10 +34,10 @@ export class AppError extends Error {
     severity: ErrorSeverity = ErrorSeverity.MEDIUM,
     category: ErrorCategory = ErrorCategory.SYSTEM,
     context?: Record<string, any>,
-    userMessage?: string
+    userMessage?: string,
   ) {
     super(message);
-    this.name = 'AppError';
+    this.name = "AppError";
     this.code = code;
     this.statusCode = statusCode;
     this.severity = severity;
@@ -45,7 +45,7 @@ export class AppError extends Error {
     this.context = context;
     this.userMessage = userMessage;
     this.timestamp = new Date();
-    
+
     // 确保堆栈跟踪正确
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, AppError);
@@ -56,7 +56,7 @@ export class AppError extends Error {
   toClientSafe() {
     return {
       code: this.code,
-      message: this.userMessage || '服务暂时不可用，请稍后重试',
+      message: this.userMessage || "服务暂时不可用，请稍后重试",
       severity: this.severity,
       timestamp: this.timestamp.toISOString(),
     };
@@ -83,59 +83,59 @@ export class ValidationError extends AppError {
   constructor(message: string, context?: Record<string, any>) {
     super(
       message,
-      'VALIDATION_ERROR',
+      "VALIDATION_ERROR",
       400,
       ErrorSeverity.LOW,
       ErrorCategory.VALIDATION,
       context,
-      '输入数据不符合要求，请检查后重试'
+      "输入数据不符合要求，请检查后重试",
     );
-    this.name = 'ValidationError';
+    this.name = "ValidationError";
   }
 }
 
 export class AuthenticationError extends AppError {
-  constructor(message: string = '身份验证失败') {
+  constructor(message: string = "身份验证失败") {
     super(
       message,
-      'AUTHENTICATION_ERROR',
+      "AUTHENTICATION_ERROR",
       401,
       ErrorSeverity.MEDIUM,
       ErrorCategory.AUTHENTICATION,
       undefined,
-      '请先登录'
+      "请先登录",
     );
-    this.name = 'AuthenticationError';
+    this.name = "AuthenticationError";
   }
 }
 
 export class AuthorizationError extends AppError {
-  constructor(message: string = '权限不足') {
+  constructor(message: string = "权限不足") {
     super(
       message,
-      'AUTHORIZATION_ERROR',
+      "AUTHORIZATION_ERROR",
       403,
       ErrorSeverity.MEDIUM,
       ErrorCategory.AUTHORIZATION,
       undefined,
-      '您没有权限执行此操作'
+      "您没有权限执行此操作",
     );
-    this.name = 'AuthorizationError';
+    this.name = "AuthorizationError";
   }
 }
 
 export class NotFoundError extends AppError {
-  constructor(resource: string = '资源') {
+  constructor(resource: string = "资源") {
     super(
       `${resource}不存在`,
-      'NOT_FOUND',
+      "NOT_FOUND",
       404,
       ErrorSeverity.LOW,
       ErrorCategory.BUSINESS_LOGIC,
       { resource },
-      `请求的${resource}不存在`
+      `请求的${resource}不存在`,
     );
-    this.name = 'NotFoundError';
+    this.name = "NotFoundError";
   }
 }
 
@@ -143,14 +143,14 @@ export class ConflictError extends AppError {
   constructor(message: string, context?: Record<string, any>) {
     super(
       message,
-      'CONFLICT_ERROR',
+      "CONFLICT_ERROR",
       409,
       ErrorSeverity.MEDIUM,
       ErrorCategory.BUSINESS_LOGIC,
       context,
-      '操作冲突，请检查数据后重试'
+      "操作冲突，请检查数据后重试",
     );
-    this.name = 'ConflictError';
+    this.name = "ConflictError";
   }
 }
 
@@ -158,14 +158,14 @@ export class DatabaseError extends AppError {
   constructor(message: string, originalError?: Error) {
     super(
       message,
-      'DATABASE_ERROR',
+      "DATABASE_ERROR",
       500,
       ErrorSeverity.HIGH,
       ErrorCategory.DATABASE,
       { originalError: originalError?.message },
-      '数据操作失败，请稍后重试'
+      "数据操作失败，请稍后重试",
     );
-    this.name = 'DatabaseError';
+    this.name = "DatabaseError";
   }
 }
 
@@ -173,14 +173,14 @@ export class ExternalApiError extends AppError {
   constructor(service: string, message: string, statusCode?: number) {
     super(
       `External API error from ${service}: ${message}`,
-      'EXTERNAL_API_ERROR',
+      "EXTERNAL_API_ERROR",
       statusCode || 502,
       ErrorSeverity.HIGH,
       ErrorCategory.EXTERNAL_API,
       { service, statusCode },
-      '外部服务暂时不可用，请稍后重试'
+      "外部服务暂时不可用，请稍后重试",
     );
-    this.name = 'ExternalApiError';
+    this.name = "ExternalApiError";
   }
 }
 
@@ -188,42 +188,36 @@ export class RateLimitError extends AppError {
   constructor(limit: number, windowMs: number) {
     super(
       `Rate limit exceeded: ${limit} requests per ${windowMs}ms`,
-      'RATE_LIMIT_ERROR',
+      "RATE_LIMIT_ERROR",
       429,
       ErrorSeverity.MEDIUM,
       ErrorCategory.SYSTEM,
       { limit, windowMs },
-      '请求过于频繁，请稍后重试'
+      "请求过于频繁，请稍后重试",
     );
-    this.name = 'RateLimitError';
+    this.name = "RateLimitError";
   }
 }
 
 // 错误工厂函数
 export const ErrorFactory = {
-  validation: (message: string, context?: Record<string, any>) => 
+  validation: (message: string, context?: Record<string, any>) =>
     new ValidationError(message, context),
-  
-  authentication: (message?: string) => 
-    new AuthenticationError(message),
-  
-  authorization: (message?: string) => 
-    new AuthorizationError(message),
-  
-  notFound: (resource?: string) => 
-    new NotFoundError(resource),
-  
-  conflict: (message: string, context?: Record<string, any>) => 
-    new ConflictError(message, context),
-  
-  database: (message: string, originalError?: Error) => 
-    new DatabaseError(message, originalError),
-  
-  externalApi: (service: string, message: string, statusCode?: number) => 
+
+  authentication: (message?: string) => new AuthenticationError(message),
+
+  authorization: (message?: string) => new AuthorizationError(message),
+
+  notFound: (resource?: string) => new NotFoundError(resource),
+
+  conflict: (message: string, context?: Record<string, any>) => new ConflictError(message, context),
+
+  database: (message: string, originalError?: Error) => new DatabaseError(message, originalError),
+
+  externalApi: (service: string, message: string, statusCode?: number) =>
     new ExternalApiError(service, message, statusCode),
-  
-  rateLimit: (limit: number, windowMs: number) => 
-    new RateLimitError(limit, windowMs),
+
+  rateLimit: (limit: number, windowMs: number) => new RateLimitError(limit, windowMs),
 };
 
 // 错误处理工具函数
@@ -236,9 +230,9 @@ export function getErrorCode(error: any): string {
     return error.code;
   }
   if (error instanceof Error) {
-    return 'UNKNOWN_ERROR';
+    return "UNKNOWN_ERROR";
   }
-  return 'INVALID_ERROR';
+  return "INVALID_ERROR";
 }
 
 export function getErrorMessage(error: any): string {
@@ -248,7 +242,7 @@ export function getErrorMessage(error: any): string {
   if (error instanceof Error) {
     return error.message;
   }
-  return 'Unknown error occurred';
+  return "Unknown error occurred";
 }
 
 export function getErrorSeverity(error: any): ErrorSeverity {
@@ -271,8 +265,8 @@ export function collectErrorContext(req?: any): Record<string, any> {
     context.request = {
       method: req.method,
       url: req.url,
-      userAgent: req.headers?.['user-agent'],
-      ip: req.headers?.['x-forwarded-for'] || req.headers?.['x-real-ip'] || req.ip,
+      userAgent: req.headers?.["user-agent"],
+      ip: req.headers?.["x-forwarded-for"] || req.headers?.["x-real-ip"] || req.ip,
       referer: req.headers?.referer,
     };
   }

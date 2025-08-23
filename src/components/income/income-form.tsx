@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { useState } from "react";
+import { BonusPlanForm, SalaryChangeForm } from "@/components/income/forms";
+import { CurrencySelect } from "@/components/shared/currency";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { CurrencySelect } from "@/components/ui/currency-display";
-import { SalaryChangeForm, BonusPlanForm } from "@/components/income/forms";
 import { useUserConfig } from "@/hooks/use-income-data";
 
 /**
@@ -31,21 +31,15 @@ export default function IncomeForm() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>基准货币</Label>
-              <CurrencySelect 
-                value={baseCurrency} 
-                onChange={handleBaseCurrencyChange}
-              />
+              <CurrencySelect value={baseCurrency} onChange={handleBaseCurrencyChange} />
             </div>
-            
+
             <div className="space-y-2">
               <Label>操作币种</Label>
-              <CurrencySelect 
-                value={selectedCurrency} 
-                onChange={setSelectedCurrency}
-              />
+              <CurrencySelect value={selectedCurrency} onChange={setSelectedCurrency} />
             </div>
           </div>
-          
+
           {/* 城市管理提示 */}
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
             <div className="text-blue-600 text-sm">
@@ -61,14 +55,8 @@ export default function IncomeForm() {
 
       {/* 工资变化和奖金收入表单 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <SalaryChangeForm
-          currency={selectedCurrency}
-          onCurrencyChange={setSelectedCurrency}
-        />
-        <BonusPlanForm
-          currency={selectedCurrency}
-          onCurrencyChange={setSelectedCurrency}
-        />
+        <SalaryChangeForm currency={selectedCurrency} onCurrencyChange={setSelectedCurrency} />
+        <BonusPlanForm currency={selectedCurrency} onCurrencyChange={setSelectedCurrency} />
       </div>
     </div>
   );

@@ -6,14 +6,10 @@ interface SpecialDeductionGuideProps {
   className?: string;
 }
 
-export function SpecialDeductionGuide({
-  className,
-}: SpecialDeductionGuideProps) {
+export function SpecialDeductionGuide({ className }: SpecialDeductionGuideProps) {
   return (
     <Card className={`p-4 ${className}`}>
-      <h3 className="text-lg font-semibold mb-3 text-gray-800">
-        专项附加扣除说明
-      </h3>
+      <h3 className="text-lg font-semibold mb-3 text-gray-800">专项附加扣除说明</h3>
       <p className="text-sm text-gray-600 mb-4">
         专项附加扣除是指个人所得税法规定的子女教育、继续教育、大病医疗、住房贷款利息、住房租金、赡养老人、3岁以下婴幼儿照护等7项专项附加扣除。
         在填写时，请将您所有适用的专项附加扣除项目加总后填入。
@@ -55,9 +51,7 @@ export function SpecialDeductionInput({
   return (
     <div className={className}>
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
-          专项附加扣除总额（元/月）
-        </label>
+        <label className="block text-sm font-medium text-gray-700">专项附加扣除总额（元/月）</label>
         <input
           type="number"
           value={value}

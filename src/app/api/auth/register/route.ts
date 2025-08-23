@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
 
 const registerSchema = z.object({
   name: z.string().min(2, "姓名至少需要2个字符"),
@@ -16,14 +16,11 @@ export async function POST(req: NextRequest) {
 
     // 检查用户是否已存在
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
     });
 
     if (existingUser) {
-      return NextResponse.json(
-        { error: "该邮箱已被注册" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "该邮箱已被注册" }, { status: 400 });
     }
 
     // 加密密码
@@ -41,27 +38,20 @@ export async function POST(req: NextRequest) {
         name: true,
         email: true,
         createdAt: true,
-      }
+      },
     });
 
     return NextResponse.json({
       message: "注册成功",
-      user
+      user,
     });
-
   } catch (error) {
     console.error("Registration error:", error);
-    
+
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.issues[0].message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.issues[0].message }, { status: 400 });
     }
 
-    return NextResponse.json(
-      { error: "注册失败，请稍后重试" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "注册失败，请稍后重试" }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CurrencyDisplay } from "@/components/ui/currency-display";
+import { CurrencyDisplay } from "@/components/shared/currency";
 
 interface IncomeForecastTableProps {
   data: any[];
@@ -26,12 +26,12 @@ export function IncomeForecastTable({ data, userBaseCurrency }: IncomeForecastTa
     { key: "longTermCashThisMonth", label: "长期现金", color: "text-blue-600" },
     { key: "appliedTaxRate", label: "适用税率" },
     { key: "markers", label: "备注" },
-    { key: "cumulativeIncome", label: "累计总收入" }
+    { key: "cumulativeIncome", label: "累计总收入" },
   ];
 
   const formatMarkers = (markers: any) => {
     if (!markers) return "-";
-    
+
     const items = [
       markers.salaryChange ? "工资变动" : null,
       markers.bonusPaid ? "奖金" : null,
@@ -46,13 +46,13 @@ export function IncomeForecastTable({ data, userBaseCurrency }: IncomeForecastTa
     switch (column.key) {
       case "ym":
         return value || `${new Date().getFullYear()}-${String(row.month).padStart(2, "0")}`;
-      
+
       case "appliedTaxRate":
         return value != null ? `${Number(value).toFixed(2)}%` : "-";
-      
+
       case "markers":
         return <span className="text-sm text-gray-600">{formatMarkers(value)}</span>;
-      
+
       case "grossThisMonth":
       case "net":
       case "socialInsuranceThisMonth":
@@ -67,7 +67,7 @@ export function IncomeForecastTable({ data, userBaseCurrency }: IncomeForecastTa
             className={column.highlight ? "font-semibold" : ""}
           />
         );
-      
+
       case "bonusThisMonth":
       case "longTermCashThisMonth":
         return value && Number(value) > 0 ? (
@@ -76,19 +76,17 @@ export function IncomeForecastTable({ data, userBaseCurrency }: IncomeForecastTa
             userBaseCurrency={userBaseCurrency}
             className="font-medium"
           />
-        ) : "-";
-      
+        ) : (
+          "-"
+        );
+
       default:
         return value || "-";
     }
   };
 
   if (data.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        暂无预测数据
-      </div>
-    );
+    return <div className="text-center py-8 text-gray-500">暂无预测数据</div>;
   }
 
   return (
@@ -97,9 +95,9 @@ export function IncomeForecastTable({ data, userBaseCurrency }: IncomeForecastTa
         <thead>
           <tr className="border-b bg-gray-50">
             {columns.map((column) => (
-              <th 
-                key={column.key} 
-                className={`text-left py-3 px-2 text-sm font-medium text-gray-700 ${column.width || 'min-w-24'}`}
+              <th
+                key={column.key}
+                className={`text-left py-3 px-2 text-sm font-medium text-gray-700 ${column.width || "min-w-24"}`}
               >
                 {column.label}
               </th>
@@ -110,7 +108,7 @@ export function IncomeForecastTable({ data, userBaseCurrency }: IncomeForecastTa
           {data.map((row: any, index) => {
             const rowKey = row.ym || `month-${row.month || index}`;
             const isSelected = selectedMonth === rowKey;
-            
+
             return (
               <tr
                 key={rowKey}

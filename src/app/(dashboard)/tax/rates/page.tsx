@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { ArrowLeft, Edit, Info, Plus, Save, X } from "lucide-react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  ArrowLeft,
-  Edit,
-  Save,
-  X,
-  Plus,
-  Info
-} from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface TaxBracket {
   id: string;
@@ -32,14 +32,14 @@ export default function TaxRatesPage() {
   const [loading, setLoading] = useState(true);
 
   // 默认的国家标准税率表 (2025年)
-  const defaultTaxBrackets: Omit<TaxBracket, 'id' | 'effectiveFrom' | 'effectiveTo'>[] = [
+  const defaultTaxBrackets: Omit<TaxBracket, "id" | "effectiveFrom" | "effectiveTo">[] = [
     { minIncome: 0, maxIncome: 36000, rate: 3, quickDeduction: 0 },
     { minIncome: 36000, maxIncome: 144000, rate: 10, quickDeduction: 2520 },
     { minIncome: 144000, maxIncome: 300000, rate: 20, quickDeduction: 16920 },
     { minIncome: 300000, maxIncome: 420000, rate: 25, quickDeduction: 31920 },
     { minIncome: 420000, maxIncome: 660000, rate: 30, quickDeduction: 52920 },
     { minIncome: 660000, maxIncome: 960000, rate: 35, quickDeduction: 85920 },
-    { minIncome: 960000, rate: 45, quickDeduction: 181920 }
+    { minIncome: 960000, rate: 45, quickDeduction: 181920 },
   ];
 
   useEffect(() => {
@@ -47,9 +47,9 @@ export default function TaxRatesPage() {
     const mockData: TaxBracket[] = defaultTaxBrackets.map((bracket, index) => ({
       ...bracket,
       id: `bracket_${index + 1}`,
-      effectiveFrom: "2025-01-01"
+      effectiveFrom: "2025-01-01",
     }));
-    
+
     setTaxBrackets(mockData);
     setLoading(false);
   }, []);
@@ -82,7 +82,7 @@ export default function TaxRatesPage() {
 
   const saveEdit = (id: string) => {
     // 这里应该调用API保存数据
-    console.log('Saving tax bracket:', id);
+    console.log("Saving tax bracket:", id);
     setEditingId(null);
   };
 
@@ -107,12 +107,10 @@ export default function TaxRatesPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold">税率管理</h1>
-            <p className="text-gray-600 mt-2">
-              个人所得税七级超额累进税率表管理
-            </p>
+            <p className="text-gray-600 mt-2">个人所得税七级超额累进税率表管理</p>
           </div>
         </div>
-        
+
         <div className="flex space-x-3">
           <Button variant="outline">
             <Plus className="w-4 h-4 mr-2" />
@@ -167,12 +165,8 @@ export default function TaxRatesPage() {
               <TableBody>
                 {taxBrackets.map((bracket, index) => (
                   <TableRow key={bracket.id}>
-                    <TableCell className="font-medium">
-                      {index + 1}
-                    </TableCell>
-                    <TableCell>
-                      {getIncomeRange(bracket)}
-                    </TableCell>
+                    <TableCell className="font-medium">{index + 1}</TableCell>
+                    <TableCell>{getIncomeRange(bracket)}</TableCell>
                     <TableCell>
                       {editingId === bracket.id ? (
                         <Input
@@ -201,34 +195,23 @@ export default function TaxRatesPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {new Date(bracket.effectiveFrom).toLocaleDateString('zh-CN')}
+                      {new Date(bracket.effectiveFrom).toLocaleDateString("zh-CN")}
                       {bracket.effectiveTo && (
-                        <span> - {new Date(bracket.effectiveTo).toLocaleDateString('zh-CN')}</span>
+                        <span> - {new Date(bracket.effectiveTo).toLocaleDateString("zh-CN")}</span>
                       )}
                     </TableCell>
                     <TableCell>
                       {editingId === bracket.id ? (
                         <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            onClick={() => saveEdit(bracket.id)}
-                          >
+                          <Button size="sm" onClick={() => saveEdit(bracket.id)}>
                             <Save className="w-3 h-3" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={cancelEdit}
-                          >
+                          <Button size="sm" variant="outline" onClick={cancelEdit}>
                             <X className="w-3 h-3" />
                           </Button>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startEdit(bracket.id)}
-                        >
+                        <Button size="sm" variant="outline" onClick={() => startEdit(bracket.id)}>
                           <Edit className="w-3 h-3" />
                         </Button>
                       )}
@@ -251,34 +234,43 @@ export default function TaxRatesPage() {
             <div className="p-4 bg-blue-50 rounded-lg">
               <div className="text-lg font-semibold text-blue-800">年收入 ¥100,000</div>
               <div className="text-sm text-blue-600 mt-2">
-                应纳税所得额：¥40,000<br/>
-                适用税率：10%<br/>
-                速算扣除数：¥2,520<br/>
+                应纳税所得额：¥40,000
+                <br />
+                适用税率：10%
+                <br />
+                速算扣除数：¥2,520
+                <br />
                 <strong>应纳税额：¥1,480</strong>
               </div>
             </div>
-            
+
             <div className="p-4 bg-green-50 rounded-lg">
               <div className="text-lg font-semibold text-green-800">年收入 ¥200,000</div>
               <div className="text-sm text-green-600 mt-2">
-                应纳税所得额：¥140,000<br/>
-                适用税率：10%<br/>
-                速算扣除数：¥2,520<br/>
+                应纳税所得额：¥140,000
+                <br />
+                适用税率：10%
+                <br />
+                速算扣除数：¥2,520
+                <br />
                 <strong>应纳税额：¥11,480</strong>
               </div>
             </div>
-            
+
             <div className="p-4 bg-orange-50 rounded-lg">
               <div className="text-lg font-semibold text-orange-800">年收入 ¥500,000</div>
               <div className="text-sm text-orange-600 mt-2">
-                应纳税所得额：¥440,000<br/>
-                适用税率：30%<br/>
-                速算扣除数：¥52,920<br/>
+                应纳税所得额：¥440,000
+                <br />
+                适用税率：30%
+                <br />
+                速算扣除数：¥52,920
+                <br />
                 <strong>应纳税额：¥79,080</strong>
               </div>
             </div>
           </div>
-          
+
           <div className="mt-4 text-xs text-gray-500">
             * 示例基于年度费用扣除60,000元，未考虑专项扣除和专项附加扣除
           </div>
@@ -291,9 +283,7 @@ export default function TaxRatesPage() {
           <CardTitle>历史税率版本</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-gray-500">
-            暂无历史税率版本记录
-          </div>
+          <div className="text-center py-8 text-gray-500">暂无历史税率版本记录</div>
           <div className="flex justify-center">
             <Button variant="outline" size="sm">
               查看历史版本

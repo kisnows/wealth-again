@@ -1,19 +1,19 @@
 "use client";
 
 import { useMemo } from "react";
-import { 
-  ResponsiveContainer,
-  BarChart,
+import {
   Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  LineChart,
-  Line
 } from "recharts";
-import { CurrencyDisplay } from "@/components/ui/currency-display";
+import { CurrencyDisplay } from "@/components/shared/currency";
 
 interface IncomeForecastChartProps {
   data: any[];
@@ -25,44 +25,37 @@ interface IncomeForecastChartProps {
  */
 export function IncomeForecastChart({ data, userBaseCurrency }: IncomeForecastChartProps) {
   const chartData = useMemo(() => {
-    return data.map((item: any) => ({
-      ym: item.ym || `${new Date().getFullYear()}-${String(item.month).padStart(2, "0")}`,
-      taxBefore: Number(item.grossThisMonth || 0),
-      taxAfter: Number(item.net || 0),
-    })).sort((a, b) => a.ym.localeCompare(b.ym));
+    return data
+      .map((item: any) => ({
+        ym: item.ym || `${new Date().getFullYear()}-${String(item.month).padStart(2, "0")}`,
+        taxBefore: Number(item.grossThisMonth || 0),
+        taxAfter: Number(item.net || 0),
+      }))
+      .sort((a, b) => a.ym.localeCompare(b.ym));
   }, [data]);
 
   const cumulativeData = useMemo(() => {
     let cumulativeGross = 0;
     let cumulativeNet = 0;
-    
+
     return chartData.map((item) => {
       cumulativeGross += item.taxBefore;
       cumulativeNet += item.taxAfter;
-      
+
       return {
         ym: item.ym,
         累计税前: cumulativeGross,
-        累计税后: cumulativeNet
+        累计税后: cumulativeNet,
       };
     });
   }, [chartData]);
 
   const formatTooltip = (value: number) => {
-    return (
-      <CurrencyDisplay 
-        amount={value} 
-        userBaseCurrency={userBaseCurrency}
-      />
-    );
+    return <CurrencyDisplay amount={value} userBaseCurrency={userBaseCurrency} />;
   };
 
   if (data.length === 0) {
-    return (
-      <div className="h-80 flex items-center justify-center text-gray-500">
-        暂无数据
-      </div>
-    );
+    return <div className="h-80 flex items-center justify-center text-gray-500">暂无数据</div>;
   }
 
   return (
@@ -73,16 +66,14 @@ export function IncomeForecastChart({ data, userBaseCurrency }: IncomeForecastCh
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="ym" 
-              tick={{ fontSize: 12 }}
-              interval="preserveStartEnd"
-            />
+            <XAxis dataKey="ym" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip 
+            <Tooltip
               formatter={(value: number) => [
-                formatTooltip(value), 
-                value === chartData.find(d => d.taxBefore === value)?.taxBefore ? '税前收入' : '税后收入'
+                formatTooltip(value),
+                value === chartData.find((d) => d.taxBefore === value)?.taxBefore
+                  ? "税前收入"
+                  : "税后收入",
               ]}
             />
             <Legend />
@@ -98,18 +89,9 @@ export function IncomeForecastChart({ data, userBaseCurrency }: IncomeForecastCh
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={cumulativeData}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="ym" 
-              tick={{ fontSize: 12 }}
-              interval="preserveStartEnd"
-            />
+            <XAxis dataKey="ym" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip 
-              formatter={(value: number, name: string) => [
-                formatTooltip(value), 
-                name
-              ]}
-            />
+            <Tooltip formatter={(value: number, name: string) => [formatTooltip(value), name]} />
             <Legend />
             <Line
               type="monotone"

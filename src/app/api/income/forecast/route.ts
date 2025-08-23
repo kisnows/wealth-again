@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
+import { convertCurrency } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { createTaxService } from "@/lib/tax";
-import { ZodError } from "zod";
 import { fetchHangzhouParams } from "@/lib/sources/hz-params";
-import { convertCurrency } from "@/lib/currency";
+import { createTaxService } from "@/lib/tax";
 import { getUserCitiesInRange } from "@/lib/user-city";
 
 function ymToDateEnd(ym: string): Date {
@@ -12,10 +12,7 @@ function ymToDateEnd(ym: string): Date {
   return new Date(y, m, 0);
 }
 
-function iterateMonths(
-  start: Date,
-  end: Date
-): { y: number; m: number; endDate: Date }[] {
+function iterateMonths(start: Date, end: Date): { y: number; m: number; endDate: Date }[] {
   const res: { y: number; m: number; endDate: Date }[] = [];
   const d = new Date(start.getFullYear(), start.getMonth(), 1);
   const endKey = end.getFullYear() * 100 + end.getMonth();
@@ -35,28 +32,21 @@ export async function GET(req: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
-    
+
     const { searchParams } = new URL(req.url);
     const startYM = searchParams.get("start");
     const endYM = searchParams.get("end");
     const year = Number(searchParams.get("year"));
     const horizon = Number(searchParams.get("months") || "12");
-    
+
     if (!year && !(startYM && endYM))
-      return NextResponse.json(
-        { error: "year or start/end required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "year or start/end required" }, { status: 400 });
 
     // 时间范围
     let rangeStart: Date;
     let rangeEnd: Date;
     if (startYM && endYM) {
-      rangeStart = new Date(
-        Number(startYM.slice(0, 4)),
-        Number(startYM.slice(5, 7)) - 1,
-        1
-      );
+      rangeStart = new Date(Number(startYM.slice(0, 4)), Number(startYM.slice(5, 7)) - 1, 1);
       rangeEnd = ymToDateEnd(endYM);
     } else {
       const y = year || new Date().getFullYear();
@@ -95,14 +85,18 @@ export async function GET(req: NextRequest) {
     const months = iterateMonths(rangeStart, rangeEnd);
     // 获取用户基准币种（默认人民币）
     const baseCurrency = user?.baseCurrency || "CNY";
-    
-    async function convertToBaseCurrency(amount: number, fromCurrency: string, date: Date): Promise<number> {
+
+    async function convertToBaseCurrency(
+      amount: number,
+      fromCurrency: string,
+      date: Date,
+    ): Promise<number> {
       if (fromCurrency === baseCurrency) {
         return amount;
       }
       return await convertCurrency(amount, fromCurrency, baseCurrency, date);
     }
-    
+
     async function grossForMonth(y: number, m: number): Promise<number> {
       const end = new Date(y, m, 0);
       let g = 0;
@@ -114,7 +108,7 @@ export async function GET(req: NextRequest) {
       }
       return g;
     }
-    
+
     async function bonusForMonth(y: number, m: number): Promise<number> {
       const end = new Date(y, m, 0);
       let s = 0;
@@ -127,9 +121,12 @@ export async function GET(req: NextRequest) {
       }
       return s;
     }
-    
+
     // 计算长期现金在指定月份的发放金额和笔数
-    async function longTermCashForMonth(y: number, m: number): Promise<{ amount: number, count: number }> {
+    async function longTermCashForMonth(
+      y: number,
+      m: number,
+    ): Promise<{ amount: number; count: number }> {
       const end = new Date(y, m, 0);
       let amount = 0;
       let count = 0;
@@ -139,20 +136,18 @@ export async function GET(req: NextRequest) {
           // 计算生效日期与当前日期的季度差
           const startDate = new Date(ltc.effectiveDate);
           const currentDate = new Date(y, m - 1, 1); // 月份从0开始
-          
+
           // 计算季度数（每年4个季度）
           const startYear = startDate.getFullYear();
           const startMonth = startDate.getMonth();
           const currentYear = currentDate.getFullYear();
           const currentMonth = currentDate.getMonth();
-          
+
           const startQuarter = Math.floor(startMonth / 3);
           const currentQuarter = Math.floor(currentMonth / 3);
-          
-          const quartersDiff = 
-            (currentYear - startYear) * 4 + 
-            (currentQuarter - startQuarter);
-          
+
+          const quartersDiff = (currentYear - startYear) * 4 + (currentQuarter - startQuarter);
+
           // 检查是否在16个季度的发放期内
           if (quartersDiff >= 0 && quartersDiff < 16) {
             // 计算每季度应发放的金额并转换币种
@@ -177,61 +172,49 @@ export async function GET(req: NextRequest) {
         await taxService.importHangzhouParams(params as any);
       }
     }
-    
+
     // 计算每个月的收入并转换为基准币种
     const monthlyData: any[] = [];
     const monthlyValues: any[] = []; // 存储每月的具体值用于后续映射
-    
+
     for (const it of months) {
       const gross = await grossForMonth(it.y, it.m);
       const bonus = await bonusForMonth(it.y, it.m);
       const longTermCashInfo = await longTermCashForMonth(it.y, it.m);
-      
+
       monthlyData.push({
         year: it.y,
         month: it.m,
         gross: gross,
         bonus: bonus + longTermCashInfo.amount,
         longTermCashAmount: longTermCashInfo.amount,
-        longTermCashCount: longTermCashInfo.count
+        longTermCashCount: longTermCashInfo.count,
       });
-      
+
       monthlyValues.push({
         gross: gross,
         bonus: bonus,
-        longTermCash: longTermCashInfo
+        longTermCash: longTermCashInfo,
       });
     }
-    
+
     // 使用新的API签名，传入userId而不是city
     const results = await taxService.calculateForecastWithholdingCumulative({
       userId,
       months: monthlyData,
     });
-    
+
     const changeMonths = new Set(
-      changes.map(
-        (c) =>
-          c.effectiveFrom.getFullYear() * 100 + (c.effectiveFrom.getMonth() + 1)
-      )
+      changes.map((c) => c.effectiveFrom.getFullYear() * 100 + (c.effectiveFrom.getMonth() + 1)),
     );
     const bonusMonths = new Set(
-      bonuses.map(
-        (b) =>
-          b.effectiveDate.getFullYear() * 100 + (b.effectiveDate.getMonth() + 1)
-      )
+      bonuses.map((b) => b.effectiveDate.getFullYear() * 100 + (b.effectiveDate.getMonth() + 1)),
     );
     const taxMonths = new Set(
       results
-        .map((r, i, arr) =>
-          i === 0 ? null : arr[i - 1].paramsSig !== r.paramsSig ? r.ym : null
-        )
+        .map((r, i, arr) => (i === 0 ? null : arr[i - 1].paramsSig !== r.paramsSig ? r.ym : null))
         .filter(Boolean)
-        .map(
-          (ym) =>
-            Number(String(ym).slice(0, 4)) * 100 +
-            Number(String(ym).slice(5, 7))
-        )
+        .map((ym) => Number(String(ym).slice(0, 4)) * 100 + Number(String(ym).slice(5, 7))),
     );
     const annotated = results.map((r, i) => ({
       ...r,
@@ -247,7 +230,7 @@ export async function GET(req: NextRequest) {
       longTermCashThisMonth: monthlyValues[i].longTermCash.amount || 0,
       longTermCashCount: monthlyValues[i].longTermCash.count || 0,
     }));
-    
+
     // 汇总
     const totals = annotated.reduce(
       (acc: any, x: any) => {
@@ -259,9 +242,16 @@ export async function GET(req: NextRequest) {
         acc.totalTax += Number(x.taxThisMonth || 0);
         return acc;
       },
-      { totalSalary: 0, totalBonus: 0, totalLongTermCash: 0, totalGross: 0, totalNet: 0, totalTax: 0 }
+      {
+        totalSalary: 0,
+        totalBonus: 0,
+        totalLongTermCash: 0,
+        totalGross: 0,
+        totalNet: 0,
+        totalTax: 0,
+      },
     );
-    
+
     return NextResponse.json({ results: annotated, totals });
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes("Unauthorized")) {
@@ -271,7 +261,7 @@ export async function GET(req: NextRequest) {
     if (err instanceof ZodError) {
       return NextResponse.json(
         { error: "invalid tax params shape", issues: err.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
     console.error("/api/income/forecast parse error", err);

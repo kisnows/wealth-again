@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 
 const navigation = [
   { name: "仪表板", href: "/dashboard" },
   { name: "收入管理", href: "/income" },
   { name: "投资管理", href: "/investment" },
-  { name: "税务管理", href: "/tax/config" },
+  { name: "税务管理", href: "/tax" },
   { name: "系统设置", href: "/settings" },
 ];
 

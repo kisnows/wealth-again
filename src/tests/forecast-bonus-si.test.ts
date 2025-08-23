@@ -1,11 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 // 在任何 Prisma 导入前设置绝对 DATABASE_URL，避免相对路径导致 sqlite 打开失败
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const absDb = path.resolve(__dirname, "../../prisma/dev.db");
 process.env.DATABASE_URL = `file:${absDb}`;
+
 import { prisma } from "@/lib/prisma";
 import { createTaxService } from "@/lib/tax";
 
@@ -53,7 +55,6 @@ describe("forecast: bonus excluded from SI/HF and monthsElapsed fixes", () => {
     await prisma.incomeChange.create({
       data: {
         userId: user.id,
-        city,
         grossMonthly: "20000",
         effectiveFrom: new Date("2025-01-31"),
       },
@@ -62,7 +63,6 @@ describe("forecast: bonus excluded from SI/HF and monthsElapsed fixes", () => {
     await prisma.bonusPlan.create({
       data: {
         userId: user.id,
-        city,
         amount: "5000",
         effectiveDate: new Date("2025-03-31T12:00:00"),
       },

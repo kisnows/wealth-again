@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
   accountId: z.string().uuid(),
@@ -10,14 +10,14 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   const body = schema.parse(await req.json());
-  
+
   // 将日期字符串转换为当天的开始和结束时间
   const asOfDate = new Date(body.asOf);
   const startOfDay = new Date(asOfDate);
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(asOfDate);
   endOfDay.setHours(23, 59, 59, 999);
-  
+
   // 查找同一天内是否已存在快照记录
   const existingSnapshot = await prisma.valuationSnapshot.findFirst({
     where: {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       },
     },
   });
-  
+
   let snap;
   if (existingSnapshot) {
     // 如果存在，则更新现有记录
@@ -49,6 +49,6 @@ export async function POST(req: NextRequest) {
       },
     });
   }
-  
+
   return NextResponse.json({ id: snap.id });
 }

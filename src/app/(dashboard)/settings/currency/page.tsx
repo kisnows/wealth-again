@@ -1,25 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  ArrowLeft,
+  Clock,
+  Coins,
+  Globe,
+  Plus,
+  RefreshCw,
+  Save,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  ArrowLeft,
-  Coins,
-  RefreshCw,
-  TrendingUp,
-  TrendingDown,
-  Clock,
-  Globe,
-  Save,
-  Plus
-} from "lucide-react";
 
 interface Currency {
   code: string;
@@ -54,7 +67,7 @@ export default function CurrencySettingsPage() {
     { code: "GBP", name: "英镑", symbol: "£" },
     { code: "HKD", name: "港币", symbol: "HK$" },
     { code: "KRW", name: "韩元", symbol: "₩" },
-    { code: "SGD", name: "新加坡元", symbol: "S$" }
+    { code: "SGD", name: "新加坡元", symbol: "S$" },
   ];
 
   useEffect(() => {
@@ -63,16 +76,58 @@ export default function CurrencySettingsPage() {
       baseCurrency: "CNY",
       displayCurrencies: ["CNY", "USD", "EUR"],
       autoUpdateInterval: 60, // 分钟
-      lastUpdateTime: new Date().toISOString()
+      lastUpdateTime: new Date().toISOString(),
     };
 
     const mockCurrencies: Currency[] = [
-      { code: "CNY", name: "人民币", symbol: "¥", rate: 1, lastUpdated: new Date().toISOString(), change24h: 0 },
-      { code: "USD", name: "美元", symbol: "$", rate: 0.138, lastUpdated: new Date().toISOString(), change24h: 0.5 },
-      { code: "EUR", name: "欧元", symbol: "€", rate: 0.133, lastUpdated: new Date().toISOString(), change24h: -0.2 },
-      { code: "JPY", name: "日元", symbol: "¥", rate: 21.2, lastUpdated: new Date().toISOString(), change24h: 1.1 },
-      { code: "GBP", name: "英镑", symbol: "£", rate: 0.113, lastUpdated: new Date().toISOString(), change24h: -0.8 },
-      { code: "HKD", name: "港币", symbol: "HK$", rate: 1.074, lastUpdated: new Date().toISOString(), change24h: 0.3 }
+      {
+        code: "CNY",
+        name: "人民币",
+        symbol: "¥",
+        rate: 1,
+        lastUpdated: new Date().toISOString(),
+        change24h: 0,
+      },
+      {
+        code: "USD",
+        name: "美元",
+        symbol: "$",
+        rate: 0.138,
+        lastUpdated: new Date().toISOString(),
+        change24h: 0.5,
+      },
+      {
+        code: "EUR",
+        name: "欧元",
+        symbol: "€",
+        rate: 0.133,
+        lastUpdated: new Date().toISOString(),
+        change24h: -0.2,
+      },
+      {
+        code: "JPY",
+        name: "日元",
+        symbol: "¥",
+        rate: 21.2,
+        lastUpdated: new Date().toISOString(),
+        change24h: 1.1,
+      },
+      {
+        code: "GBP",
+        name: "英镑",
+        symbol: "£",
+        rate: 0.113,
+        lastUpdated: new Date().toISOString(),
+        change24h: -0.8,
+      },
+      {
+        code: "HKD",
+        name: "港币",
+        symbol: "HK$",
+        rate: 1.074,
+        lastUpdated: new Date().toISOString(),
+        change24h: 0.3,
+      },
     ];
 
     setSettings(mockSettings);
@@ -83,27 +138,27 @@ export default function CurrencySettingsPage() {
   const updateExchangeRates = async () => {
     setUpdating(true);
     setError("");
-    
+
     try {
       // 模拟API调用更新汇率
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const updatedCurrencies = currencies.map(currency => ({
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      const updatedCurrencies = currencies.map((currency) => ({
         ...currency,
         rate: currency.code === "CNY" ? 1 : currency.rate * (0.98 + Math.random() * 0.04),
         change24h: (Math.random() - 0.5) * 4,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       }));
-      
+
       setCurrencies(updatedCurrencies);
-      
+
       if (settings) {
         setSettings({
           ...settings,
-          lastUpdateTime: new Date().toISOString()
+          lastUpdateTime: new Date().toISOString(),
         });
       }
-      
+
       setMessage("汇率更新成功！");
     } catch (err) {
       setError("汇率更新失败，请重试");
@@ -115,10 +170,10 @@ export default function CurrencySettingsPage() {
   const saveSettings = async () => {
     setSaving(true);
     setError("");
-    
+
     try {
       // 模拟保存设置
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setMessage("设置保存成功！");
     } catch (err) {
       setError("设置保存失败，请重试");
@@ -136,14 +191,18 @@ export default function CurrencySettingsPage() {
     const isPositive = change >= 0;
     return (
       <span className={`flex items-center ${isPositive ? "text-green-600" : "text-red-600"}`}>
-        {isPositive ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+        {isPositive ? (
+          <TrendingUp className="w-3 h-3 mr-1" />
+        ) : (
+          <TrendingDown className="w-3 h-3 mr-1" />
+        )}
         {Math.abs(change).toFixed(2)}%
       </span>
     );
   };
 
   const getCurrencyInfo = (code: string) => {
-    return supportedCurrencies.find(c => c.code === code) || { code, name: code, symbol: code };
+    return supportedCurrencies.find((c) => c.code === code) || { code, name: code, symbol: code };
   };
 
   if (loading) {
@@ -167,20 +226,14 @@ export default function CurrencySettingsPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold">货币设置</h1>
-            <p className="text-gray-600 mt-2">
-              管理默认货币、汇率更新和多币种显示偏好
-            </p>
+            <p className="text-gray-600 mt-2">管理默认货币、汇率更新和多币种显示偏好</p>
           </div>
         </div>
-        
+
         <div className="flex space-x-3">
-          <Button 
-            variant="outline" 
-            onClick={updateExchangeRates} 
-            disabled={updating}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${updating ? 'animate-spin' : ''}`} />
-            {updating ? '更新中...' : '更新汇率'}
+          <Button variant="outline" onClick={updateExchangeRates} disabled={updating}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${updating ? "animate-spin" : ""}`} />
+            {updating ? "更新中..." : "更新汇率"}
           </Button>
         </div>
       </div>
@@ -191,7 +244,7 @@ export default function CurrencySettingsPage() {
           {message}
         </div>
       )}
-      
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
@@ -229,9 +282,7 @@ export default function CurrencySettingsPage() {
               <div className="text-2xl font-bold text-blue-600">
                 {settings.displayCurrencies.length}
               </div>
-              <div className="text-sm text-gray-600 mt-1">
-                已配置货币种类
-              </div>
+              <div className="text-sm text-gray-600 mt-1">已配置货币种类</div>
             </CardContent>
           </Card>
 
@@ -246,9 +297,7 @@ export default function CurrencySettingsPage() {
               <div className="text-2xl font-bold text-green-600">
                 {settings.autoUpdateInterval}分钟
               </div>
-              <div className="text-sm text-gray-600 mt-1">
-                自动更新间隔
-              </div>
+              <div className="text-sm text-gray-600 mt-1">自动更新间隔</div>
             </CardContent>
           </Card>
 
@@ -261,10 +310,10 @@ export default function CurrencySettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-sm font-semibold text-purple-600">
-                {new Date(settings.lastUpdateTime).toLocaleTimeString('zh-CN')}
+                {new Date(settings.lastUpdateTime).toLocaleTimeString("zh-CN")}
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                {new Date(settings.lastUpdateTime).toLocaleDateString('zh-CN')}
+                {new Date(settings.lastUpdateTime).toLocaleDateString("zh-CN")}
               </div>
             </CardContent>
           </Card>
@@ -286,7 +335,8 @@ export default function CurrencySettingsPage() {
               <CardTitle className="flex items-center justify-between">
                 <span>实时汇率表</span>
                 <div className="text-sm text-gray-600">
-                  基准货币: {settings?.baseCurrency} ({getCurrencyInfo(settings?.baseCurrency || "CNY").name})
+                  基准货币: {settings?.baseCurrency} (
+                  {getCurrencyInfo(settings?.baseCurrency || "CNY").name})
                 </div>
               </CardTitle>
             </CardHeader>
@@ -321,11 +371,9 @@ export default function CurrencySettingsPage() {
                           <TableCell className="font-mono">
                             {formatRate(currency.rate, currency.code)}
                           </TableCell>
-                          <TableCell>
-                            {formatChange(currency.change24h)}
-                          </TableCell>
+                          <TableCell>{formatChange(currency.change24h)}</TableCell>
                           <TableCell className="text-sm text-gray-600">
-                            {new Date(currency.lastUpdated).toLocaleTimeString('zh-CN')}
+                            {new Date(currency.lastUpdated).toLocaleTimeString("zh-CN")}
                           </TableCell>
                           <TableCell>
                             <Button variant="outline" size="sm">
@@ -355,15 +403,17 @@ export default function CurrencySettingsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <Label>默认基础货币</Label>
-                        <Select 
-                          value={settings.baseCurrency} 
-                          onValueChange={(value) => setSettings({...settings, baseCurrency: value})}
+                        <Select
+                          value={settings.baseCurrency}
+                          onValueChange={(value) =>
+                            setSettings({ ...settings, baseCurrency: value })
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {supportedCurrencies.map(currency => (
+                            {supportedCurrencies.map((currency) => (
                               <SelectItem key={currency.code} value={currency.code}>
                                 {currency.symbol} {currency.code} - {currency.name}
                               </SelectItem>
@@ -374,9 +424,11 @@ export default function CurrencySettingsPage() {
 
                       <div>
                         <Label>自动更新间隔 (分钟)</Label>
-                        <Select 
-                          value={settings.autoUpdateInterval.toString()} 
-                          onValueChange={(value) => setSettings({...settings, autoUpdateInterval: parseInt(value)})}
+                        <Select
+                          value={settings.autoUpdateInterval.toString()}
+                          onValueChange={(value) =>
+                            setSettings({ ...settings, autoUpdateInterval: parseInt(value) })
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -406,26 +458,26 @@ export default function CurrencySettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>显示货币管理</CardTitle>
-                <p className="text-sm text-gray-600">
-                  选择在收入和投资管理中显示的货币种类
-                </p>
+                <p className="text-sm text-gray-600">选择在收入和投资管理中显示的货币种类</p>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {supportedCurrencies.map(currency => {
+                  {supportedCurrencies.map((currency) => {
                     const isSelected = settings?.displayCurrencies.includes(currency.code);
                     return (
-                      <div 
+                      <div
                         key={currency.code}
                         className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                          isSelected ? 'bg-blue-50 border-blue-200' : 'border-gray-200 hover:bg-gray-50'
+                          isSelected
+                            ? "bg-blue-50 border-blue-200"
+                            : "border-gray-200 hover:bg-gray-50"
                         }`}
                         onClick={() => {
                           if (settings) {
-                            const newCurrencies = isSelected 
-                              ? settings.displayCurrencies.filter(c => c !== currency.code)
+                            const newCurrencies = isSelected
+                              ? settings.displayCurrencies.filter((c) => c !== currency.code)
                               : [...settings.displayCurrencies, currency.code];
-                            setSettings({...settings, displayCurrencies: newCurrencies});
+                            setSettings({ ...settings, displayCurrencies: newCurrencies });
                           }
                         }}
                       >
@@ -454,9 +506,7 @@ export default function CurrencySettingsPage() {
               <CardTitle>汇率历史记录</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-gray-500">
-                暂无历史汇率数据
-              </div>
+              <div className="text-center py-8 text-gray-500">暂无历史汇率数据</div>
               <div className="flex justify-center">
                 <Button variant="outline" size="sm">
                   查看更多历史
@@ -485,7 +535,7 @@ export default function CurrencySettingsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {supportedCurrencies.map(currency => (
+                  {supportedCurrencies.map((currency) => (
                     <SelectItem key={currency.code} value={currency.code}>
                       {currency.symbol} {currency.code}
                     </SelectItem>
@@ -500,7 +550,7 @@ export default function CurrencySettingsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {supportedCurrencies.map(currency => (
+                  {supportedCurrencies.map((currency) => (
                     <SelectItem key={currency.code} value={currency.code}>
                       {currency.symbol} {currency.code}
                     </SelectItem>
@@ -509,14 +559,10 @@ export default function CurrencySettingsPage() {
               </Select>
             </div>
           </div>
-          
+
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <div className="text-2xl font-bold text-blue-800">
-              $138.00 USD
-            </div>
-            <div className="text-sm text-blue-600 mt-1">
-              按当前汇率 1 CNY = 0.138 USD 计算
-            </div>
+            <div className="text-2xl font-bold text-blue-800">$138.00 USD</div>
+            <div className="text-sm text-blue-600 mt-1">按当前汇率 1 CNY = 0.138 USD 计算</div>
           </div>
         </CardContent>
       </Card>

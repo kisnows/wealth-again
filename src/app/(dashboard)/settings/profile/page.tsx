@@ -1,24 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Edit,
+  Eye,
+  EyeOff,
+  Key,
+  Mail,
+  Save,
+  Shield,
+  User,
+} from "lucide-react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  ArrowLeft,
-  User,
-  Mail,
-  Shield,
-  Eye,
-  EyeOff,
-  Save,
-  Edit,
-  Key,
-  AlertTriangle
-} from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -37,18 +37,18 @@ export default function ProfilePage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   const [profileForm, setProfileForm] = useState({
     name: "",
-    email: ""
+    email: "",
   });
-  
+
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
-    confirmPassword: ""
+    confirmPassword: "",
   });
-  
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -62,13 +62,13 @@ export default function ProfilePage() {
       baseCurrency: "CNY",
       currentCity: "Hangzhou",
       createdAt: "2025-01-01T00:00:00Z",
-      lastLoginAt: "2025-01-23T10:30:00Z"
+      lastLoginAt: "2025-01-23T10:30:00Z",
     };
-    
+
     setProfile(mockProfile);
     setProfileForm({
       name: mockProfile.name,
-      email: mockProfile.email
+      email: mockProfile.email,
     });
     setLoading(false);
   }, []);
@@ -77,19 +77,19 @@ export default function ProfilePage() {
     setSaving(true);
     setError("");
     setMessage("");
-    
+
     try {
       // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       if (profile) {
         setProfile({
           ...profile,
           name: profileForm.name,
-          email: profileForm.email
+          email: profileForm.email,
         });
       }
-      
+
       setMessage("个人信息更新成功！");
       setEditing(false);
     } catch (err) {
@@ -103,28 +103,28 @@ export default function ProfilePage() {
     setSaving(true);
     setError("");
     setMessage("");
-    
+
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setError("新密码确认不一致");
       setSaving(false);
       return;
     }
-    
+
     if (passwordForm.newPassword.length < 6) {
       setError("新密码长度不能少于6位");
       setSaving(false);
       return;
     }
-    
+
     try {
       // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       setMessage("密码修改成功！");
       setPasswordForm({
         currentPassword: "",
         newPassword: "",
-        confirmPassword: ""
+        confirmPassword: "",
       });
     } catch (err) {
       setError("密码修改失败，请重试");
@@ -154,9 +154,7 @@ export default function ProfilePage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold">用户档案</h1>
-            <p className="text-gray-600 mt-2">
-              管理个人信息、密码和账户安全设置
-            </p>
+            <p className="text-gray-600 mt-2">管理个人信息、密码和账户安全设置</p>
           </div>
         </div>
       </div>
@@ -167,7 +165,7 @@ export default function ProfilePage() {
           {message}
         </div>
       )}
-      
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
@@ -191,24 +189,24 @@ export default function ProfilePage() {
                   <div className="text-sm text-gray-600">{profile.email}</div>
                 </div>
               </div>
-              
+
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-600">{profile.currentCity}</div>
                 <div className="text-sm text-gray-600">当前工作城市</div>
               </div>
-              
+
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-600">{profile.baseCurrency}</div>
                 <div className="text-sm text-gray-600">默认货币</div>
               </div>
-              
+
               <div className="text-center">
                 <div className="text-sm text-gray-600">注册时间</div>
                 <div className="font-semibold">
-                  {new Date(profile.createdAt).toLocaleDateString('zh-CN')}
+                  {new Date(profile.createdAt).toLocaleDateString("zh-CN")}
                 </div>
                 <div className="text-xs text-gray-500">
-                  最近登录: {new Date(profile.lastLoginAt).toLocaleString('zh-CN')}
+                  最近登录: {new Date(profile.lastLoginAt).toLocaleString("zh-CN")}
                 </div>
               </div>
             </div>
@@ -246,15 +244,13 @@ export default function ProfilePage() {
                     <Input
                       id="name"
                       value={profileForm.name}
-                      onChange={(e) => setProfileForm({...profileForm, name: e.target.value})}
+                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                     />
                   ) : (
-                    <div className="mt-2 p-3 bg-gray-50 rounded-md">
-                      {profile?.name}
-                    </div>
+                    <div className="mt-2 p-3 bg-gray-50 rounded-md">{profile?.name}</div>
                   )}
                 </div>
-                
+
                 <div>
                   <Label htmlFor="email">邮箱地址</Label>
                   {editing ? (
@@ -262,29 +258,27 @@ export default function ProfilePage() {
                       id="email"
                       type="email"
                       value={profileForm.email}
-                      onChange={(e) => setProfileForm({...profileForm, email: e.target.value})}
+                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                     />
                   ) : (
-                    <div className="mt-2 p-3 bg-gray-50 rounded-md">
-                      {profile?.email}
-                    </div>
+                    <div className="mt-2 p-3 bg-gray-50 rounded-md">{profile?.email}</div>
                   )}
                 </div>
               </div>
-              
+
               {editing && (
                 <div className="flex space-x-3">
                   <Button onClick={handleProfileSave} disabled={saving}>
                     <Save className="w-4 h-4 mr-2" />
                     {saving ? "保存中..." : "保存"}
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => {
                       setEditing(false);
                       setProfileForm({
                         name: profile?.name || "",
-                        email: profile?.email || ""
+                        email: profile?.email || "",
                       });
                     }}
                   >
@@ -314,7 +308,9 @@ export default function ProfilePage() {
                       id="currentPassword"
                       type={showCurrentPassword ? "text" : "password"}
                       value={passwordForm.currentPassword}
-                      onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                      onChange={(e) =>
+                        setPasswordForm({ ...passwordForm, currentPassword: e.target.value })
+                      }
                     />
                     <Button
                       type="button"
@@ -323,11 +319,15 @@ export default function ProfilePage() {
                       className="absolute right-2 top-1/2 transform -translate-y-1/2"
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                     >
-                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showCurrentPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
                     </Button>
                   </div>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="newPassword">新密码</Label>
                   <div className="relative">
@@ -335,7 +335,9 @@ export default function ProfilePage() {
                       id="newPassword"
                       type={showNewPassword ? "text" : "password"}
                       value={passwordForm.newPassword}
-                      onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                      onChange={(e) =>
+                        setPasswordForm({ ...passwordForm, newPassword: e.target.value })
+                      }
                     />
                     <Button
                       type="button"
@@ -344,11 +346,15 @@ export default function ProfilePage() {
                       className="absolute right-2 top-1/2 transform -translate-y-1/2"
                       onClick={() => setShowNewPassword(!showNewPassword)}
                     >
-                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showNewPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
                     </Button>
                   </div>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="confirmPassword">确认新密码</Label>
                   <div className="relative">
@@ -356,7 +362,9 @@ export default function ProfilePage() {
                       id="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
                       value={passwordForm.confirmPassword}
-                      onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                      onChange={(e) =>
+                        setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })
+                      }
                     />
                     <Button
                       type="button"
@@ -365,17 +373,21 @@ export default function ProfilePage() {
                       className="absolute right-2 top-1/2 transform -translate-y-1/2"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
                     </Button>
                   </div>
                 </div>
               </div>
-              
+
               <Button onClick={handlePasswordChange} disabled={saving}>
                 <Key className="w-4 h-4 mr-2" />
                 {saving ? "修改中..." : "修改密码"}
               </Button>
-              
+
               <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded">
                 <div className="flex items-start space-x-3">
                   <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
@@ -411,7 +423,7 @@ export default function ProfilePage() {
                     启用
                   </Button>
                 </div>
-                
+
                 <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
                   <div>
                     <div className="font-medium">登录通知</div>
@@ -421,7 +433,7 @@ export default function ProfilePage() {
                     已开启
                   </Button>
                 </div>
-                
+
                 <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
                   <div>
                     <div className="font-medium">数据导出</div>
@@ -432,7 +444,7 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </div>
-              
+
               <div className="border-t pt-6">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div className="flex items-start space-x-3">

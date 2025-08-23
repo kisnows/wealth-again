@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CurrencyDisplay } from "@/components/ui/currency-display";
+import { useEffect, useState } from "react";
 import { IncomeForecastChart } from "@/components/income/forecast-chart";
+import { CurrencyDisplay } from "@/components/shared/currency";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface IncomeRecord {
   month: number;
@@ -42,7 +42,7 @@ export default function IncomeSummary() {
   }
 
   // 准备图表数据
-  const chartData = records.map(record => ({
+  const chartData = records.map((record) => ({
     ym: `${record.month}月`,
     taxBefore: record.gross,
     taxAfter: record.net,
@@ -71,8 +71,10 @@ export default function IncomeSummary() {
             onChange={(e) => setYear(Number(e.target.value))}
             className="border rounded px-2 py-1"
           >
-            {availableYears.map(y => (
-              <option key={y} value={y}>{y}</option>
+            {availableYears.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
             ))}
           </select>
         </div>
@@ -85,43 +87,34 @@ export default function IncomeSummary() {
             <CardTitle className="text-sm font-medium">年度税前收入</CardTitle>
           </CardHeader>
           <CardContent>
-            <CurrencyDisplay 
-              amount={totals.totalGross}
-              className="text-2xl font-bold"
-            />
+            <CurrencyDisplay amount={totals.totalGross} className="text-2xl font-bold" />
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">年度奖金</CardTitle>
           </CardHeader>
           <CardContent>
-            <CurrencyDisplay 
-              amount={totals.totalBonus}
-              className="text-2xl font-bold"
-            />
+            <CurrencyDisplay amount={totals.totalBonus} className="text-2xl font-bold" />
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">年度税额</CardTitle>
           </CardHeader>
           <CardContent>
-            <CurrencyDisplay 
-              amount={totals.totalTax}
-              className="text-2xl font-bold text-red-600"
-            />
+            <CurrencyDisplay amount={totals.totalTax} className="text-2xl font-bold text-red-600" />
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">年度税后收入</CardTitle>
           </CardHeader>
           <CardContent>
-            <CurrencyDisplay 
+            <CurrencyDisplay
               amount={totals.totalNet}
               className="text-2xl font-bold text-green-600"
             />
@@ -140,13 +133,13 @@ export default function IncomeSummary() {
               <div className="text-gray-500">加载中...</div>
             </div>
           ) : (
-            <IncomeForecastChart 
+            <IncomeForecastChart
               data={chartData.map((item, index) => ({
                 ...item,
                 grossThisMonth: item.taxBefore,
                 net: item.taxAfter,
-                month: index + 1
-              }))} 
+                month: index + 1,
+              }))}
               userBaseCurrency="CNY"
             />
           )}
@@ -187,9 +180,7 @@ export default function IncomeSummary() {
                         <CurrencyDisplay amount={record.gross} />
                       </td>
                       <td className="py-2">
-                        {record.bonus ? (
-                          <CurrencyDisplay amount={record.bonus} />
-                        ) : "-"}
+                        {record.bonus ? <CurrencyDisplay amount={record.bonus} /> : "-"}
                       </td>
                       <td className="py-2">
                         <CurrencyDisplay amount={record.taxableCumulative} />
@@ -201,7 +192,7 @@ export default function IncomeSummary() {
                         <CurrencyDisplay amount={record.taxDueCumulative} />
                       </td>
                       <td className="py-2">
-                        <CurrencyDisplay 
+                        <CurrencyDisplay
                           amount={record.net}
                           className="text-green-600 font-medium"
                         />

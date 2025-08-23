@@ -14,9 +14,7 @@ export const taxParamsSchema = z.object({
   monthlyBasicDeduction: z.number(),
   sihfRates: z.record(z.string(), z.number()).default({}),
   sihfBase: z.object({ min: z.number(), max: z.number() }),
-  housingFund: z
-    .object({ rate: z.number(), baseMin: z.number(), baseMax: z.number() })
-    .optional(),
+  housingFund: z.object({ rate: z.number(), baseMin: z.number(), baseMax: z.number() }).optional(),
   specialDeductions: z.record(z.string(), z.number()).default({}),
 });
 
@@ -39,10 +37,7 @@ export function normalizeTaxParamsValue(raw: unknown): TaxParams {
   }
 }
 
-function calcCumulativeTax(
-  taxable: number,
-  brackets: TaxParams["brackets"]
-): number {
+function calcCumulativeTax(taxable: number, brackets: TaxParams["brackets"]): number {
   if (taxable <= 0) return 0;
   // brackets assumed ascending by threshold
   let applicable = brackets[0];

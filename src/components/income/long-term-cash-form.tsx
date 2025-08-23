@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,7 +58,7 @@ export default function LongTermCashForm({ onAdd }: LongTermCashFormProps) {
       }
 
       await onAdd({ totalAmount: amount, effectiveDate, currency });
-      
+
       // Reset form
       setTotalAmount("");
       setEffectiveDate("");
@@ -72,7 +72,7 @@ export default function LongTermCashForm({ onAdd }: LongTermCashFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-lg">
       <h3 className="text-lg font-medium">添加长期现金</h3>
-      
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
@@ -93,9 +93,11 @@ export default function LongTermCashForm({ onAdd }: LongTermCashFormProps) {
             </SelectContent>
           </Select>
         </div>
-        
+
         <div>
-          <Label htmlFor="totalAmount">总金额 ({currency === "CNY" ? "元" : currency === "HKD" ? "港元" : "美元"})</Label>
+          <Label htmlFor="totalAmount">
+            总金额 ({currency === "CNY" ? "元" : currency === "HKD" ? "港元" : "美元"})
+          </Label>
           <Input
             id="totalAmount"
             type="number"
@@ -105,7 +107,7 @@ export default function LongTermCashForm({ onAdd }: LongTermCashFormProps) {
             step="0.01"
           />
         </div>
-        
+
         <div>
           <Label htmlFor="effectiveDate">生效日期</Label>
           <Input

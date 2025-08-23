@@ -1,14 +1,14 @@
-import { NextRequest } from 'next/server';
-import { prisma } from './prisma';
-import { AppError, ErrorSeverity, ErrorCategory, collectErrorContext } from './errors';
+import type { NextRequest } from "next/server";
+import { AppError, collectErrorContext, ErrorCategory, ErrorSeverity } from "./errors";
+import { prisma } from "./prisma";
 
 // 日志级别
 export enum LogLevel {
-  DEBUG = 'debug',
-  INFO = 'info',
-  WARN = 'warn',
-  ERROR = 'error',
-  FATAL = 'fatal',
+  DEBUG = "debug",
+  INFO = "info",
+  WARN = "warn",
+  ERROR = "error",
+  FATAL = "fatal",
 }
 
 // 日志接口
@@ -50,7 +50,7 @@ class Logger {
     this.logToConsole(entry);
 
     // 生产环境下可以发送到外部日志服务
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === "production") {
       this.logToExternalService(entry).catch(console.error);
     }
 
@@ -61,7 +61,7 @@ class Logger {
   }
 
   debug(message: string, context?: Record<string, any>) {
-    if (process.env.NODE_ENV === 'development' || process.env.LOG_LEVEL === 'debug') {
+    if (process.env.NODE_ENV === "development" || process.env.LOG_LEVEL === "debug") {
       this.log(LogLevel.DEBUG, message, context);
     }
   }
@@ -88,7 +88,7 @@ class Logger {
       return {
         name: error.name,
         message: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
         code: (error as any).code,
         statusCode: (error as any).statusCode,
       };
@@ -100,7 +100,7 @@ class Logger {
   private logToConsole(entry: LogEntry) {
     const { level, message, timestamp, context, error } = entry;
     const prefix = `[${timestamp.toISOString()}] ${level.toUpperCase()}:`;
-    
+
     switch (level) {
       case LogLevel.DEBUG:
         console.debug(prefix, message, context, error);
@@ -124,8 +124,8 @@ class Logger {
       await prisma.auditLog.create({
         data: {
           userId: entry.context?.userId,
-          action: 'LOG',
-          resource: 'SYSTEM',
+          action: "LOG",
+          resource: "SYSTEM",
           resourceId: entry.requestId,
           newValues: JSON.stringify({
             level: entry.level,
@@ -138,7 +138,7 @@ class Logger {
         },
       });
     } catch (error) {
-      console.error('Failed to write log to database:', error);
+      console.error("Failed to write log to database:", error);
     }
   }
 
@@ -149,7 +149,7 @@ class Logger {
     // if (process.env.SENTRY_DSN) {
     //   Sentry.captureMessage(entry.message, entry.level as any);
     // }
-    // 
+    //
     // if (process.env.DATADOG_API_KEY) {
     //   await sendToDatadog(entry);
     // }
@@ -164,16 +164,16 @@ export async function logRequest(
   req: NextRequest,
   response: any,
   userId?: string,
-  duration?: number
+  duration?: number,
 ) {
   const requestLogger = logger.child({
-    requestId: req.headers.get('x-request-id'),
+    requestId: req.headers.get("x-request-id"),
     userId,
     request: {
       method: req.method,
       url: req.url,
-      userAgent: req.headers.get('user-agent'),
-      ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
+      userAgent: req.headers.get("user-agent"),
+      ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"),
     },
     response: {
       statusCode: response?.status,
@@ -181,7 +181,7 @@ export async function logRequest(
     },
   });
 
-  const message = `${req.method} ${req.url} - ${response?.status || 'UNKNOWN'}`;
+  const message = `${req.method} ${req.url} - ${response?.status || "UNKNOWN"}`;
 
   if (response?.status >= 500) {
     requestLogger.error(message);
@@ -197,7 +197,7 @@ export async function logApiError(
   error: any,
   req?: NextRequest,
   userId?: string,
-  context?: Record<string, any>
+  context?: Record<string, any>,
 ) {
   const errorContext = {
     ...collectErrorContext(req),
@@ -207,7 +207,7 @@ export async function logApiError(
 
   if (error instanceof AppError) {
     const errorLogger = logger.child(errorContext);
-    
+
     switch (error.severity) {
       case ErrorSeverity.CRITICAL:
         errorLogger.fatal(error.message, error);
@@ -223,7 +223,7 @@ export async function logApiError(
         break;
     }
   } else {
-    logger.error('Unhandled error', error, errorContext);
+    logger.error("Unhandled error", error, errorContext);
   }
 }
 
@@ -235,11 +235,11 @@ export async function logBusinessOperation(
   resourceId?: string,
   oldValues?: any,
   newValues?: any,
-  req?: NextRequest
+  req?: NextRequest,
 ) {
   try {
     const context = collectErrorContext(req);
-    
+
     await prisma.auditLog.create({
       data: {
         userId,
@@ -260,16 +260,12 @@ export async function logBusinessOperation(
       resourceId,
     });
   } catch (error) {
-    logger.error('Failed to log business operation', error);
+    logger.error("Failed to log business operation", error);
   }
 }
 
 // 性能监控日志
-export function logPerformance(
-  operation: string,
-  duration: number,
-  context?: Record<string, any>
-) {
+export function logPerformance(operation: string, duration: number, context?: Record<string, any>) {
   const perfLogger = logger.child({
     performance: {
       operation,
@@ -279,9 +275,11 @@ export function logPerformance(
     ...context,
   });
 
-  if (duration > 5000) { // 超过 5 秒的操作
+  if (duration > 5000) {
+    // 超过 5 秒的操作
     perfLogger.warn(`Slow operation detected: ${operation} took ${duration}ms`);
-  } else if (duration > 1000) { // 超过 1 秒的操作
+  } else if (duration > 1000) {
+    // 超过 1 秒的操作
     perfLogger.info(`Operation ${operation} took ${duration}ms`);
   } else {
     perfLogger.debug(`Operation ${operation} took ${duration}ms`);
@@ -293,7 +291,7 @@ export async function logUserAction(
   userId: string,
   action: string,
   details?: Record<string, any>,
-  req?: NextRequest
+  req?: NextRequest,
 ) {
   const context = {
     userId,
@@ -309,7 +307,7 @@ export async function logUserAction(
     await prisma.auditLog.create({
       data: {
         userId,
-        action: 'USER_ACTION',
+        action: "USER_ACTION",
         resource: action,
         newValues: JSON.stringify(details),
         ipAddress: (context as any).request?.ip,
@@ -317,18 +315,18 @@ export async function logUserAction(
       },
     });
   } catch (error) {
-    logger.error('Failed to log user action', error);
+    logger.error("Failed to log user action", error);
   }
 }
 
 // 安全事件日志
 export async function logSecurityEvent(
   eventType: string,
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   message: string,
   userId?: string,
   req?: NextRequest,
-  details?: Record<string, any>
+  details?: Record<string, any>,
 ) {
   const context = {
     securityEvent: {
@@ -343,16 +341,16 @@ export async function logSecurityEvent(
   const securityLogger = logger.child(context);
 
   switch (severity) {
-    case 'CRITICAL':
+    case "CRITICAL":
       securityLogger.fatal(`Security Event: ${message}`);
       break;
-    case 'HIGH':
+    case "HIGH":
       securityLogger.error(`Security Event: ${message}`);
       break;
-    case 'MEDIUM':
+    case "MEDIUM":
       securityLogger.warn(`Security Event: ${message}`);
       break;
-    case 'LOW':
+    case "LOW":
       securityLogger.info(`Security Event: ${message}`);
       break;
   }
@@ -362,7 +360,7 @@ export async function logSecurityEvent(
     await prisma.auditLog.create({
       data: {
         userId,
-        action: 'SECURITY_EVENT',
+        action: "SECURITY_EVENT",
         resource: eventType,
         newValues: JSON.stringify({
           severity,
@@ -374,7 +372,7 @@ export async function logSecurityEvent(
       },
     });
   } catch (error) {
-    console.error('Failed to log security event:', error);
+    console.error("Failed to log security event:", error);
   }
 }
 
@@ -393,20 +391,12 @@ export async function getAuditLogs(
     endDate?: Date;
     page?: number;
     pageSize?: number;
-  } = {}
+  } = {},
 ) {
-  const {
-    userId,
-    action,
-    resource,
-    startDate,
-    endDate,
-    page = 1,
-    pageSize = 20,
-  } = filters;
+  const { userId, action, resource, startDate, endDate, page = 1, pageSize = 20 } = filters;
 
   const where: any = {};
-  
+
   if (userId) where.userId = userId;
   if (action) where.action = { contains: action };
   if (resource) where.resource = { contains: resource };
@@ -420,14 +410,14 @@ export async function getAuditLogs(
     prisma.auditLog.count({ where }),
     prisma.auditLog.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
         user: {
-          select: { email: true, name: true }
-        }
-      }
+          select: { email: true, name: true },
+        },
+      },
     }),
   ]);
 

@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import "./globals.css";
 import Providers from "@/components/providers";
 
@@ -7,11 +7,7 @@ export const metadata = {
   description: "个人财富管理MVP",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
       <body className="min-h-screen font-sans antialiased">

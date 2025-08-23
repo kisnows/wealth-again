@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 
 describe("transactions api basic", () => {
@@ -16,7 +16,7 @@ describe("transactions api basic", () => {
         accountId: acc.id,
         type: "CASH_IN",
         tradeDate: new Date(),
-        cashAmount: "1000",
+        amount: "1000",
         currency: "CNY",
       },
     });

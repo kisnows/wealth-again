@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
-import { prisma } from "@/lib/prisma";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { endOfMonth } from "@/lib/date";
+import { prisma } from "@/lib/prisma";
 
 const MOCK_UID = "test-user-1";
 const EMAIL = "mock-user@example.com";
@@ -37,7 +37,7 @@ describe("income history effective date alignment", () => {
     expect(eff.toISOString().slice(0, 10)).toBe(
       endOfMonth(new Date(year, month - 1, 1))
         .toISOString()
-        .slice(0, 10)
+        .slice(0, 10),
     );
   });
 

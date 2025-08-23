@@ -15,7 +15,7 @@ export interface User extends BaseEntity {
 
 export interface UserPreference extends BaseEntity {
   userId: string;
-  theme: 'light' | 'dark' | 'system';
+  theme: "light" | "dark" | "system";
   language: string;
   timezone: string;
   currency: string;
@@ -37,12 +37,22 @@ export interface Session extends BaseEntity {
 export interface Account extends BaseEntity {
   userId: string;
   name: string;
+  accountType: AccountType;
+  subType?: string;
   baseCurrency: string;
+  initialBalance: string;
+  totalDeposits: string;
+  totalWithdrawals: string;
+  status: AccountStatus;
+  description?: string;
   _count?: {
     transactions: number;
     snapshots: number;
   };
 }
+
+export type AccountType = "SAVINGS" | "INVESTMENT" | "LOAN";
+export type AccountStatus = "ACTIVE" | "ARCHIVED";
 
 export interface Transaction extends BaseEntity {
   accountId: string;
@@ -50,13 +60,15 @@ export interface Transaction extends BaseEntity {
   tradeDate: string;
   amount: string;
   currency: string;
+  relatedTransfer?: string;
+  exchangeRate?: string;
   note?: string;
   status?: TransactionStatus;
-  account?: Pick<Account, 'name'>;
+  account?: Pick<Account, "name">;
 }
 
-export type TransactionType = 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER_IN' | 'TRANSFER_OUT';
-export type TransactionStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+export type TransactionType = "DEPOSIT" | "WITHDRAW" | "TRANSFER_IN" | "TRANSFER_OUT";
+export type TransactionStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
 
 export interface ValuationSnapshot extends BaseEntity {
   accountId: string;
@@ -169,7 +181,7 @@ export interface Notification extends BaseEntity {
   expiresAt?: string;
 }
 
-export type NotificationType = 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS';
+export type NotificationType = "INFO" | "WARNING" | "ERROR" | "SUCCESS";
 
 // 审计日志类型
 export interface AuditLog extends BaseEntity {
@@ -211,7 +223,7 @@ export interface PaginationParams {
   page?: number;
   pageSize?: number;
   sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
+  sortOrder?: "asc" | "desc";
 }
 
 // 表单相关类型
@@ -274,8 +286,8 @@ export interface BackupRecord extends BaseEntity {
   fileName: string;
   filePath: string;
   fileSize: bigint;
-  type: 'FULL' | 'INCREMENTAL';
-  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  type: "FULL" | "INCREMENTAL";
+  status: "PENDING" | "SUCCESS" | "FAILED";
   errorMessage?: string;
   completedAt?: string;
 }
@@ -288,12 +300,12 @@ export type RequiredKeys<T, K extends keyof T> = T & Required<Pick<T, K>>;
 export type ApiSuccess<T> = {
   success: true;
   data: T;
-} & Omit<ApiResponse<T>, 'success' | 'data' | 'error'>;
+} & Omit<ApiResponse<T>, "success" | "data" | "error">;
 
 export type ApiError = {
   success: false;
-  error: NonNullable<ApiResponse['error']>;
-} & Omit<ApiResponse, 'success' | 'data' | 'error'>;
+  error: NonNullable<ApiResponse["error"]>;
+} & Omit<ApiResponse, "success" | "data" | "error">;
 
 // 事件类型
 export interface AppEvent {
@@ -303,7 +315,7 @@ export interface AppEvent {
 }
 
 // 主题相关类型
-export type Theme = 'light' | 'dark' | 'system';
+export type Theme = "light" | "dark" | "system";
 
 export interface ThemeConfig {
   primary: string;

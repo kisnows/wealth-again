@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 
 describe("accounts unique name", () => {
@@ -28,14 +28,13 @@ describe("accounts unique name", () => {
       await prisma.valuationSnapshot.deleteMany({
         where: { accountId: { in: ids } },
       });
-      await prisma.lot.deleteMany({ where: { accountId: { in: ids } } });
       await prisma.account.deleteMany({ where: { id: { in: ids } } });
     }
     await prisma.account.create({
       data: { userId, name, baseCurrency: "CNY" },
     });
     await expect(
-      prisma.account.create({ data: { userId, name, baseCurrency: "CNY" } })
+      prisma.account.create({ data: { userId, name, baseCurrency: "CNY" } }),
     ).rejects.toBeTruthy();
   });
 });

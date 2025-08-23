@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -36,12 +36,8 @@ export default function Home() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            财富管理系统
-          </h1>
-          <p className="text-gray-600">
-            专业的个人财富管理平台，帮您管理收入、投资与税务
-          </p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">财富管理系统</h1>
+          <p className="text-gray-600">专业的个人财富管理平台，帮您管理收入、投资与税务</p>
         </div>
 
         <Card>

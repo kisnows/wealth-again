@@ -1,11 +1,7 @@
-import { TaxConfigRepository } from "./repository";
-import { TaxCalculator, SocialInsuranceCalculator, round2 } from "./calculator";
-import {
-  IncomeCalculationInput,
-  IncomeCalculationResult,
-  TaxConfig,
-} from "./types";
 import { getUserCityAtDate } from "@/lib/user-city";
+import { round2, SocialInsuranceCalculator, TaxCalculator } from "./calculator";
+import type { TaxConfigRepository } from "./repository";
+import type { IncomeCalculationInput, IncomeCalculationResult, TaxConfig } from "./types";
 
 export class TaxService {
   constructor(private repository: TaxConfigRepository) {}
@@ -13,34 +9,22 @@ export class TaxService {
   /**
    * 计算月度个税和社保
    */
-  async calculateMonthlyIncome(
-    input: IncomeCalculationInput
-  ): Promise<IncomeCalculationResult> {
+  async calculateMonthlyIncome(input: IncomeCalculationInput): Promise<IncomeCalculationResult> {
     const calculationDate = new Date(input.year, input.month - 1, 1);
 
     // 1. 动态查询用户在计算日期的工作城市
     const city = await getUserCityAtDate(input.userId, calculationDate);
 
     // 2. 获取税率配置
-    const taxBrackets = await this.repository.getTaxBrackets(
-      city,
-      calculationDate
-    );
+    const taxBrackets = await this.repository.getTaxBrackets(city, calculationDate);
     if (taxBrackets.length === 0) {
-      throw new Error(
-        `未找到城市 ${city} 在 ${input.year}-${input.month} 的税率配置`
-      );
+      throw new Error(`未找到城市 ${city} 在 ${input.year}-${input.month} 的税率配置`);
     }
 
     // 3. 获取社保配置
-    const socialConfig = await this.repository.getSocialInsuranceConfig(
-      city,
-      calculationDate
-    );
+    const socialConfig = await this.repository.getSocialInsuranceConfig(city, calculationDate);
     if (!socialConfig) {
-      throw new Error(
-        `未找到城市 ${city} 在 ${input.year}-${input.month} 的社保配置`
-      );
+      throw new Error(`未找到城市 ${city} 在 ${input.year}-${input.month} 的社保配置`);
     }
 
     // 4. 初始化计算器
@@ -50,11 +34,11 @@ export class TaxService {
     // 5. 计算社保公积金
     const socialInsurance = socialCalculator.calculateSocialInsurance(
       input.gross,
-      input.customSocialInsuranceBase || undefined
+      input.customSocialInsuranceBase || undefined,
     );
     const housingFund = socialCalculator.calculateHousingFund(
       input.gross,
-      input.customHousingFundBase || undefined
+      input.customHousingFundBase || undefined,
     );
 
     // 6. 计算应纳税所得额
@@ -68,19 +52,14 @@ export class TaxService {
         housingFund.amount -
         input.specialDeductions -
         input.otherDeductions -
-        input.charityDonations
+        input.charityDonations,
     );
 
     // 7. 计算个税
     const { tax, bracket } = taxCalculator.calculateTax(taxableIncome);
 
     // 8. 计算税后收入
-    const netIncome =
-      input.gross +
-      input.bonus -
-      socialInsurance.total -
-      housingFund.amount -
-      tax;
+    const netIncome = input.gross + input.bonus - socialInsurance.total - housingFund.amount - tax;
 
     // 9. 计算实际税率
     const totalIncome = input.gross + input.bonus;
@@ -131,7 +110,7 @@ export class TaxService {
   /**
    * 方案B：使用服务层逐月计算社保/公积金与税务配置，自行按累计预扣法计算个税
    * 注意：社保、公积金基数以工资为基（不含奖金）；税前=工资+奖金；税后=税前-社保-税
-   * 
+   *
    * 修改：不再传入city参数，而是根据userId和每个月的日期动态查询用户所在城市
    */
   async calculateForecastWithholdingCumulative(args: {
@@ -159,9 +138,9 @@ export class TaxService {
     }>
   > {
     const ordered = [...args.months].sort((a, b) =>
-      a.year === b.year ? a.month - b.month : a.year - b.year
+      a.year === b.year ? a.month - b.month : a.year - b.year,
     );
-    
+
     const results: Array<{
       month: number;
       ym: string;
@@ -189,16 +168,16 @@ export class TaxService {
     // 处理每一年的数据
     for (const year of Object.keys(groupedByYear).map(Number).sort()) {
       const monthsInYear = groupedByYear[year];
-      
+
       // 为了正确计算税率，我们需要从1月开始计算到目标月份
       // 获取从1月到目标月份的所有月份数据
       const allMonthsForYear = [];
       for (let m = 1; m <= 12; m++) {
-        const monthData = monthsInYear.find(item => item.month === m) || { 
-          year, 
-          month: m, 
-          gross: 0, 
-          bonus: 0 
+        const monthData = monthsInYear.find((item) => item.month === m) || {
+          year,
+          month: m,
+          gross: 0,
+          bonus: 0,
         };
         allMonthsForYear.push(monthData);
       }
@@ -208,7 +187,7 @@ export class TaxService {
       let cumulativeSIHF = 0;
       const monthlyBasicDeduction = 5000;
       let cumulativeTaxed = 0;
-      
+
       const cumulativeResults: Record<number, any> = {};
       for (let i = 0; i < allMonthsForYear.length; i++) {
         const { year, month, gross, bonus = 0 } = allMonthsForYear[i];
@@ -219,14 +198,9 @@ export class TaxService {
 
         // 读取当月配置
         const taxBrackets = await this.repository.getTaxBrackets(city, asOf);
-        const socialConfig = await this.repository.getSocialInsuranceConfig(
-          city,
-          asOf
-        );
+        const socialConfig = await this.repository.getSocialInsuranceConfig(city, asOf);
         if (taxBrackets.length === 0 || !socialConfig) {
-          throw new Error(
-            `缺少 ${city} 在 ${year}-${month} 的税务或社保配置`
-          );
+          throw new Error(`缺少 ${city} 在 ${year}-${month} 的税务或社保配置`);
         }
 
         const taxCalc = new TaxCalculator(taxBrackets);
@@ -244,7 +218,7 @@ export class TaxService {
         const monthsElapsed = i + 1;
         const taxableCumulative = Math.max(
           0,
-          cumulativeGross - cumulativeSIHF - monthlyBasicDeduction * monthsElapsed
+          cumulativeGross - cumulativeSIHF - monthlyBasicDeduction * monthsElapsed,
         );
         const calc = taxCalc.calculateTax(taxableCumulative);
         const taxDueCumulative = calc.tax;
@@ -253,10 +227,7 @@ export class TaxService {
         const taxThisMonth = Math.max(0, delta);
         // 当累计应纳税额下降（delta<0）时，不显示负税，但将累计已预扣基线同步到"当前应缴"
         // 这样后续月份在新配置下会重新累计，而不会长时间为 0
-        cumulativeTaxed = Math.min(
-          taxDueCumulative,
-          cumulativeTaxed + taxThisMonth
-        );
+        cumulativeTaxed = Math.min(taxDueCumulative, cumulativeTaxed + taxThisMonth);
 
         const net = monthGross - sihfThisMonth - taxThisMonth;
 
@@ -291,8 +262,8 @@ export class TaxService {
     for (const result of results) {
       resultDict[`${result.ym}`] = result;
     }
-    
-    return ordered.map(item => resultDict[`${item.year}-${String(item.month).padStart(2, "0")}`]);
+
+    return ordered.map((item) => resultDict[`${item.year}-${String(item.month).padStart(2, "0")}`]);
   }
 
   /**
@@ -309,18 +280,12 @@ export class TaxService {
       (acc, record) => ({
         totalGross: acc.totalGross + Number(record.gross),
         totalBonus: acc.totalBonus + Number(record.bonus || 0),
-        totalSocialInsurance:
-          acc.totalSocialInsurance + Number(record.socialInsurance || 0),
-        totalHousingFund:
-          acc.totalHousingFund + Number(record.housingFund || 0),
-        totalSpecialDeductions:
-          acc.totalSpecialDeductions + Number(record.specialDeductions || 0),
-        totalOtherDeductions:
-          acc.totalOtherDeductions + Number(record.otherDeductions || 0),
-        totalCharityDonations:
-          acc.totalCharityDonations + Number(record.charityDonations || 0),
-        totalTaxableIncome:
-          acc.totalTaxableIncome + Number(record.taxableIncome || 0),
+        totalSocialInsurance: acc.totalSocialInsurance + Number(record.socialInsurance || 0),
+        totalHousingFund: acc.totalHousingFund + Number(record.housingFund || 0),
+        totalSpecialDeductions: acc.totalSpecialDeductions + Number(record.specialDeductions || 0),
+        totalOtherDeductions: acc.totalOtherDeductions + Number(record.otherDeductions || 0),
+        totalCharityDonations: acc.totalCharityDonations + Number(record.charityDonations || 0),
+        totalTaxableIncome: acc.totalTaxableIncome + Number(record.taxableIncome || 0),
         totalIncomeTax: acc.totalIncomeTax + Number(record.incomeTax || 0),
         totalNetIncome: acc.totalNetIncome + Number(record.netIncome || 0),
       }),
@@ -335,12 +300,11 @@ export class TaxService {
         totalTaxableIncome: 0,
         totalIncomeTax: 0,
         totalNetIncome: 0,
-      }
+      },
     );
 
     const totalIncome = summary.totalGross + summary.totalBonus;
-    const effectiveTaxRate =
-      totalIncome > 0 ? (summary.totalIncomeTax / totalIncome) * 100 : 0;
+    const effectiveTaxRate = totalIncome > 0 ? (summary.totalIncomeTax / totalIncome) * 100 : 0;
 
     return {
       year,
@@ -361,21 +325,15 @@ export class TaxService {
    * 保存税务配置
    */
   async saveTaxConfig(config: TaxConfig): Promise<void> {
-    const { city, effectiveFrom, effectiveTo, taxBrackets, socialInsurance } =
-      config;
+    const { city, effectiveFrom, effectiveTo, taxBrackets, socialInsurance } = config;
 
     await Promise.all([
-      this.repository.saveTaxBrackets(
-        city,
-        taxBrackets,
-        effectiveFrom,
-        effectiveTo || undefined
-      ),
+      this.repository.saveTaxBrackets(city, taxBrackets, effectiveFrom, effectiveTo || undefined),
       this.repository.saveSocialInsuranceConfig(
         city,
         socialInsurance,
         effectiveFrom,
-        effectiveTo || undefined
+        effectiveTo || undefined,
       ),
     ]);
   }
@@ -392,7 +350,7 @@ export class TaxService {
    */
   async getCurrentTaxConfig(
     city: string,
-    date: Date = new Date()
+    date: Date = new Date(),
   ): Promise<{
     taxBrackets: any[];
     socialInsurance: any;

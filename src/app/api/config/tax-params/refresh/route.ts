@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createTaxService } from "@/lib/tax";
 import { fetchHangzhouParams } from "@/lib/sources/hz-params";
-import { parseSihfFromHtml, parseGjjFromHtml } from "@/lib/sources/parsers";
-import { taxParamsSchema } from "@/lib/tax";
+import { parseGjjFromHtml, parseSihfFromHtml } from "@/lib/sources/parsers";
+import { createTaxService, taxParamsSchema } from "@/lib/tax";
 
 const taxService = createTaxService(prisma);
 
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
       if (!baseMin || !baseMax || !pension) {
         return NextResponse.json(
           { error: "parse_failed", details: { baseMin, baseMax, pension } },
-          { status: 422 }
+          { status: 422 },
         );
       }
 
@@ -70,9 +69,9 @@ export async function POST(req: NextRequest) {
           { threshold: 960000, rate: 0.45, quickDeduction: 181920 },
         ],
         sihfRates: {
-          "pension": pension,
-          ...(medical ? { "medical": medical } : {}),
-          ...(unemployment ? { "unemployment": unemployment } : {}),
+          pension: pension,
+          ...(medical ? { medical: medical } : {}),
+          ...(unemployment ? { unemployment: unemployment } : {}),
         },
         sihfBase: { min: baseMin, max: baseMax },
         ...(gjjRate && (gjjBaseMin || gjjBaseMax)

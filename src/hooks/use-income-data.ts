@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useState } from "react";
 
 // 通用API响应类型
 export interface ApiResponse<T> {
@@ -29,7 +29,7 @@ export function useApiData<T>(
     immediate?: boolean;
     onSuccess?: (data: T) => void;
     onError?: (error: string) => void;
-  } = {}
+  } = {},
 ) {
   const { data: session } = useSession();
   const [data, setData] = useState<T | null>(null);
@@ -38,7 +38,7 @@ export function useApiData<T>(
 
   const fetchData = useCallback(async () => {
     if (!session) return;
-    
+
     setLoading(true);
     setError("");
 
@@ -75,7 +75,7 @@ export function useApiData<T>(
     error,
     refetch: fetchData,
     setData,
-    setError
+    setError,
   };
 }
 
@@ -96,7 +96,7 @@ export function useIncomeData(dateRange?: { start: string; end: string }) {
       totalGross: 0,
       totalNet: 0,
       totalTax: 0,
-    }
+    },
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -110,17 +110,15 @@ export function useIncomeData(dateRange?: { start: string; end: string }) {
     try {
       const queries = [
         "/api/income/bonus?page=1&pageSize=50",
-        "/api/income/changes?page=1&pageSize=50", 
-        "/api/income/long-term-cash?page=1&pageSize=50"
+        "/api/income/changes?page=1&pageSize=50",
+        "/api/income/long-term-cash?page=1&pageSize=50",
       ];
 
       if (dateRange) {
         queries.push(`/api/income/forecast?start=${dateRange.start}&end=${dateRange.end}`);
       }
 
-      const responses = await Promise.all(
-        queries.map(url => fetch(url).then(r => r.json()))
-      );
+      const responses = await Promise.all(queries.map((url) => fetch(url).then((r) => r.json())));
 
       const [bonuses, changes, longTermCash, forecast] = responses;
 
@@ -136,9 +134,8 @@ export function useIncomeData(dateRange?: { start: string; end: string }) {
           totalGross: 0,
           totalNet: 0,
           totalTax: 0,
-        }
+        },
       });
-
     } catch (err) {
       setError("获取收入数据失败");
       console.error("Error loading income data:", err);
@@ -163,7 +160,7 @@ export function useIncomeData(dateRange?: { start: string; end: string }) {
     loading,
     error,
     refresh: loadIncomeData,
-    setError
+    setError,
   };
 }
 
@@ -174,42 +171,48 @@ export function useUserConfig() {
   const { data: session } = useSession();
   const [userConfig, setUserConfig] = useState({
     baseCurrency: "CNY",
-    cities: ["Hangzhou", "Shanghai", "Beijing", "Shenzhen"]
+    cities: ["Hangzhou", "Shanghai", "Beijing", "Shenzhen"],
   });
   const [loading, setLoading] = useState(false);
 
-  const updateUserConfig = useCallback(async (updates: Partial<typeof userConfig>) => {
-    if (!session) return;
+  const updateUserConfig = useCallback(
+    async (updates: Partial<typeof userConfig>) => {
+      if (!session) return;
 
-    try {
-      const response = await fetch("/api/user/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
-      });
+      try {
+        const response = await fetch("/api/user/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
 
-      if (response.ok) {
-        setUserConfig(prev => ({ ...prev, ...updates }));
+        if (response.ok) {
+          setUserConfig((prev) => ({ ...prev, ...updates }));
+        }
+      } catch (error) {
+        console.error("Failed to update user config:", error);
       }
-    } catch (error) {
-      console.error("Failed to update user config:", error);
-    }
-  }, [session]);
+    },
+    [session],
+  );
 
   useEffect(() => {
     async function loadUserConfig() {
       if (!session) return;
-      
+
       setLoading(true);
       try {
         const [userResponse, citiesResponse] = await Promise.all([
-          fetch("/api/user/profile").then(r => r.json()),
-          fetch("/api/config/tax-params/cities").then(r => r.json())
+          fetch("/api/user/profile").then((r) => r.json()),
+          fetch("/api/config/tax-params/cities").then((r) => r.json()),
         ]);
 
         setUserConfig({
           baseCurrency: userResponse.data?.baseCurrency || "CNY",
-          cities: citiesResponse.cities?.length > 0 ? citiesResponse.cities : ["Hangzhou", "Shanghai", "Beijing", "Shenzhen"]
+          cities:
+            citiesResponse.cities?.length > 0
+              ? citiesResponse.cities
+              : ["Hangzhou", "Shanghai", "Beijing", "Shenzhen"],
         });
       } catch (error) {
         console.error("Failed to load user config:", error);
@@ -224,7 +227,7 @@ export function useUserConfig() {
   return {
     ...userConfig,
     loading,
-    updateUserConfig
+    updateUserConfig,
   };
 }
 
@@ -234,50 +237,53 @@ export function useUserConfig() {
 export function useFormSubmit<T>(
   endpoint: string,
   options: {
-    method?: 'POST' | 'PUT' | 'DELETE';
+    method?: "POST" | "PUT" | "DELETE";
     onSuccess?: (data: any) => void;
     onError?: (error: string) => void;
     successMessage?: string;
-  } = {}
+  } = {},
 ) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const submit = useCallback(async (data: T, customEndpoint?: string) => {
-    setLoading(true);
-    setError("");
-    setSuccess("");
+  const submit = useCallback(
+    async (data: T, customEndpoint?: string) => {
+      setLoading(true);
+      setError("");
+      setSuccess("");
 
-    try {
-      const response = await fetch(customEndpoint || endpoint, {
-        method: options.method || 'POST',
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-      });
+      try {
+        const response = await fetch(customEndpoint || endpoint, {
+          method: options.method || "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
 
-      const result = await response.json();
+        const result = await response.json();
 
-      if (result.success) {
-        const message = options.successMessage || "操作成功";
-        setSuccess(message);
-        options.onSuccess?.(result.data);
-        
-        // 触发全局刷新事件
-        window.dispatchEvent(new CustomEvent("income:refresh"));
-      } else {
-        const errorMsg = result.error?.message || "操作失败";
+        if (result.success) {
+          const message = options.successMessage || "操作成功";
+          setSuccess(message);
+          options.onSuccess?.(result.data);
+
+          // 触发全局刷新事件
+          window.dispatchEvent(new CustomEvent("income:refresh"));
+        } else {
+          const errorMsg = result.error?.message || "操作失败";
+          setError(errorMsg);
+          options.onError?.(errorMsg);
+        }
+      } catch (err) {
+        const errorMsg = "网络错误，请稍后重试";
         setError(errorMsg);
         options.onError?.(errorMsg);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      const errorMsg = "网络错误，请稍后重试";
-      setError(errorMsg);
-      options.onError?.(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  }, [endpoint, options]);
+    },
+    [endpoint, options],
+  );
 
   const clearMessages = useCallback(() => {
     setError("");
@@ -289,6 +295,6 @@ export function useFormSubmit<T>(
     loading,
     error,
     success,
-    clearMessages
+    clearMessages,
   };
 }

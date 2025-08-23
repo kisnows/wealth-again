@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { CurrencyDisplay, PercentageDisplay } from "@/components/shared/currency";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -14,10 +14,10 @@ export default function DashboardPage() {
       try {
         setLoading(true);
         setError(null);
-        
+
         const response = await fetch("/api/dashboard");
         const data = await response.json();
-        
+
         if (response.ok) {
           setDashboardData(data);
         } else {
@@ -78,7 +78,7 @@ export default function DashboardPage() {
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">财务概览</h1>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <Card>
           <CardHeader>
@@ -88,24 +88,40 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="flex justify-between">
                 <span>本月税前收入</span>
-                <span className="font-semibold">{formatCurrency(safeValue(income.monthlyIncome))}</span>
+                <CurrencyDisplay
+                  amount={safeValue(income.monthlyIncome)}
+                  className="font-semibold"
+                  data-testid="monthly-income"
+                />
               </div>
               <div className="flex justify-between">
                 <span>年度税前收入</span>
-                <span className="font-semibold">{formatCurrency(safeValue(income.annualIncome))}</span>
+                <CurrencyDisplay
+                  amount={safeValue(income.annualIncome)}
+                  className="font-semibold"
+                  data-testid="annual-income"
+                />
               </div>
               <div className="flex justify-between">
                 <span>年度税收</span>
-                <span className="font-semibold text-red-500">{formatCurrency(safeValue(income.annualTax))}</span>
+                <CurrencyDisplay
+                  amount={safeValue(income.annualTax)}
+                  className="font-semibold text-red-500"
+                  data-testid="annual-tax"
+                />
               </div>
               <div className="flex justify-between">
                 <span>年度税后收入</span>
-                <span className="font-semibold">{formatCurrency(safeValue(income.annualNetIncome))}</span>
+                <CurrencyDisplay
+                  amount={safeValue(income.annualNetIncome)}
+                  className="font-semibold"
+                  data-testid="annual-net-income"
+                />
               </div>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>投资概览</CardTitle>
@@ -114,23 +130,35 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="flex justify-between">
                 <span>总投资价值</span>
-                <span className="font-semibold">{formatCurrency(safeValue(investment.totalValue))}</span>
+                <CurrencyDisplay
+                  amount={safeValue(investment.totalValue)}
+                  className="font-semibold"
+                  data-testid="total-investment-value"
+                />
               </div>
               <div className="flex justify-between">
                 <span>本月盈亏</span>
-                <span className={`font-semibold ${safeValue(investment.monthlyPnl) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {formatCurrency(safeValue(investment.monthlyPnl))}
-                </span>
+                <CurrencyDisplay
+                  amount={safeValue(investment.monthlyPnl)}
+                  className={`font-semibold ${
+                    safeValue(investment.monthlyPnl) >= 0 ? "text-green-500" : "text-red-500"
+                  }`}
+                  data-testid="monthly-pnl"
+                />
               </div>
               <div className="flex justify-between">
                 <span>年度收益率</span>
-                <span className="font-semibold">{formatPercent(investment.annualReturn * 100)}</span>
+                <PercentageDisplay
+                  value={investment.annualReturn}
+                  className="font-semibold"
+                  data-testid="annual-return"
+                />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
-      
+
       <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
@@ -144,9 +172,11 @@ export default function DashboardPage() {
                   <span>{safeValue(financialHealth.savingsRate).toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-blue-600 h-2.5 rounded-full" 
-                    style={{ width: `${Math.min(safeValue(financialHealth.savingsRate), 100)}%` }}
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full"
+                    style={{
+                      width: `${Math.min(safeValue(financialHealth.savingsRate), 100)}%`,
+                    }}
                   ></div>
                 </div>
               </div>
@@ -156,9 +186,11 @@ export default function DashboardPage() {
                   <span>{safeValue(financialHealth.investmentRatio).toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-green-600 h-2.5 rounded-full" 
-                    style={{ width: `${Math.min(safeValue(financialHealth.investmentRatio), 100)}%` }}
+                  <div
+                    className="bg-green-600 h-2.5 rounded-full"
+                    style={{
+                      width: `${Math.min(safeValue(financialHealth.investmentRatio), 100)}%`,
+                    }}
                   ></div>
                 </div>
               </div>

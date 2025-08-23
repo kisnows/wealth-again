@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -120,10 +120,7 @@ export default function RegisterPage() {
           <div className="text-center">
             <p className="text-sm text-gray-600">
               已有账户？
-              <Link
-                href="/login"
-                className="text-blue-600 hover:underline ml-1"
-              >
+              <Link href="/login" className="text-blue-600 hover:underline ml-1">
                 立即登录
               </Link>
             </p>

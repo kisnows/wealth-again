@@ -1,9 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { formatCurrency, formatPercentage } from "@/lib/utils";
 
 describe("utils formatting", () => {
   it("formatCurrency basic", () => {
-    const s = formatCurrency(1234.5, "CNY", "zh-CN");
+    const s = formatCurrency(1234.5, "CNY", { locale: "zh-CN" });
     expect(s).toBeTypeOf("string");
   });
   it("formatCurrency fallback", () => {

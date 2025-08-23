@@ -1,6 +1,6 @@
 // API服务层 - 统一管理所有收入相关的API调用
 
-import { ApiResponse } from "@/hooks/use-income-data";
+import type { ApiResponse } from "@/hooks/use-income-data";
 
 // 基础API配置
 const API_BASE = "/api";
@@ -13,7 +13,7 @@ class ApiError extends Error {
   constructor(
     public code: string,
     message: string,
-    public statusCode?: number
+    public statusCode?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -21,24 +21,17 @@ class ApiError extends Error {
 }
 
 // 通用API请求函数
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<ApiResponse<T>> {
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   try {
     const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
-    
+
     const response = await fetch(url, {
       headers: DEFAULT_HEADERS,
       ...options,
     });
 
     if (!response.ok) {
-      throw new ApiError(
-        "HTTP_ERROR",
-        `HTTP Error: ${response.status}`,
-        response.status
-      );
+      throw new ApiError("HTTP_ERROR", `HTTP Error: ${response.status}`, response.status);
     }
 
     const data = await response.json();
@@ -47,11 +40,8 @@ async function apiRequest<T>(
     if (error instanceof ApiError) {
       throw error;
     }
-    
-    throw new ApiError(
-      "NETWORK_ERROR",
-      error instanceof Error ? error.message : "Network error"
-    );
+
+    throw new ApiError("NETWORK_ERROR", error instanceof Error ? error.message : "Network error");
   }
 }
 
@@ -63,7 +53,7 @@ export const incomeChangeApi = {
       page: (params.page || 1).toString(),
       pageSize: (params.pageSize || 50).toString(),
     });
-    
+
     return apiRequest<any[]>(`/income/changes?${query}`);
   },
 
@@ -96,17 +86,12 @@ export const bonusApi = {
       page: (params.page || 1).toString(),
       pageSize: (params.pageSize || 50).toString(),
     });
-    
+
     return apiRequest<any[]>(`/income/bonus?${query}`);
   },
 
   // 创建奖金计划
-  async create(data: {
-    city: string;
-    amount: number;
-    effectiveDate: string;
-    currency?: string;
-  }) {
+  async create(data: { city: string; amount: number; effectiveDate: string; currency?: string }) {
     return apiRequest("/income/bonus", {
       method: "POST",
       body: JSON.stringify(data),
@@ -129,7 +114,7 @@ export const longTermCashApi = {
       page: (params.page || 1).toString(),
       pageSize: (params.pageSize || 50).toString(),
     });
-    
+
     return apiRequest<any[]>(`/income/long-term-cash?${query}`);
   },
 
@@ -157,17 +142,13 @@ export const longTermCashApi = {
 // 收入预测相关API
 export const forecastApi = {
   // 获取收入预测
-  async get(params: {
-    start: string;
-    end: string;
-    city?: string;
-  }) {
+  async get(params: { start: string; end: string; city?: string }) {
     const query = new URLSearchParams({
       start: params.start,
       end: params.end,
       ...(params.city && { city: params.city }),
     });
-    
+
     return apiRequest<{
       results: any[];
       totals: {
@@ -212,17 +193,13 @@ export const taxConfigApi = {
 // 汇率相关API
 export const fxRateApi = {
   // 获取汇率
-  async get(params: {
-    base?: string;
-    quote?: string;
-    asOf?: string;
-  } = {}) {
+  async get(params: { base?: string; quote?: string; asOf?: string } = {}) {
     const query = new URLSearchParams(
       Object.entries(params)
         .filter(([_, value]) => value)
-        .map(([key, value]) => [key, value!])
+        .map(([key, value]) => [key, value!]),
     );
-    
+
     return apiRequest<any[]>(`/fx-rates?${query}`);
   },
 };

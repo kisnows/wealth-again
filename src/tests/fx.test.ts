@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { prisma } from "@/lib/prisma";
+import { beforeAll, describe, expect, it } from "vitest";
 import { convert, getRate } from "@/lib/fx";
+import { prisma } from "@/lib/prisma";
 
 describe("fx conversion", () => {
   beforeAll(async () => {
@@ -46,14 +46,7 @@ describe("fx conversion", () => {
   });
 
   it("convert amount", async () => {
-    const v = await convert(
-      prisma as any,
-      100,
-      "USD",
-      "CNY",
-      new Date("2025-01-10"),
-      30
-    );
+    const v = await convert(prisma as any, 100, "USD", "CNY", new Date("2025-01-10"), 30);
     expect(v).toBeCloseTo(700, 5);
   });
 
@@ -64,7 +57,7 @@ describe("fx conversion", () => {
         to: "CNY",
         asOf: new Date("2026-03-01"),
         toleranceDays: 30,
-      })
+      }),
     ).rejects.toThrow();
   });
 });

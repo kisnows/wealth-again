@@ -1,22 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from "recharts";
 
 type Transaction = {
   id: string;
@@ -41,12 +41,18 @@ type PerformanceData = {
   dailyReturn?: number;
 };
 
-export default function AccountOverview({ accountId, baseCurrency }: { accountId: string; baseCurrency: string }) {
+export default function AccountOverview({
+  accountId,
+  baseCurrency,
+}: {
+  accountId: string;
+  baseCurrency: string;
+}) {
   // 状态管理
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  
+
   // 表单状态
   const [cashDate, setCashDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [cashAmount, setCashAmount] = useState<number>(0);
@@ -55,51 +61,51 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
   const [snapValue, setSnapValue] = useState<number>(0);
   const [transferAmount, setTransferAmount] = useState<number>(0);
   const [transferTo, setTransferTo] = useState<string>("");
-  
+
   // 数据状态
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
-  const [accounts, setAccounts] = useState<{id:string; name:string}[]>([]);
+  const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [transactionFilter, setTransactionFilter] = useState<string>("ALL");
-  
+
   // 账户概览数据
   const [overview, setOverview] = useState({
-    initialValue: 0,      // 初始资金
-    totalValue: 0,        // 账户市值（当前估值）
+    initialValue: 0, // 初始资金
+    totalValue: 0, // 账户市值（当前估值）
     totalContribution: 0, // 本金（实际本金）
-    totalPnL: 0,          // 总收益
-    totalReturn: 0        // 总收益率
+    totalPnL: 0, // 总收益
+    totalReturn: 0, // 总收益率
   });
 
   // 加载所有数据
   async function loadAllData() {
     setLoading(true);
     setError("");
-    
+
     try {
       const [transactionsRes, snapshotsRes, accountsRes, performanceRes] = await Promise.all([
         fetch(`/api/transactions?accountId=${accountId}&pageSize=100`),
         fetch(`/api/accounts/${accountId}/snapshots?pageSize=100`),
         fetch("/api/accounts"),
-        fetch(`/api/accounts/${accountId}/performance`)
+        fetch(`/api/accounts/${accountId}/performance`),
       ]);
 
       const [transactionsData, snapshotsData, accountsData, performanceData] = await Promise.all([
         transactionsRes.json(),
         snapshotsRes.json(),
         accountsRes.json(),
-        performanceRes.json()
+        performanceRes.json(),
       ]);
 
       // 设置交易数据
       const txs = transactionsData.data || [];
-      
+
       // 设置快照数据
       const snaps = snapshotsData.snapshots || [];
       setSnapshots(snaps);
-      
+
       // 合并交易记录和快照记录，创建统一的变更记录
       const allChanges = [
         ...txs.map((tx: any) => ({
@@ -109,7 +115,7 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
           amount: tx.amount,
           currency: tx.currency,
           note: tx.note,
-          isTransaction: true
+          isTransaction: true,
         })),
         ...snaps.map((snap: any) => ({
           id: snap.id,
@@ -118,16 +124,20 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
           amount: snap.totalValue,
           currency: baseCurrency,
           note: null,
-          isSnapshot: true
-        }))
+          isSnapshot: true,
+        })),
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // 按日期倒序排列
-      
+
       setTransactions(allChanges);
       setFilteredTransactions(allChanges);
-      
+
       // 设置账户数据
-      setAccounts((accountsData.data || []).filter((a: any) => a.id !== accountId).map((a: any) => ({id: a.id, name: a.name})));
-      
+      setAccounts(
+        (accountsData.data || [])
+          .filter((a: any) => a.id !== accountId)
+          .map((a: any) => ({ id: a.id, name: a.name })),
+      );
+
       // 设置性能数据并计算每日收益率
       const perfSeries = performanceData.series || [];
       const perfDataWithReturns = perfSeries.map((point: any, index: number) => {
@@ -142,11 +152,11 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
         return {
           ...point,
           date: new Date(point.date).toLocaleDateString(),
-          dailyReturn
+          dailyReturn,
         };
       });
       setPerformanceData(perfDataWithReturns);
-      
+
       // 计算账户概览数据
       if (performanceData.performance) {
         const perf = performanceData.performance;
@@ -155,7 +165,7 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
           totalValue: perf.currentValue || 0,
           totalContribution: perf.netContribution || 0,
           totalPnL: perf.pnl || 0,
-          totalReturn: perf.returnRate || 0
+          totalReturn: perf.returnRate || 0,
         });
       }
     } catch (error) {
@@ -171,9 +181,9 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
     if (transactionFilter === "ALL") {
       setFilteredTransactions(transactions);
     } else if (transactionFilter === "VALUATION") {
-      setFilteredTransactions(transactions.filter(tx => (tx as any).isSnapshot));
+      setFilteredTransactions(transactions.filter((tx) => (tx as any).isSnapshot));
     } else {
-      setFilteredTransactions(transactions.filter(tx => tx.type === transactionFilter));
+      setFilteredTransactions(transactions.filter((tx) => tx.type === transactionFilter));
     }
   }, [transactionFilter, transactions]);
 
@@ -188,11 +198,11 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
       setError("请输入有效的金额");
       return;
     }
-    
+
     setLoading(true);
     setError("");
     setSuccess("");
-    
+
     try {
       const res = await fetch(`/api/transactions`, {
         method: "POST",
@@ -205,13 +215,13 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
           currency: baseCurrency,
         }),
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         setSuccess("操作成功");
         setCashAmount(0);
-        
+
         // 自动更新账户市值
         await updateAccountValueAutomatically(cashType, cashAmount);
         await loadAllData();
@@ -232,24 +242,24 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
       setError("请输入有效的金额");
       return;
     }
-    
+
     setLoading(true);
     setError("");
     setSuccess("");
-    
+
     try {
       const res = await fetch(`/api/valuations/snapshot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          accountId, 
-          asOf: snapDate, 
-          totalValue: snapValue 
+        body: JSON.stringify({
+          accountId,
+          asOf: snapDate,
+          totalValue: snapValue,
         }),
       });
-      
+
       const data = await res.json();
-      
+
       if (data.id) {
         setSuccess("快照保存成功");
         setSnapValue(0);
@@ -271,11 +281,11 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
       setError("请选择目标账户并输入有效金额");
       return;
     }
-    
+
     setLoading(true);
     setError("");
     setSuccess("");
-    
+
     try {
       const res = await fetch(`/api/transactions/transfer`, {
         method: "POST",
@@ -288,14 +298,14 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
           currency: baseCurrency,
         }),
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         setSuccess("转账成功");
         setTransferAmount(0);
         setTransferTo("");
-        
+
         // 自动更新当前账户市值（转出）
         await updateAccountValueAutomatically("TRANSFER_OUT", transferAmount);
         await loadAllData();
@@ -316,10 +326,11 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
       // 获取最新的账户市值
       const latestSnapshot = await fetch(`/api/accounts/${accountId}/snapshots?pageSize=1`);
       const snapshotData = await latestSnapshot.json();
-      const latestValue = snapshotData.snapshots && snapshotData.snapshots.length > 0 
-        ? Number(snapshotData.snapshots[0].totalValue || 0)
-        : 0;
-      
+      const latestValue =
+        snapshotData.snapshots && snapshotData.snapshots.length > 0
+          ? Number(snapshotData.snapshots[0].totalValue || 0)
+          : 0;
+
       // 根据交易类型计算新的市值
       let newValue = latestValue;
       if (transactionType === "DEPOSIT" || transactionType === "TRANSFER_IN") {
@@ -327,7 +338,7 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
       } else if (transactionType === "WITHDRAW" || transactionType === "TRANSFER_OUT") {
         newValue = latestValue - amount;
       }
-      
+
       // 创建新的快照记录
       if (newValue >= 0) {
         await fetch(`/api/valuations/snapshot`, {
@@ -335,8 +346,8 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             accountId,
-            asOf: new Date().toISOString().split('T')[0], // 使用当前日期
-            totalValue: newValue
+            asOf: new Date().toISOString().split("T")[0], // 使用当前日期
+            totalValue: newValue,
           }),
         });
       }
@@ -349,18 +360,18 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
   // 删除交易
   async function deleteTransaction(id: string) {
     if (!confirm("确定要删除这条记录吗？")) return;
-    
+
     setLoading(true);
     setError("");
     setSuccess("");
-    
+
     try {
       const res = await fetch(`/api/transactions/${id}`, {
         method: "DELETE",
       });
-      
+
       const data = await res.json();
-      
+
       if (data.success) {
         setSuccess("删除成功");
         await loadAllData();
@@ -378,11 +389,11 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
   // 获取交易类型显示名称
   const getTransactionTypeName = (type: string) => {
     const typeMap: Record<string, string> = {
-      "DEPOSIT": "注资",
-      "WITHDRAW": "提款",
-      "TRANSFER_IN": "转入",
-      "TRANSFER_OUT": "转出",
-      "VALUATION": "估值快照"
+      DEPOSIT: "注资",
+      WITHDRAW: "提款",
+      TRANSFER_IN: "转入",
+      TRANSFER_OUT: "转出",
+      VALUATION: "估值快照",
     };
     return typeMap[type] || type;
   };
@@ -395,7 +406,7 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
           {error}
         </div>
       )}
-      
+
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
           {success}
@@ -423,13 +434,17 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
             </div>
             <div className="border rounded-lg p-4">
               <div className="text-sm text-gray-500">总收益</div>
-              <div className={`text-2xl font-bold ${overview.totalPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div
+                className={`text-2xl font-bold ${overview.totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}
+              >
                 {formatCurrency(overview.totalPnL, baseCurrency)}
               </div>
             </div>
             <div className="border rounded-lg p-4">
               <div className="text-sm text-gray-500">总收益率</div>
-              <div className={`text-2xl font-bold ${overview.totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div
+                className={`text-2xl font-bold ${overview.totalReturn >= 0 ? "text-green-600" : "text-red-600"}`}
+              >
                 {overview.totalReturn.toFixed(2)}%
               </div>
             </div>
@@ -456,15 +471,15 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value) => formatCurrency(Number(value))}
                     labelFormatter={(label) => `日期: ${label}`}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#8884d8" 
-                    activeDot={{ r: 8 }} 
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#8884d8"
+                    activeDot={{ r: 8 }}
                     name="账户价值"
                   />
                 </LineChart>
@@ -487,15 +502,11 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value) => `${Number(value).toFixed(2)}%`}
                     labelFormatter={(label) => `日期: ${label}`}
                   />
-                  <Bar 
-                    dataKey="dailyReturn" 
-                    fill="#82ca9d" 
-                    name="每日收益率"
-                  />
+                  <Bar dataKey="dailyReturn" fill="#82ca9d" name="每日收益率" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -516,17 +527,17 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 <div>
                   <Label>日期</Label>
-                  <Input 
-                    type="date" 
-                    value={cashDate} 
-                    onChange={(e) => setCashDate(e.target.value)} 
+                  <Input
+                    type="date"
+                    value={cashDate}
+                    onChange={(e) => setCashDate(e.target.value)}
                   />
                 </div>
                 <div>
                   <Label>类型</Label>
-                  <select 
-                    className="border rounded px-2 py-2 w-full" 
-                    value={cashType} 
+                  <select
+                    className="border rounded px-2 py-2 w-full"
+                    value={cashType}
                     onChange={(e) => setCashType(e.target.value as any)}
                   >
                     <option value="DEPOSIT">注资</option>
@@ -535,10 +546,10 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
                 </div>
                 <div>
                   <Label>金额</Label>
-                  <Input 
-                    type="number" 
-                    value={cashAmount} 
-                    onChange={(e) => setCashAmount(Number(e.target.value))} 
+                  <Input
+                    type="number"
+                    value={cashAmount}
+                    onChange={(e) => setCashAmount(Number(e.target.value))}
                   />
                 </div>
               </div>
@@ -553,18 +564,18 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <div>
                   <Label>日期</Label>
-                  <Input 
-                    type="date" 
-                    value={snapDate} 
-                    onChange={(e) => setSnapDate(e.target.value)} 
+                  <Input
+                    type="date"
+                    value={snapDate}
+                    onChange={(e) => setSnapDate(e.target.value)}
                   />
                 </div>
                 <div>
                   <Label>总市值</Label>
-                  <Input 
-                    type="number" 
-                    value={snapValue} 
-                    onChange={(e) => setSnapValue(Number(e.target.value))} 
+                  <Input
+                    type="number"
+                    value={snapValue}
+                    onChange={(e) => setSnapValue(Number(e.target.value))}
                   />
                 </div>
               </div>
@@ -579,23 +590,25 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 <div>
                   <Label>目标账户</Label>
-                  <select 
-                    className="border rounded px-2 py-2 w-full" 
-                    value={transferTo} 
+                  <select
+                    className="border rounded px-2 py-2 w-full"
+                    value={transferTo}
                     onChange={(e) => setTransferTo(e.target.value)}
                   >
                     <option value="">选择账户</option>
-                    {accounts.map(a => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <Label>金额</Label>
-                  <Input 
-                    type="number" 
-                    value={transferAmount} 
-                    onChange={(e) => setTransferAmount(Number(e.target.value))} 
+                  <Input
+                    type="number"
+                    value={transferAmount}
+                    onChange={(e) => setTransferAmount(Number(e.target.value))}
                   />
                 </div>
                 <div className="flex items-end">
@@ -616,9 +629,9 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
             <CardTitle>变更记录</CardTitle>
             <div className="flex items-center gap-2">
               <Label>筛选:</Label>
-              <select 
-                className="border rounded px-2 py-1" 
-                value={transactionFilter} 
+              <select
+                className="border rounded px-2 py-1"
+                value={transactionFilter}
                 onChange={(e) => setTransactionFilter(e.target.value)}
               >
                 <option value="ALL">全部</option>
@@ -651,34 +664,31 @@ export default function AccountOverview({ accountId, baseCurrency }: { accountId
                     </td>
                     <td className="py-2">
                       {formatCurrency(
-                        (tx as any).isSnapshot 
+                        (tx as any).isSnapshot
                           ? Number(tx.amount || 0)
-                          : Number(tx.amount || 0) * (tx.type === "WITHDRAW" || tx.type === "TRANSFER_OUT" ? -1 : 1), 
-                        tx.currency
+                          : Number(tx.amount || 0) *
+                              (tx.type === "WITHDRAW" || tx.type === "TRANSFER_OUT" ? -1 : 1),
+                        tx.currency,
                       )}
                     </td>
                     <td className="py-2">
                       {(tx as any).isTransaction && (
-                        <Button 
-                          variant="destructive" 
-                          size="sm" 
+                        <Button
+                          variant="destructive"
+                          size="sm"
                           onClick={() => deleteTransaction(tx.id)}
                         >
                           删除
                         </Button>
                       )}
-                      {(tx as any).isSnapshot && (
-                        <span className="text-gray-400 text-sm">-</span>
-                      )}
+                      {(tx as any).isSnapshot && <span className="text-gray-400 text-sm">-</span>}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {filteredTransactions.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                暂无变更记录
-              </div>
+              <div className="text-center py-8 text-gray-500">暂无变更记录</div>
             )}
           </div>
         </CardContent>

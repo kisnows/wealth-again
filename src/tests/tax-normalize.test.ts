@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { normalizeTaxParamsValue, TaxParams } from "@/lib/tax";
+import { describe, expect, it } from "vitest";
+import { normalizeTaxParamsValue, type TaxParams } from "@/lib/tax";
 
 describe("normalizeTaxParamsValue", () => {
   const sample: TaxParams = {

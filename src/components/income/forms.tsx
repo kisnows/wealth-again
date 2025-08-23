@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { CurrencySelect } from "@/components/shared/currency";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CurrencySelect } from "@/components/ui/currency-display";
 import { useFormSubmit } from "@/hooks/use-income-data";
 
 interface SalaryChangeFormProps {
@@ -18,22 +18,20 @@ interface SalaryChangeFormProps {
  */
 export function SalaryChangeForm({ currency, onCurrencyChange }: SalaryChangeFormProps) {
   const [salary, setSalary] = useState(20000);
-  const [effectiveDate, setEffectiveDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [effectiveDate, setEffectiveDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   const { submit, loading, error, success } = useFormSubmit("/api/income/changes", {
     successMessage: "工资变更记录保存成功",
     onSuccess: () => {
       setSalary(20000);
-    }
+    },
   });
 
   const handleSubmit = () => {
     submit({
       grossMonthly: salary,
       effectiveFrom: effectiveDate,
-      currency
+      currency,
     });
   };
 
@@ -66,25 +64,17 @@ export function SalaryChangeForm({ currency, onCurrencyChange }: SalaryChangeFor
               />
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <Label>币种</Label>
             <CurrencySelect value={currency} onChange={onCurrencyChange} />
           </div>
 
-          {error && (
-            <div className="text-red-600 text-sm">{error}</div>
-          )}
-          
-          {success && (
-            <div className="text-green-600 text-sm">{success}</div>
-          )}
+          {error && <div className="text-red-600 text-sm">{error}</div>}
 
-          <Button 
-            onClick={handleSubmit}
-            disabled={loading || !salary}
-            className="w-full"
-          >
+          {success && <div className="text-green-600 text-sm">{success}</div>}
+
+          <Button onClick={handleSubmit} disabled={loading || !salary} className="w-full">
             {loading ? "保存中..." : "保存工资变更"}
           </Button>
         </div>
@@ -103,22 +93,20 @@ interface BonusPlanFormProps {
  */
 export function BonusPlanForm({ currency, onCurrencyChange }: BonusPlanFormProps) {
   const [amount, setAmount] = useState(0);
-  const [effectiveDate, setEffectiveDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [effectiveDate, setEffectiveDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   const { submit, loading, error, success } = useFormSubmit("/api/income/bonus", {
     successMessage: "奖金计划添加成功",
     onSuccess: () => {
       setAmount(0);
-    }
+    },
   });
 
   const handleSubmit = () => {
     submit({
       amount,
       effectiveDate,
-      currency
+      currency,
     });
   };
 
@@ -157,19 +145,11 @@ export function BonusPlanForm({ currency, onCurrencyChange }: BonusPlanFormProps
             <CurrencySelect value={currency} onChange={onCurrencyChange} />
           </div>
 
-          {error && (
-            <div className="text-red-600 text-sm">{error}</div>
-          )}
-          
-          {success && (
-            <div className="text-green-600 text-sm">{success}</div>
-          )}
+          {error && <div className="text-red-600 text-sm">{error}</div>}
 
-          <Button 
-            onClick={handleSubmit}
-            disabled={loading || !amount}
-            className="w-full"
-          >
+          {success && <div className="text-green-600 text-sm">{success}</div>}
+
+          <Button onClick={handleSubmit} disabled={loading || !amount} className="w-full">
             {loading ? "添加中..." : "添加奖金计划"}
           </Button>
         </div>

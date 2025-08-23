@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TaxService } from "@/lib/tax";
 
 type TB = {
@@ -19,14 +19,10 @@ type SI = {
 };
 
 class FakeRepo {
-  constructor(
-    private cfg: { ranges: Array<{ from: string; brackets: TB[]; si: SI }> }
-  ) {}
+  constructor(private cfg: { ranges: Array<{ from: string; brackets: TB[]; si: SI }> }) {}
   private pick(date: Date) {
     // 选择最近的（最大）effectiveFrom <= date
-    const sorted = [...this.cfg.ranges].sort(
-      (a, b) => +new Date(a.from) - +new Date(b.from)
-    );
+    const sorted = [...this.cfg.ranges].sort((a, b) => +new Date(a.from) - +new Date(b.from));
     let hit: { from: string; brackets: TB[]; si: SI } | undefined;
     for (const r of sorted) {
       if (date >= new Date(r.from)) hit = r;
@@ -88,12 +84,10 @@ describe("income forecast uses config by effective date (service, no DB)", () =>
       bonus: 0,
     }));
     const res = await svc.calculateForecastWithholdingCumulative({
-      city,
+      userId: "test-user",
       months,
     });
-    const anyTaxChange = res.some(
-      (r, i) => i > 0 && r.paramsSig !== res[i - 1].paramsSig
-    );
+    const anyTaxChange = res.some((r, i) => i > 0 && r.paramsSig !== res[i - 1].paramsSig);
     expect(anyTaxChange).toBe(false);
   });
 
@@ -130,13 +124,11 @@ describe("income forecast uses config by effective date (service, no DB)", () =>
       bonus: 0,
     }));
     const res = await svc.calculateForecastWithholdingCumulative({
-      city,
+      userId: "test-user",
       months,
     });
     const changeMonths = res
-      .map((r, i, arr) =>
-        i === 0 ? null : arr[i - 1].paramsSig !== r.paramsSig ? r.month : null
-      )
+      .map((r, i, arr) => (i === 0 ? null : arr[i - 1].paramsSig !== r.paramsSig ? r.month : null))
       .filter(Boolean) as number[];
     expect(changeMonths.includes(7)).toBe(true);
   });
@@ -179,7 +171,7 @@ describe("income forecast uses config by effective date (service, no DB)", () =>
       bonus: 0,
     }));
     const res = await svc.calculateForecastWithholdingCumulative({
-      city,
+      userId: "test-user",
       months,
     });
     const octIdx = 9 - 1; // index 9th month? actually Oct is 10th, zero-based 9

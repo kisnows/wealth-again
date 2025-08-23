@@ -41,14 +41,18 @@ model User {
   @@index([isActive])
 }
 
-/// 投资账户表 - 用户的各种投资账户（如券商账户、基金账户等）
+/// 账户表 - 用户的各类资产账户（储蓄、投资、借贷等）
 model Account {
   /// 账户唯一标识符
   id               String              @id @default(uuid())
   /// 所属用户ID，外键关联User表
   userId           String
-  /// 账户名称（如"招商证券账户"）
+  /// 账户名称（如"招商证券账户"、"工商银行储蓄"）
   name             String
+  /// 账户类型：SAVINGS储蓄、INVESTMENT投资、LOAN借贷
+  accountType      String              @default("INVESTMENT")
+  /// 账户子类型（用户自定义，如"定期存款"、"股票账户"、"房贷"等）
+  subType          String?
   /// 账户基础货币，默认人民币
   baseCurrency     String              @default("CNY")
   /// 账户初始资金
@@ -57,6 +61,10 @@ model Account {
   totalDeposits    Decimal             @default(0)
   /// 累计取出金额
   totalWithdrawals Decimal             @default(0)
+  /// 账户状态：ACTIVE活跃、ARCHIVED已归档
+  status           String              @default("ACTIVE")
+  /// 账户描述备注
+  description      String?
   /// 账户创建时间
   createdAt        DateTime            @default(now())
   /// 账户更新时间
@@ -67,32 +75,39 @@ model Account {
 
   @@unique([userId, name])
   @@index([userId])
+  @@index([accountType])
+  @@index([status])
 }
 
-/// 交易记录表 - 记录账户的存取款操作
+/// 交易记录表 - 记录账户的存取款和转账操作
 model Transaction {
   /// 交易唯一标识符
-  id        String   @id @default(uuid())
+  id              String   @id @default(uuid())
   /// 所属账户ID，外键关联Account表
-  accountId String
-  /// 交易类型（DEPOSIT存款、WITHDRAW取款）
-  type      String
+  accountId       String
+  /// 交易类型：DEPOSIT存款、WITHDRAW取款、TRANSFER_IN转入、TRANSFER_OUT转出
+  type            String
   /// 交易日期
-  tradeDate DateTime
-  /// 金额（正数表示存款，负数表示取款）
-  amount    Decimal
+  tradeDate       DateTime
+  /// 金额（按账户货币计算）
+  amount          Decimal
   /// 交易货币
-  currency  String   @default("CNY")
+  currency        String   @default("CNY")
+  /// 关联转账ID（用于转账记录的双向关联）
+  relatedTransfer String?
+  /// 汇率（用于跨币种转账时记录）
+  exchangeRate    Decimal?
   /// 交易备注信息
-  note      String?
+  note            String?
   /// 记录创建时间
-  createdAt DateTime @default(now())
+  createdAt       DateTime @default(now())
   /// 记录更新时间
-  updatedAt DateTime @updatedAt
-  account   Account  @relation(fields: [accountId], references: [id])
+  updatedAt       DateTime @updatedAt
+  account         Account  @relation(fields: [accountId], references: [id])
 
   @@index([accountId, tradeDate])
   @@index([currency])
+  @@index([relatedTransfer])
 }
 
 /// 账户估值快照表 - 定期记录账户总价值，用于性能分析

@@ -1,13 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 
 interface CityHistoryEntry {
@@ -27,7 +40,7 @@ interface CityData {
 
 const CITIES = [
   "Beijing",
-  "Shanghai", 
+  "Shanghai",
   "Shenzhen",
   "Hangzhou",
   "Guangzhou",
@@ -40,7 +53,7 @@ const CITIES = [
   "Qingdao",
   "Dalian",
   "Ningbo",
-  "Xiamen"
+  "Xiamen",
 ];
 
 export default function CityManagementPage() {
@@ -81,7 +94,7 @@ export default function CityManagementPage() {
   // Submit new city change
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!newCity) {
       setError("请选择城市");
       return;
@@ -103,8 +116,8 @@ export default function CityManagementPage() {
         body: JSON.stringify({
           city: newCity,
           effectiveFrom: effectiveDate,
-          note: note || undefined
-        })
+          note: note || undefined,
+        }),
       });
 
       const result = await response.json();
@@ -116,10 +129,9 @@ export default function CityManagementPage() {
       setSuccess("城市更新成功！");
       setNewCity("");
       setNote("");
-      
+
       // Reload data to show updated information
       await loadCityData();
-
     } catch (err) {
       setError(err instanceof Error ? err.message : "提交失败");
     } finally {
@@ -136,8 +148,8 @@ export default function CityManagementPage() {
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("zh-CN", {
       year: "numeric",
-      month: "2-digit", 
-      day: "2-digit"
+      month: "2-digit",
+      day: "2-digit",
     });
   };
 
@@ -148,7 +160,7 @@ export default function CityManagementPage() {
       month: "2-digit",
       day: "2-digit",
       hour: "2-digit",
-      minute: "2-digit"
+      minute: "2-digit",
     });
   };
 
@@ -200,10 +212,12 @@ export default function CityManagementPage() {
               </div>
               <div>
                 <Label className="text-sm text-gray-600">当前实际生效城市</Label>
-                <div className="text-lg font-semibold text-blue-600">{cityData.currentEffectiveCity}</div>
+                <div className="text-lg font-semibold text-blue-600">
+                  {cityData.currentEffectiveCity}
+                </div>
               </div>
             </div>
-            
+
             {cityData.currentCity !== cityData.currentEffectiveCity && (
               <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-sm">
                 💡 您的实际生效城市与默认城市不同，这是因为存在有生效日期的城市变更记录。
@@ -278,9 +292,7 @@ export default function CityManagementPage() {
           </CardHeader>
           <CardContent>
             {cityData.cityHistory.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                暂无城市变更记录
-              </div>
+              <div className="text-center py-8 text-gray-500">暂无城市变更记录</div>
             ) : (
               <Table>
                 <TableHeader>
@@ -318,13 +330,16 @@ export default function CityManagementPage() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-gray-600">
           <div>
-            <strong>城市影响范围：</strong>工作城市只影响社保、公积金的缴费基数和比例计算，不影响工资、奖金等收入数据本身。
+            <strong>城市影响范围：</strong>
+            工作城市只影响社保、公积金的缴费基数和比例计算，不影响工资、奖金等收入数据本身。
           </div>
           <div>
-            <strong>生效时间：</strong>城市变更将在指定的生效日期开始应用到社保公积金计算中。建议设置为下月1日。
+            <strong>生效时间：</strong>
+            城市变更将在指定的生效日期开始应用到社保公积金计算中。建议设置为下月1日。
           </div>
           <div>
-            <strong>历史记录：</strong>系统保留所有城市变更历史，确保任意时间点的计算都能使用正确的城市政策。
+            <strong>历史记录：</strong>
+            系统保留所有城市变更历史，确保任意时间点的计算都能使用正确的城市政策。
           </div>
           <div>
             <strong>自动结束：</strong>当添加新的城市变更时，之前的城市记录会自动设置结束日期。

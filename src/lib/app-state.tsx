@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useReducer } from "react";
 
 // 全局应用状态类型定义
 interface AppState {
@@ -13,7 +13,7 @@ interface AppState {
   };
   ui: {
     sidebarOpen: boolean;
-    theme: 'light' | 'dark' | 'system';
+    theme: "light" | "dark" | "system";
     loading: {
       global: boolean;
       operations: Record<string, boolean>;
@@ -27,19 +27,19 @@ interface AppState {
 }
 
 // 操作类型
-type AppAction = 
-  | { type: 'SET_USER_PROFILE'; payload: any }
-  | { type: 'SET_USER_PREFERENCES'; payload: any }
-  | { type: 'SET_USER_LOADING'; payload: boolean }
-  | { type: 'ADD_NOTIFICATION'; payload: any }
-  | { type: 'REMOVE_NOTIFICATION'; payload: string }
-  | { type: 'MARK_NOTIFICATION_READ'; payload: string }
-  | { type: 'TOGGLE_SIDEBAR' }
-  | { type: 'SET_THEME'; payload: 'light' | 'dark' | 'system' }
-  | { type: 'SET_GLOBAL_LOADING'; payload: boolean }
-  | { type: 'SET_OPERATION_LOADING'; payload: { operation: string; loading: boolean } }
-  | { type: 'UPDATE_CACHE'; payload: { key: keyof AppState['cache']; data: any } }
-  | { type: 'INVALIDATE_CACHE'; payload: keyof AppState['cache'] | 'all' };
+type AppAction =
+  | { type: "SET_USER_PROFILE"; payload: any }
+  | { type: "SET_USER_PREFERENCES"; payload: any }
+  | { type: "SET_USER_LOADING"; payload: boolean }
+  | { type: "ADD_NOTIFICATION"; payload: any }
+  | { type: "REMOVE_NOTIFICATION"; payload: string }
+  | { type: "MARK_NOTIFICATION_READ"; payload: string }
+  | { type: "TOGGLE_SIDEBAR" }
+  | { type: "SET_THEME"; payload: "light" | "dark" | "system" }
+  | { type: "SET_GLOBAL_LOADING"; payload: boolean }
+  | { type: "SET_OPERATION_LOADING"; payload: { operation: string; loading: boolean } }
+  | { type: "UPDATE_CACHE"; payload: { key: keyof AppState["cache"]; data: any } }
+  | { type: "INVALIDATE_CACHE"; payload: keyof AppState["cache"] | "all" };
 
 // 初始状态
 const initialState: AppState = {
@@ -54,7 +54,7 @@ const initialState: AppState = {
   },
   ui: {
     sidebarOpen: false,
-    theme: 'system',
+    theme: "system",
     loading: {
       global: false,
       operations: {},
@@ -70,25 +70,25 @@ const initialState: AppState = {
 // Reducer 函数
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
-    case 'SET_USER_PROFILE':
+    case "SET_USER_PROFILE":
       return {
         ...state,
         user: { ...state.user, profile: action.payload },
       };
 
-    case 'SET_USER_PREFERENCES':
+    case "SET_USER_PREFERENCES":
       return {
         ...state,
         user: { ...state.user, preferences: action.payload },
       };
 
-    case 'SET_USER_LOADING':
+    case "SET_USER_LOADING":
       return {
         ...state,
         user: { ...state.user, loading: action.payload },
       };
 
-    case 'ADD_NOTIFICATION':
+    case "ADD_NOTIFICATION":
       return {
         ...state,
         notifications: {
@@ -97,43 +97,43 @@ function appReducer(state: AppState, action: AppAction): AppState {
         },
       };
 
-    case 'REMOVE_NOTIFICATION':
-      const filteredItems = state.notifications.items.filter(
-        item => item.id !== action.payload
-      );
+    case "REMOVE_NOTIFICATION": {
+      const filteredItems = state.notifications.items.filter((item) => item.id !== action.payload);
       return {
         ...state,
         notifications: {
           items: filteredItems,
-          unreadCount: filteredItems.filter(item => !item.isRead).length,
+          unreadCount: filteredItems.filter((item) => !item.isRead).length,
         },
       };
+    }
 
-    case 'MARK_NOTIFICATION_READ':
-      const updatedItems = state.notifications.items.map(item =>
-        item.id === action.payload ? { ...item, isRead: true } : item
+    case "MARK_NOTIFICATION_READ": {
+      const updatedItems = state.notifications.items.map((item) =>
+        item.id === action.payload ? { ...item, isRead: true } : item,
       );
       return {
         ...state,
         notifications: {
           items: updatedItems,
-          unreadCount: updatedItems.filter(item => !item.isRead).length,
+          unreadCount: updatedItems.filter((item) => !item.isRead).length,
         },
       };
+    }
 
-    case 'TOGGLE_SIDEBAR':
+    case "TOGGLE_SIDEBAR":
       return {
         ...state,
         ui: { ...state.ui, sidebarOpen: !state.ui.sidebarOpen },
       };
 
-    case 'SET_THEME':
+    case "SET_THEME":
       return {
         ...state,
         ui: { ...state.ui, theme: action.payload },
       };
 
-    case 'SET_GLOBAL_LOADING':
+    case "SET_GLOBAL_LOADING":
       return {
         ...state,
         ui: {
@@ -142,7 +142,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         },
       };
 
-    case 'SET_OPERATION_LOADING':
+    case "SET_OPERATION_LOADING":
       return {
         ...state,
         ui: {
@@ -157,7 +157,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         },
       };
 
-    case 'UPDATE_CACHE':
+    case "UPDATE_CACHE":
       return {
         ...state,
         cache: {
@@ -170,8 +170,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
         },
       };
 
-    case 'INVALIDATE_CACHE':
-      if (action.payload === 'all') {
+    case "INVALIDATE_CACHE":
+      if (action.payload === "all") {
         return {
           ...state,
           cache: { ...initialState.cache },
@@ -205,19 +205,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
   const contextValue = { state, dispatch };
-  
-  return (
-    <AppContext.Provider value={contextValue}>
-      {children}
-    </AppContext.Provider>
-  );
+
+  return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 }
 
 // 自定义 Hook
 export function useAppState() {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useAppState must be used within AppStateProvider');
+    throw new Error("useAppState must be used within AppStateProvider");
   }
   return context;
 }
@@ -230,11 +226,12 @@ export function useNotifications() {
     notifications: state.notifications.items,
     unreadCount: state.notifications.unreadCount,
     addNotification: (notification: any) =>
-      dispatch({ type: 'ADD_NOTIFICATION', payload: { ...notification, id: Date.now().toString() } }),
-    removeNotification: (id: string) =>
-      dispatch({ type: 'REMOVE_NOTIFICATION', payload: id }),
-    markAsRead: (id: string) =>
-      dispatch({ type: 'MARK_NOTIFICATION_READ', payload: id }),
+      dispatch({
+        type: "ADD_NOTIFICATION",
+        payload: { ...notification, id: Date.now().toString() },
+      }),
+    removeNotification: (id: string) => dispatch({ type: "REMOVE_NOTIFICATION", payload: id }),
+    markAsRead: (id: string) => dispatch({ type: "MARK_NOTIFICATION_READ", payload: id }),
   };
 }
 
@@ -245,9 +242,9 @@ export function useLoading() {
     globalLoading: state.ui.loading.global,
     operationLoading: state.ui.loading.operations,
     setGlobalLoading: (loading: boolean) =>
-      dispatch({ type: 'SET_GLOBAL_LOADING', payload: loading }),
+      dispatch({ type: "SET_GLOBAL_LOADING", payload: loading }),
     setOperationLoading: (operation: string, loading: boolean) =>
-      dispatch({ type: 'SET_OPERATION_LOADING', payload: { operation, loading } }),
+      dispatch({ type: "SET_OPERATION_LOADING", payload: { operation, loading } }),
     isLoading: (operation?: string) =>
       operation ? state.ui.loading.operations[operation] || false : state.ui.loading.global,
   };
@@ -258,11 +255,11 @@ export function useCache() {
 
   return {
     cache: state.cache,
-    updateCache: (key: keyof AppState['cache'], data: any) =>
-      dispatch({ type: 'UPDATE_CACHE', payload: { key, data } }),
-    invalidateCache: (key: keyof AppState['cache'] | 'all') =>
-      dispatch({ type: 'INVALIDATE_CACHE', payload: key }),
-    isCacheValid: (key: keyof AppState['cache'], ttlMs: number = 5 * 60 * 1000) => {
+    updateCache: (key: keyof AppState["cache"], data: any) =>
+      dispatch({ type: "UPDATE_CACHE", payload: { key, data } }),
+    invalidateCache: (key: keyof AppState["cache"] | "all") =>
+      dispatch({ type: "INVALIDATE_CACHE", payload: key }),
+    isCacheValid: (key: keyof AppState["cache"], ttlMs: number = 5 * 60 * 1000) => {
       const lastFetch = state.cache.lastFetch[key];
       return lastFetch && Date.now() - lastFetch < ttlMs;
     },

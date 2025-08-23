@@ -1,16 +1,16 @@
 // 导出所有类型定义
-export * from "./types";
 
+export { SocialInsuranceCalculator, TaxCalculator } from "./calculator";
+export { TaxConfigRepository } from "./repository";
 // 导出核心服务
 export { TaxService } from "./service";
-export { TaxConfigRepository } from "./repository";
-export { TaxCalculator, SocialInsuranceCalculator } from "./calculator";
+export * from "./types";
 
 // 导出工具函数和常量
 export { SPECIAL_DEDUCTION_ITEMS } from "./types";
 
 // 创建服务实例的工厂函数
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { TaxConfigRepository } from "./repository";
 import { TaxService } from "./service";
 

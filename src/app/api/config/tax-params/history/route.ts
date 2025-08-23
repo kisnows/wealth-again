@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createTaxService } from "@/lib/tax";
 
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     // 获取税务配置历史记录
     const history = await taxService.getTaxConfigHistory(city, pageSize);
-    
+
     // 整理数据格式
     const socialConfigs = history?.socialConfigs || [];
     const formattedHistory = socialConfigs.map((config: any) => ({

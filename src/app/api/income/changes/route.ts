@@ -1,16 +1,16 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import {
-  withApiHandler,
-  withValidation,
-  successResponse,
-  errorResponse,
-  parsePaginationParams,
+  type ApiContext,
   buildPaginatedResponse,
   ensureOwnership,
-  ApiContext,
+  errorResponse,
+  parsePaginationParams,
+  successResponse,
+  withApiHandler,
+  withValidation,
 } from "@/lib/api-handler";
+import { prisma } from "@/lib/prisma";
 
 // 数据验证模式 - 移除city字段，收入变更与城市无关
 const createIncomeChangeSchema = z.object({
@@ -22,7 +22,7 @@ const createIncomeChangeSchema = z.object({
 // 业务逻辑处理器
 async function createIncomeChange(
   { userId }: ApiContext,
-  data: z.infer<typeof createIncomeChangeSchema>
+  data: z.infer<typeof createIncomeChangeSchema>,
 ) {
   const record = await prisma.incomeChange.create({
     data: {
@@ -69,16 +69,14 @@ async function deleteIncomeChange({ userId }: ApiContext, id: string) {
 }
 
 // API路由处理器
-export const POST = withApiHandler(
-  withValidation(createIncomeChangeSchema)(createIncomeChange)
-);
+export const POST = withApiHandler(withValidation(createIncomeChangeSchema)(createIncomeChange));
 
 export const GET = withApiHandler(getIncomeChanges);
 
 export const DELETE = withApiHandler(async (context: ApiContext) => {
   const { searchParams } = new URL(context.req.url);
   const id = searchParams.get("id");
-  
+
   if (!id) {
     return errorResponse("VALIDATION_ERROR", "缺少收入变更记录ID");
   }

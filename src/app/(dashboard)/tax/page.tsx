@@ -1,16 +1,9 @@
 "use client";
 
+import { ArrowRight, Building2, Calculator, FileText, Settings, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  Calculator, 
-  Settings, 
-  TrendingUp, 
-  Building2,
-  FileText,
-  ArrowRight
-} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function TaxManagementPage() {
   const taxModules = [
@@ -20,7 +13,7 @@ export default function TaxManagementPage() {
       href: "/tax/config",
       icon: Settings,
       color: "text-blue-600",
-      bgColor: "bg-blue-50 hover:bg-blue-100"
+      bgColor: "bg-blue-50 hover:bg-blue-100",
     },
     {
       title: "税率管理",
@@ -28,7 +21,7 @@ export default function TaxManagementPage() {
       href: "/tax/rates",
       icon: TrendingUp,
       color: "text-green-600",
-      bgColor: "bg-green-50 hover:bg-green-100"
+      bgColor: "bg-green-50 hover:bg-green-100",
     },
     {
       title: "社保公积金",
@@ -36,7 +29,7 @@ export default function TaxManagementPage() {
       href: "/tax/social-insurance",
       icon: Building2,
       color: "text-purple-600",
-      bgColor: "bg-purple-50 hover:bg-purple-100"
+      bgColor: "bg-purple-50 hover:bg-purple-100",
     },
     {
       title: "税务计算器",
@@ -44,31 +37,31 @@ export default function TaxManagementPage() {
       href: "/income",
       icon: Calculator,
       color: "text-orange-600",
-      bgColor: "bg-orange-50 hover:bg-orange-100"
-    }
+      bgColor: "bg-orange-50 hover:bg-orange-100",
+    },
   ];
 
   const quickStats = [
     {
       label: "本年累计应税收入",
       value: "¥0",
-      subtitle: "基于历史收入记录"
+      subtitle: "基于历史收入记录",
     },
     {
       label: "本年累计已缴税额",
       value: "¥0",
-      subtitle: "包含预扣预缴税额"
+      subtitle: "包含预扣预缴税额",
     },
     {
       label: "当前适用税率",
       value: "3%",
-      subtitle: "基于累计应税所得额"
+      subtitle: "基于累计应税所得额",
     },
     {
       label: "下月预估税负",
       value: "¥0",
-      subtitle: "基于收入预测计算"
-    }
+      subtitle: "基于收入预测计算",
+    },
   ];
 
   return (
@@ -77,9 +70,7 @@ export default function TaxManagementPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">税务管理</h1>
-          <p className="text-gray-600 mt-2">
-            管理个人所得税、社保公积金等税务相关配置和计算
-          </p>
+          <p className="text-gray-600 mt-2">管理个人所得税、社保公积金等税务相关配置和计算</p>
         </div>
         <div className="flex space-x-3">
           <Link href="/income">
@@ -99,9 +90,7 @@ export default function TaxManagementPage() {
         {quickStats.map((stat, index) => (
           <Card key={index}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                {stat.label}
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600">{stat.label}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
@@ -161,19 +150,17 @@ export default function TaxManagementPage() {
                 <p className="text-xs text-blue-600 mt-2">生效日期: 2025-01-01</p>
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
               <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
               <div className="flex-1">
                 <p className="text-sm font-medium">杭州社保缴费基数调整</p>
-                <p className="text-xs text-gray-600 mt-1">
-                  2025年杭州市社保缴费基数上下限已调整
-                </p>
+                <p className="text-xs text-gray-600 mt-1">2025年杭州市社保缴费基数上下限已调整</p>
                 <p className="text-xs text-yellow-600 mt-2">生效日期: 2025-07-01</p>
               </div>
             </div>
           </div>
-          
+
           <div className="mt-4 pt-4 border-t">
             <Link href="/tax/config">
               <Button variant="outline" size="sm">

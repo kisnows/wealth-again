@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { taxParamsSchema } from "@/lib/tax";
-import { createTaxService } from "@/lib/tax";
-import { taxConfigSchema } from "@/lib/tax/types";
+import { type NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { prisma } from "@/lib/prisma";
 import { fetchHangzhouParams } from "@/lib/sources/hz-params";
+import { createTaxService, taxParamsSchema } from "@/lib/tax";
+import { taxConfigSchema } from "@/lib/tax/types";
 
 const taxService = createTaxService(prisma);
 
@@ -30,7 +29,7 @@ export async function POST(req: NextRequest) {
           city: parsed.city,
           effectiveFrom: parsed.effectiveFrom,
         },
-        { status: 201 }
+        { status: 201 },
       );
     } else {
       // 兼容旧格式：导入杭州参数
@@ -58,15 +57,12 @@ export async function POST(req: NextRequest) {
           success: result.success,
           message: "参数已导入并保存到新的税务配置表",
         },
-        { status: 201 }
+        { status: 201 },
       );
     }
   } catch (err: unknown) {
     if (err instanceof ZodError) {
-      return NextResponse.json(
-        { error: "invalid body", issues: err.issues },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "invalid body", issues: err.issues }, { status: 400 });
     }
     console.error("POST /api/config/tax-params error:", err);
     return NextResponse.json({ error: "internal error" }, { status: 500 });
@@ -81,10 +77,7 @@ export async function GET(req: NextRequest) {
   const pageSize = Number(searchParams.get("pageSize") || "50");
 
   if (!city || !year) {
-    return NextResponse.json(
-      { error: "city & year required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "city & year required" }, { status: 400 });
   }
 
   try {

@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 type Params = Promise<{ id: string }>;
 
-export async function GET(
-  _req: NextRequest,
-  props: { params: Params }
-) {
+export async function GET(_req: NextRequest, props: { params: Params }) {
   const params = await props.params;
   const accountId = params.id;
   const account = await prisma.account.findUnique({ where: { id: accountId } });
@@ -52,11 +49,11 @@ export async function GET(
 
     // 返回简单的账户概览数据
     const performance = {
-      initialValue: initialBalance,     // 初始资金
-      netContribution,                  // 实际本金 = 初始资金 + 存款 - 取款
-      currentValue,                     // 当前估值（账户市值）
-      pnl,                              // 收益 = 当前估值 - 实际本金
-      returnRate,                       // 收益率 = 收益 / 实际本金
+      initialValue: initialBalance, // 初始资金
+      netContribution, // 实际本金 = 初始资金 + 存款 - 取款
+      currentValue, // 当前估值（账户市值）
+      pnl, // 收益 = 当前估值 - 实际本金
+      returnRate, // 收益率 = 收益 / 实际本金
     };
 
     // 返回简单的序列数据（用于图表）
@@ -65,21 +62,20 @@ export async function GET(
       orderBy: { asOf: "asc" },
     });
 
-    const series = snapshots.map(snap => ({
+    const series = snapshots.map((snap) => ({
       date: snap.asOf,
       value: Number(snap.totalValue || 0),
       netContribution,
       pnl: Number(snap.totalValue || 0) - netContribution,
-      returnRate: netContribution !== 0 ? 
-        ((Number(snap.totalValue || 0) - netContribution) / netContribution) * 100 : 0
+      returnRate:
+        netContribution !== 0
+          ? ((Number(snap.totalValue || 0) - netContribution) / netContribution) * 100
+          : 0,
     }));
 
     return NextResponse.json({ performance, series });
   } catch (error) {
     console.error("Performance calculation error:", error);
-    return NextResponse.json(
-      { error: "Failed to calculate performance" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to calculate performance" }, { status: 500 });
   }
 }

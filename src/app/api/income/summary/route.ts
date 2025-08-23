@@ -1,12 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import {
-  normalizeTaxParamsValue,
-  TaxService,
-  TaxConfigRepository,
-} from "@/lib/tax";
-import { ZodError } from "zod";
+import { normalizeTaxParamsValue, TaxConfigRepository, TaxService } from "@/lib/tax";
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,7 +45,7 @@ export async function GET(req: NextRequest) {
       if (err instanceof ZodError) {
         return NextResponse.json(
           { error: "invalid tax params shape", issues: err.issues },
-          { status: 400 }
+          { status: 400 },
         );
       }
       console.error("/api/income/summary parse error", err);

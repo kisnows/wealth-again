@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 
 export async function getRate(
   prisma: PrismaClient,
@@ -7,7 +7,7 @@ export async function getRate(
     to: string;
     asOf: Date;
     toleranceDays?: number;
-  }
+  },
 ): Promise<number> {
   const { from, to, asOf } = params;
   const toleranceDays = params.toleranceDays ?? 5;
@@ -50,7 +50,7 @@ export async function convert(
   from: string,
   to: string,
   asOf: Date,
-  toleranceDays?: number
+  toleranceDays?: number,
 ): Promise<number> {
   if (from === to) return amount;
   const r = await getRate(prisma, { from, to, asOf, toleranceDays });

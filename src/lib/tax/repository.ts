@@ -1,5 +1,5 @@
-import { PrismaClient } from "@prisma/client";
-import { TaxBracket, SocialInsuranceConfig } from "./types";
+import type { PrismaClient } from "@prisma/client";
+import type { SocialInsuranceConfig, TaxBracket } from "./types";
 
 export class TaxConfigRepository {
   constructor(private prisma: PrismaClient) {}
@@ -7,10 +7,7 @@ export class TaxConfigRepository {
   /**
    * 获取指定城市和时间的税率档次
    */
-  async getTaxBrackets(
-    city: string,
-    date: Date = new Date()
-  ): Promise<TaxBracket[]> {
+  async getTaxBrackets(city: string, date: Date = new Date()): Promise<TaxBracket[]> {
     const brackets = await this.prisma.taxBracket.findMany({
       where: {
         city,
@@ -35,7 +32,7 @@ export class TaxConfigRepository {
    */
   async getSocialInsuranceConfig(
     city: string,
-    date: Date = new Date()
+    date: Date = new Date(),
   ): Promise<SocialInsuranceConfig | null> {
     const config = await this.prisma.socialInsuranceConfig.findFirst({
       where: {
@@ -69,7 +66,7 @@ export class TaxConfigRepository {
     city: string,
     brackets: TaxBracket[],
     effectiveFrom: Date,
-    effectiveTo?: Date
+    effectiveTo?: Date,
   ) {
     // 先结束之前的配置
     await this.prisma.taxBracket.updateMany({
@@ -105,7 +102,7 @@ export class TaxConfigRepository {
     city: string,
     config: SocialInsuranceConfig,
     effectiveFrom: Date,
-    effectiveTo?: Date
+    effectiveTo?: Date,
   ) {
     // 先结束之前的配置
     await this.prisma.socialInsuranceConfig.updateMany({

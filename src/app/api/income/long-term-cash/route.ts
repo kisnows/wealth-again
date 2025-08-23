@@ -1,16 +1,16 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import {
-  withApiHandler,
-  withValidation,
-  successResponse,
-  errorResponse,
-  parsePaginationParams,
+  type ApiContext,
   buildPaginatedResponse,
   ensureOwnership,
-  ApiContext,
+  errorResponse,
+  parsePaginationParams,
+  successResponse,
+  withApiHandler,
+  withValidation,
 } from "@/lib/api-handler";
+import { prisma } from "@/lib/prisma";
 
 // 数据验证模式 - 移除city字段，长期现金与城市无关
 const createLongTermCashSchema = z.object({
@@ -22,7 +22,7 @@ const createLongTermCashSchema = z.object({
 // 业务逻辑处理器
 async function createLongTermCash(
   { userId }: ApiContext,
-  data: z.infer<typeof createLongTermCashSchema>
+  data: z.infer<typeof createLongTermCashSchema>,
 ) {
   const record = await prisma.longTermCash.create({
     data: {
@@ -71,16 +71,14 @@ async function deleteLongTermCash({ userId }: ApiContext, id: string) {
 }
 
 // API路由处理器
-export const POST = withApiHandler(
-  withValidation(createLongTermCashSchema)(createLongTermCash)
-);
+export const POST = withApiHandler(withValidation(createLongTermCashSchema)(createLongTermCash));
 
 export const GET = withApiHandler(getLongTermCash);
 
 export const DELETE = withApiHandler(async (context: ApiContext) => {
   const { searchParams } = new URL(context.req.url);
   const id = searchParams.get("id");
-  
+
   if (!id) {
     return errorResponse("VALIDATION_ERROR", "缺少长期现金计划ID");
   }

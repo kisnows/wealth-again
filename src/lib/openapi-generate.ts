@@ -2,15 +2,15 @@ import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-open
 import { writeFileSync } from "fs";
 import path from "path";
 import {
-  createTaxParamsRequest,
-  createTaxParamsResponse,
-  incomeMonthlyRequest,
-  incomeForecastResponse,
   accountCreateRequest,
   accountCreateResponse,
+  createTaxParamsRequest,
+  createTaxParamsResponse,
+  incomeForecastResponse,
+  incomeMonthlyRequest,
+  performanceResponse,
   transactionCreateRequest,
   valuationSnapshotRequest,
-  performanceResponse,
 } from "./schemas";
 
 const registry = new OpenAPIRegistry();

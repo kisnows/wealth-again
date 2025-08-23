@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { TaxService, TaxConfigRepository } from "@/lib/tax";
-import { incomeCalculationInputSchema } from "@/lib/tax/types";
+import { type NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { prisma } from "@/lib/prisma";
+import { TaxConfigRepository, TaxService } from "@/lib/tax";
+import { incomeCalculationInputSchema } from "@/lib/tax/types";
 
 const repository = new TaxConfigRepository(prisma);
 const taxService = new TaxService(repository);
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
           error: "invalid_input",
           issues: err.issues,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         success: false,
         error: err instanceof Error ? err.message : "internal_error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -48,20 +48,13 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month");
 
   if (!userId) {
-    return NextResponse.json(
-      { success: false, error: "userId required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: false, error: "userId required" }, { status: 400 });
   }
 
   try {
     if (year && month) {
       // 获取特定月份的收入记录
-      const record = await repository.getIncomeRecord(
-        userId,
-        parseInt(year),
-        parseInt(month)
-      );
+      const record = await repository.getIncomeRecord(userId, parseInt(year), parseInt(month));
 
       return NextResponse.json({
         success: true,
@@ -78,7 +71,7 @@ export async function GET(req: NextRequest) {
     } else {
       return NextResponse.json(
         { success: false, error: "year parameter required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
   } catch (error) {
@@ -88,7 +81,7 @@ export async function GET(req: NextRequest) {
         success: false,
         error: error instanceof Error ? error.message : "internal_error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { calculateAccountPerformance } from "@/lib/performance";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { calculateAccountPerformance } from "@/lib/performance";
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,21 +12,23 @@ export async function GET(req: NextRequest) {
     // 获取收入数据
     const incomeRecords = await prisma.incomeRecord.findMany({
       where: { userId, year },
-      orderBy: [
-        { month: "asc" }
-      ],
+      orderBy: [{ month: "asc" }],
     });
 
     // 计算收入统计数据
     const annualIncome = incomeRecords.reduce((sum, record) => sum + Number(record.gross || 0), 0);
     const annualBonus = incomeRecords.reduce((sum, record) => sum + Number(record.bonus || 0), 0);
     const annualTax = incomeRecords.reduce((sum, record) => sum + Number(record.incomeTax || 0), 0);
-    const annualNetIncome = incomeRecords.reduce((sum, record) => sum + Number(record.netIncome || 0), 0);
-    
+    const annualNetIncome = incomeRecords.reduce(
+      (sum, record) => sum + Number(record.netIncome || 0),
+      0,
+    );
+
     // 获取本月收入 (注意：数据库中的月份是1-12，JavaScript的月份是0-11)
     const currentDate = new Date();
     const currentMonthRecord = incomeRecords.find(
-      record => record.year === currentDate.getFullYear() && record.month === (currentDate.getMonth() + 1)
+      (record) =>
+        record.year === currentDate.getFullYear() && record.month === currentDate.getMonth() + 1,
     );
     const monthlyIncome = currentMonthRecord ? Number(currentMonthRecord.gross || 0) : 0;
 
@@ -35,26 +37,24 @@ export async function GET(req: NextRequest) {
       where: { userId },
       include: {
         snapshots: {
-          orderBy: [
-            { asOf: "desc" }
-          ],
+          orderBy: [{ asOf: "desc" }],
           take: 1,
         },
-      }
+      },
     });
 
     // 计算投资统计数据
     let totalInvestmentValue = 0;
     let monthlyPnl = 0;
-    
+
     // 计算每个账户的收益
     for (const account of accounts) {
       // 使用改进的投资绩效计算方法
       const performance = await calculateAccountPerformance(prisma, account.id);
-      
+
       // 累加总投资价值
       totalInvestmentValue += performance.currentValue;
-      
+
       // 计算本月盈亏（简化计算，实际应该更复杂）
       const latestSnapshot = account.snapshots[0];
       if (latestSnapshot) {
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
     // 储蓄率 = 年度税后收入 / 年度税前收入
     const totalGrossIncome = annualIncome + annualBonus;
     const savingsRate = totalGrossIncome > 0 ? (annualNetIncome / totalGrossIncome) * 100 : 0;
-    
+
     // 投资资产占比 (这里简化为投资总额占总资产的比例)
     const totalAssets = totalGrossIncome + totalInvestmentValue;
     const investmentRatio = totalAssets > 0 ? (totalInvestmentValue / totalAssets) * 100 : 0;
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       financialHealth: {
         savingsRate,
         investmentRatio,
-      }
+      },
     };
 
     return NextResponse.json(result);

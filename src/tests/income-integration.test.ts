@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 
 const UID = "00000000-0000-0000-0000-000000000001";
@@ -84,19 +84,11 @@ describe("income end-to-end: forms → forecast → calculate → summary", () =
       expect(results.length).toBeGreaterThan(0);
       const m1 = results.find(
         (r) =>
-          (r.ym ||
-            `${new Date().getFullYear()}-${String(r.month).padStart(
-              2,
-              "0"
-            )}`) === "2025-01"
+          (r.ym || `${new Date().getFullYear()}-${String(r.month).padStart(2, "0")}`) === "2025-01",
       );
       const m3 = results.find(
         (r) =>
-          (r.ym ||
-            `${new Date().getFullYear()}-${String(r.month).padStart(
-              2,
-              "0"
-            )}`) === "2025-03"
+          (r.ym || `${new Date().getFullYear()}-${String(r.month).padStart(2, "0")}`) === "2025-03",
       );
       expect(!!m1?.markers?.salaryChange).toBe(true);
       expect(!!m3?.markers?.bonusPaid).toBe(true);
@@ -108,9 +100,7 @@ describe("income end-to-end: forms → forecast → calculate → summary", () =
       url.searchParams.set("city", "Hangzhou");
       url.searchParams.set("year", "2025");
       const req0 = new Request(url.toString(), { method: "POST" });
-      const refreshMod = await import(
-        "@/app/api/config/tax-params/refresh/route"
-      );
+      const refreshMod = await import("@/app/api/config/tax-params/refresh/route");
       await refreshMod.POST(req0 as any);
 
       const current = await prisma.user.findFirst();

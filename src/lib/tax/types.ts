@@ -69,9 +69,7 @@ export const incomeCalculationInputSchema = z.object({
   customHousingFundBase: z.number().nullable().default(null),
 });
 
-export type IncomeCalculationInput = z.infer<
-  typeof incomeCalculationInputSchema
->;
+export type IncomeCalculationInput = z.infer<typeof incomeCalculationInputSchema>;
 
 // 计算结果
 export interface IncomeCalculationResult {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface FxRate {
   base: string;
@@ -86,15 +86,12 @@ export function useFxRates(baseCurrency: string, currencies: string[]) {
                 // If we can't find a rate, we'll use 1 as a fallback
                 rates[`${pair.base}-${pair.quote}`] = 1;
                 console.warn(
-                  `Could not find FX rate for ${pair.base}-${pair.quote}, using 1 as fallback`
+                  `Could not find FX rate for ${pair.base}-${pair.quote}, using 1 as fallback`,
                 );
               }
             }
           } catch (err) {
-            console.error(
-              `Error fetching rate for ${pair.base}-${pair.quote}:`,
-              err
-            );
+            console.error(`Error fetching rate for ${pair.base}-${pair.quote}:`, err);
             // Use 1 as a fallback rate if there's an error
             rates[`${pair.base}-${pair.quote}`] = 1;
           }
@@ -134,9 +131,7 @@ export function useFxRates(baseCurrency: string, currencies: string[]) {
           return amount * rate;
         }
         // If rate not found, return amount as is
-        console.warn(
-          `FX rate not found for ${fromCurrency}-${toCurrency}, returning amount as is`
-        );
+        console.warn(`FX rate not found for ${fromCurrency}-${toCurrency}, returning amount as is`);
         return amount;
       }
 
@@ -150,9 +145,7 @@ export function useFxRates(baseCurrency: string, currencies: string[]) {
         }
 
         // If rate not found, return amount as is
-        console.warn(
-          `FX rate not found for ${fromCurrency}-${toCurrency}, returning amount as is`
-        );
+        console.warn(`FX rate not found for ${fromCurrency}-${toCurrency}, returning amount as is`);
         return amount;
       }
 
@@ -171,7 +164,7 @@ export function useFxRates(baseCurrency: string, currencies: string[]) {
       } else {
         // If we can't convert to base currency, return original amount
         console.warn(
-          `FX rate not found for ${fromCurrency}-${baseCurrency}, returning amount as is`
+          `FX rate not found for ${fromCurrency}-${baseCurrency}, returning amount as is`,
         );
         return amount;
       }
@@ -190,11 +183,11 @@ export function useFxRates(baseCurrency: string, currencies: string[]) {
 
       // If we can't convert from base currency, return amount in base currency
       console.warn(
-        `FX rate not found for ${baseCurrency}-${toCurrency}, returning amount in base currency`
+        `FX rate not found for ${baseCurrency}-${toCurrency}, returning amount in base currency`,
       );
       return amountInBase;
     },
-    [baseCurrency, fxRates]
+    [baseCurrency, fxRates],
   );
 
   return { fxRates, loading, error, convert };

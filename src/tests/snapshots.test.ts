@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 
 async function makeAccount() {
@@ -35,10 +35,7 @@ describe("snapshots pagination api", () => {
     async function fetchPage(page: number, pageSize = 50) {
       const url = `http://localhost/api/accounts/${accountId}/snapshots?page=${page}&pageSize=${pageSize}`;
       const req = new Request(url);
-      const res = await mod.GET(
-        req as any,
-        { params: { id: accountId } } as any
-      );
+      const res = await mod.GET(req as any, { params: { id: accountId } } as any);
       return (res as any).json();
     }
 

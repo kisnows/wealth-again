@@ -39,8 +39,7 @@ export default function LongTermCashDetail({
         const startQuarter = Math.floor(startMonth / 3);
         const currentQuarter = Math.floor(currentMonth / 3);
 
-        const quartersDiff =
-          (currentYear - startYear) * 4 + (currentQuarter - startQuarter);
+        const quartersDiff = (currentYear - startYear) * 4 + (currentQuarter - startQuarter);
 
         // 检查是否在16个季度的发放期内
         if (quartersDiff >= 0 && quartersDiff < 16) {
@@ -77,18 +76,14 @@ export default function LongTermCashDetail({
         </p>
         <div className="space-y-2">
           {monthlyDetails.map((detail) => (
-            <div
-              key={detail.id}
-              className="flex justify-between items-center p-2 border rounded"
-            >
+            <div key={detail.id} className="flex justify-between items-center p-2 border rounded">
               <div>
                 <p className="font-medium">
-                  发放金额:{" "}
-                  {formatCurrencyWithSeparator(detail.quarterlyAmount)}
+                  发放金额: {formatCurrencyWithSeparator(detail.quarterlyAmount)}
                 </p>
                 <p className="text-sm text-gray-500">
-                  生效日期: {new Date(detail.startDate).toLocaleDateString()} |
-                  第 {detail.quartersDiff + 1} 次发放
+                  生效日期: {new Date(detail.startDate).toLocaleDateString()} | 第{" "}
+                  {detail.quartersDiff + 1} 次发放
                 </p>
               </div>
             </div>

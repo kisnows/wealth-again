@@ -1,4 +1,4 @@
-import { TaxBracket, SocialInsuranceConfig } from "./types";
+import type { SocialInsuranceConfig, TaxBracket } from "./types";
 
 /**
  * 个人所得税计算器
@@ -22,10 +22,7 @@ export class TaxCalculator {
     const bracket = this.findApplicableBracket(taxableIncome);
 
     // 计算应纳税额 = 应纳税所得额 × 税率 - 速算扣除数
-    const tax = Math.max(
-      0,
-      taxableIncome * bracket.taxRate - bracket.quickDeduction
-    );
+    const tax = Math.max(0, taxableIncome * bracket.taxRate - bracket.quickDeduction);
 
     return { tax, bracket };
   }
@@ -70,7 +67,7 @@ export class SocialInsuranceCalculator {
    */
   calculateSocialInsurance(
     grossIncome: number,
-    customBase?: number
+    customBase?: number,
   ): {
     base: number;
     pension: number;
@@ -99,7 +96,7 @@ export class SocialInsuranceCalculator {
    */
   calculateHousingFund(
     grossIncome: number,
-    customBase?: number
+    customBase?: number,
   ): {
     base: number;
     amount: number;
@@ -114,10 +111,7 @@ export class SocialInsuranceCalculator {
    * 计算社保缴费基数
    */
   calculateSocialInsuranceBase(grossIncome: number): number {
-    return Math.min(
-      Math.max(grossIncome, this.config.socialMinBase),
-      this.config.socialMaxBase
-    );
+    return Math.min(Math.max(grossIncome, this.config.socialMinBase), this.config.socialMaxBase);
   }
 
   /**
@@ -126,7 +120,7 @@ export class SocialInsuranceCalculator {
   calculateHousingFundBase(grossIncome: number): number {
     return Math.min(
       Math.max(grossIncome, this.config.housingFundMinBase),
-      this.config.housingFundMaxBase
+      this.config.housingFundMaxBase,
     );
   }
 
@@ -142,10 +136,7 @@ export class SocialInsuranceCalculator {
           pension: this.config.pensionRate,
           medical: this.config.medicalRate,
           unemployment: this.config.unemploymentRate,
-          total:
-            this.config.pensionRate +
-            this.config.medicalRate +
-            this.config.unemploymentRate,
+          total: this.config.pensionRate + this.config.medicalRate + this.config.unemploymentRate,
         },
       },
       housingFund: {

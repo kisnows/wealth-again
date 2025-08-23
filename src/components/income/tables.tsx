@@ -1,8 +1,8 @@
 "use client";
 
+import { CurrencyDisplay } from "@/components/shared/currency";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CurrencyDisplay } from "@/components/ui/currency-display";
 import { useFormSubmit } from "@/hooks/use-income-data";
 
 interface DataTableProps {
@@ -23,24 +23,24 @@ interface DataTableProps {
 /**
  * 通用数据表格组件
  */
-export function DataTable({ 
-  title, 
-  description, 
-  columns, 
-  data, 
+export function DataTable({
+  title,
+  description,
+  columns,
+  data,
   actions,
-  userBaseCurrency = "CNY"
+  userBaseCurrency = "CNY",
 }: DataTableProps) {
   const { submit: deleteItem, loading: deleteLoading } = useFormSubmit("", {
     method: "DELETE",
-    successMessage: actions?.delete?.successMessage || "删除成功"
+    successMessage: actions?.delete?.successMessage || "删除成功",
   });
 
   const handleDelete = async (id: string) => {
     if (!actions?.delete) return;
-    
+
     if (!confirm(actions.delete.confirmMessage)) return;
-    
+
     await deleteItem({}, `${actions.delete.endpoint}?id=${id}`);
   };
 
@@ -48,9 +48,7 @@ export function DataTable({
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        {description && (
-          <p className="text-sm text-gray-600">{description}</p>
-        )}
+        {description && <p className="text-sm text-gray-600">{description}</p>}
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -68,7 +66,10 @@ export function DataTable({
             <tbody>
               {data.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + (actions ? 1 : 0)} className="py-8 text-center text-gray-500">
+                  <td
+                    colSpan={columns.length + (actions ? 1 : 0)}
+                    className="py-8 text-center text-gray-500"
+                  >
                     暂无数据
                   </td>
                 </tr>
@@ -115,23 +116,23 @@ interface SalaryChangesTableProps {
 
 export function SalaryChangesTable({ data, userBaseCurrency }: SalaryChangesTableProps) {
   const columns = [
-    { 
-      key: "effectiveFrom", 
+    {
+      key: "effectiveFrom",
       label: "生效日期",
-      render: (value: string) => new Date(value).toLocaleDateString()
+      render: (value: string) => new Date(value).toLocaleDateString(),
     },
-    { 
-      key: "grossMonthly", 
+    {
+      key: "grossMonthly",
       label: "月薪",
       render: (value: number, row: any) => (
-        <CurrencyDisplay 
-          amount={value} 
-          fromCurrency={row.currency} 
+        <CurrencyDisplay
+          amount={value}
+          fromCurrency={row.currency}
           userBaseCurrency={userBaseCurrency}
         />
-      )
+      ),
     },
-    { key: "currency", label: "币种" }
+    { key: "currency", label: "币种" },
   ];
 
   return (
@@ -144,8 +145,8 @@ export function SalaryChangesTable({ data, userBaseCurrency }: SalaryChangesTabl
         delete: {
           endpoint: "/api/income/changes",
           confirmMessage: "确定要删除这条工资变更记录吗？",
-          successMessage: "工资变更记录删除成功"
-        }
+          successMessage: "工资变更记录删除成功",
+        },
       }}
     />
   );
@@ -161,23 +162,23 @@ interface BonusPlansTableProps {
 
 export function BonusPlansTable({ data, userBaseCurrency }: BonusPlansTableProps) {
   const columns = [
-    { 
-      key: "effectiveDate", 
+    {
+      key: "effectiveDate",
       label: "生效日期",
-      render: (value: string) => new Date(value).toLocaleDateString()
+      render: (value: string) => new Date(value).toLocaleDateString(),
     },
-    { 
-      key: "amount", 
+    {
+      key: "amount",
       label: "金额",
       render: (value: number, row: any) => (
-        <CurrencyDisplay 
-          amount={value} 
-          fromCurrency={row.currency} 
+        <CurrencyDisplay
+          amount={value}
+          fromCurrency={row.currency}
           userBaseCurrency={userBaseCurrency}
         />
-      )
+      ),
     },
-    { key: "currency", label: "币种" }
+    { key: "currency", label: "币种" },
   ];
 
   return (
@@ -190,8 +191,8 @@ export function BonusPlansTable({ data, userBaseCurrency }: BonusPlansTableProps
         delete: {
           endpoint: "/api/income/bonus",
           confirmMessage: "确定要删除这条奖金计划吗？",
-          successMessage: "奖金计划删除成功"
-        }
+          successMessage: "奖金计划删除成功",
+        },
       }}
     />
   );
@@ -207,34 +208,34 @@ interface LongTermCashTableProps {
 
 export function LongTermCashTable({ data, userBaseCurrency }: LongTermCashTableProps) {
   const columns = [
-    { 
-      key: "effectiveDate", 
+    {
+      key: "effectiveDate",
       label: "生效日期",
-      render: (value: string) => new Date(value).toLocaleDateString()
+      render: (value: string) => new Date(value).toLocaleDateString(),
     },
-    { 
-      key: "totalAmount", 
+    {
+      key: "totalAmount",
       label: "总金额",
       render: (value: number, row: any) => (
-        <CurrencyDisplay 
-          amount={value} 
-          fromCurrency={row.currency} 
+        <CurrencyDisplay
+          amount={value}
+          fromCurrency={row.currency}
           userBaseCurrency={userBaseCurrency}
         />
-      )
+      ),
     },
     { key: "currency", label: "币种" },
-    { 
-      key: "quarterlyAmount", 
+    {
+      key: "quarterlyAmount",
       label: "每季度金额",
       render: (value: any, row: any) => (
-        <CurrencyDisplay 
-          amount={Number(row.totalAmount) / 16} 
-          fromCurrency={row.currency} 
+        <CurrencyDisplay
+          amount={Number(row.totalAmount) / 16}
+          fromCurrency={row.currency}
           userBaseCurrency={userBaseCurrency}
         />
-      )
-    }
+      ),
+    },
   ];
 
   return (
@@ -247,8 +248,8 @@ export function LongTermCashTable({ data, userBaseCurrency }: LongTermCashTableP
         delete: {
           endpoint: "/api/income/long-term-cash",
           confirmMessage: "确定要删除这条长期现金记录吗？",
-          successMessage: "长期现金记录删除成功"
-        }
+          successMessage: "长期现金记录删除成功",
+        },
       }}
     />
   );

@@ -1,15 +1,15 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import {
-  withApiHandler,
-  withValidation,
-  successResponse,
+  type ApiContext,
+  buildPaginatedResponse,
   errorResponse,
   parsePaginationParams,
-  buildPaginatedResponse,
-  ApiContext,
+  successResponse,
+  withApiHandler,
+  withValidation,
 } from "@/lib/api-handler";
+import { prisma } from "@/lib/prisma";
 
 // 数据验证模式
 const createTransactionSchema = z.object({
@@ -24,11 +24,11 @@ const createTransactionSchema = z.object({
 // 业务逻辑处理器
 async function createTransaction(
   { userId }: ApiContext,
-  data: z.infer<typeof createTransactionSchema>
+  data: z.infer<typeof createTransactionSchema>,
 ) {
   // 验证账户所有权
   const account = await prisma.account.findFirst({
-    where: { id: data.accountId, userId }
+    where: { id: data.accountId, userId },
   });
 
   if (!account) {
@@ -50,22 +50,22 @@ async function createTransaction(
     });
 
     // 更新账户的累计存款/取款金额
-    let updateData: any = {};
-    
+    const updateData: any = {};
+
     if (data.type === "DEPOSIT" || data.type === "TRANSFER_IN") {
       updateData.totalDeposits = {
-        increment: data.cashAmount
+        increment: data.cashAmount,
       };
     } else if (data.type === "WITHDRAW" || data.type === "TRANSFER_OUT") {
       updateData.totalWithdrawals = {
-        increment: data.cashAmount
+        increment: data.cashAmount,
       };
     }
 
     if (Object.keys(updateData).length > 0) {
       await tx.account.update({
         where: { id: data.accountId },
-        data: updateData
+        data: updateData,
       });
     }
 
@@ -83,27 +83,27 @@ async function getTransactions({ userId, req }: ApiContext) {
 
   // 构建查询条件
   const where: any = {};
-  
+
   if (accountId) {
     // 验证账户所有权
     const account = await prisma.account.findFirst({
-      where: { id: accountId, userId }
+      where: { id: accountId, userId },
     });
-    
+
     if (!account) {
       return errorResponse("FORBIDDEN", "无权访问此账户");
     }
-    
+
     where.accountId = accountId;
   } else {
     // 如果不指定账户，则查询用户所有账户的交易
     const userAccounts = await prisma.account.findMany({
       where: { userId },
-      select: { id: true }
+      select: { id: true },
     });
-    
+
     where.accountId = {
-      in: userAccounts.map(acc => acc.id)
+      in: userAccounts.map((acc) => acc.id),
     };
   }
 
@@ -118,15 +118,13 @@ async function getTransactions({ userId, req }: ApiContext) {
       orderBy: { tradeDate: "desc" },
       skip,
       take: pageSize,
-    })
+    }),
   ]);
 
   return buildPaginatedResponse(transactions, total, page, pageSize);
 }
 
 // API路由处理器
-export const POST = withApiHandler(
-  withValidation(createTransactionSchema)(createTransaction)
-);
+export const POST = withApiHandler(withValidation(createTransactionSchema)(createTransaction));
 
 export const GET = withApiHandler(getTransactions);

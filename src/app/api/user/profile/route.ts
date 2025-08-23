@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import {
+  type ApiContext,
+  errorResponse,
+  successResponse,
   withApiHandler,
   withValidation,
-  successResponse,
-  errorResponse,
-  ApiContext,
 } from "@/lib/api-handler";
+import { prisma } from "@/lib/prisma";
 
 // 数据验证模式
 const updateProfileSchema = z.object({
@@ -34,7 +34,7 @@ async function getUserProfile({ userId }: ApiContext) {
 
 async function updateUserProfile(
   { userId }: ApiContext,
-  data: z.infer<typeof updateProfileSchema>
+  data: z.infer<typeof updateProfileSchema>,
 ) {
   const user = await prisma.user.update({
     where: { id: userId },
@@ -54,6 +54,4 @@ async function updateUserProfile(
 // API路由处理器
 export const GET = withApiHandler(getUserProfile);
 
-export const PUT = withApiHandler(
-  withValidation(updateProfileSchema)(updateUserProfile)
-);
+export const PUT = withApiHandler(withValidation(updateProfileSchema)(updateUserProfile));

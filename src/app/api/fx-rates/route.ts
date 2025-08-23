@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
@@ -17,24 +17,23 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      data: fxRate
+      data: fxRate,
     });
-
   } catch (error) {
     console.error("FxRate creation error:", error);
-    
+
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json(
         { success: false, error: { code: "UNAUTHORIZED", message: "请先登录" } },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -43,7 +42,7 @@ export async function GET(req: NextRequest) {
   try {
     const userId = await getCurrentUser(req);
     const { searchParams } = new URL(req.url);
-    
+
     const base = searchParams.get("base");
     const quote = searchParams.get("quote");
     const asOf = searchParams.get("asOf");
@@ -53,18 +52,18 @@ export async function GET(req: NextRequest) {
 
     // 构建查询条件
     const where: any = {};
-    
+
     if (base) {
       where.base = base;
     }
-    
+
     if (quote) {
       where.quote = quote;
     }
-    
+
     if (asOf) {
       where.asOf = {
-        lte: new Date(asOf)
+        lte: new Date(asOf),
       };
     }
 
@@ -75,33 +74,32 @@ export async function GET(req: NextRequest) {
         orderBy: { asOf: "desc" },
         skip,
         take: pageSize,
-      })
+      }),
     ]);
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       data: fxRates,
       pagination: {
         page,
         pageSize,
         total,
-        totalPages: Math.ceil(total / pageSize)
-      }
+        totalPages: Math.ceil(total / pageSize),
+      },
     });
-
   } catch (error) {
     console.error("FxRate list error:", error);
-    
+
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json(
         { success: false, error: { code: "UNAUTHORIZED", message: "请先登录" } },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -114,7 +112,7 @@ export async function PUT(req: NextRequest) {
     if (!body.id) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: "缺少汇率记录ID" } },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -129,24 +127,23 @@ export async function PUT(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      data: fxRate
+      data: fxRate,
     });
-
   } catch (error) {
     console.error("FxRate update error:", error);
-    
+
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json(
         { success: false, error: { code: "UNAUTHORIZED", message: "请先登录" } },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -160,33 +157,32 @@ export async function DELETE(req: NextRequest) {
     if (!id) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: "缺少汇率记录ID" } },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // 删除汇率记录
     await prisma.fxRate.delete({
-      where: { id }
+      where: { id },
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      data: { message: "汇率记录已删除" }
+      data: { message: "汇率记录已删除" },
     });
-
   } catch (error) {
     console.error("FxRate delete error:", error);
-    
+
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json(
         { success: false, error: { code: "UNAUTHORIZED", message: "请先登录" } },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

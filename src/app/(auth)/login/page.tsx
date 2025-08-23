@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { signIn, getSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getSession, signIn } from "next-auth/react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -89,10 +89,7 @@ export default function LoginPage() {
           <div className="text-center">
             <p className="text-sm text-gray-600">
               还没有账户？
-              <Link
-                href="/register"
-                className="text-blue-600 hover:underline ml-1"
-              >
+              <Link href="/register" className="text-blue-600 hover:underline ml-1">
                 立即注册
               </Link>
             </p>

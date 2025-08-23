@@ -23,7 +23,7 @@ export const incomeForecastResponse = z.object({
       taxThisMonth: z.number(),
       net: z.number(),
       paramsVersionKey: z.string(),
-    })
+    }),
   ),
 });
 

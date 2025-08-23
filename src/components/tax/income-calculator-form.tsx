@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
-import { Card } from "@/components/ui/card";
+import type React from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { IncomeCalculationInput, IncomeCalculationResult } from "@/lib/tax/types";
 import { SpecialDeductionInput } from "./special-deduction-guide";
-import {
-  IncomeCalculationInput,
-  IncomeCalculationResult,
-} from "@/lib/tax/types";
 
 interface IncomeCalculatorFormProps {
   userId: string;
@@ -37,10 +35,7 @@ export function IncomeCalculatorForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleInputChange = (
-    field: keyof IncomeCalculationInput,
-    value: any
-  ) => {
+  const handleInputChange = (field: keyof IncomeCalculationInput, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -81,10 +76,11 @@ export function IncomeCalculatorForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
             <div className="text-blue-600 text-sm">
-              💡 <strong>工作城市：</strong>系统将自动使用您当前的工作城市进行社保公积金计算。如需更改，请前往城市管理页面。
+              💡 <strong>工作城市：</strong>
+              系统将自动使用您当前的工作城市进行社保公积金计算。如需更改，请前往城市管理页面。
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="year">年份</Label>
@@ -92,9 +88,7 @@ export function IncomeCalculatorForm({
                 id="year"
                 type="number"
                 value={formData.year || ""}
-                onChange={(e) =>
-                  handleInputChange("year", parseInt(e.target.value))
-                }
+                onChange={(e) => handleInputChange("year", parseInt(e.target.value))}
                 min="2020"
                 max="2030"
                 required
@@ -107,9 +101,7 @@ export function IncomeCalculatorForm({
                 id="month"
                 type="number"
                 value={formData.month || ""}
-                onChange={(e) =>
-                  handleInputChange("month", parseInt(e.target.value))
-                }
+                onChange={(e) => handleInputChange("month", parseInt(e.target.value))}
                 min="1"
                 max="12"
                 required
@@ -124,9 +116,7 @@ export function IncomeCalculatorForm({
                 id="gross"
                 type="number"
                 value={formData.gross || ""}
-                onChange={(e) =>
-                  handleInputChange("gross", parseFloat(e.target.value) || 0)
-                }
+                onChange={(e) => handleInputChange("gross", parseFloat(e.target.value) || 0)}
                 min="0"
                 step="0.01"
                 placeholder="请输入税前工资"
@@ -140,9 +130,7 @@ export function IncomeCalculatorForm({
                 id="bonus"
                 type="number"
                 value={formData.bonus || ""}
-                onChange={(e) =>
-                  handleInputChange("bonus", parseFloat(e.target.value) || 0)
-                }
+                onChange={(e) => handleInputChange("bonus", parseFloat(e.target.value) || 0)}
                 min="0"
                 step="0.01"
                 placeholder="如季度奖、年终奖分摊等"
@@ -164,10 +152,7 @@ export function IncomeCalculatorForm({
                 type="number"
                 value={formData.otherDeductions || ""}
                 onChange={(e) =>
-                  handleInputChange(
-                    "otherDeductions",
-                    parseFloat(e.target.value) || 0
-                  )
+                  handleInputChange("otherDeductions", parseFloat(e.target.value) || 0)
                 }
                 min="0"
                 step="0.01"
@@ -182,10 +167,7 @@ export function IncomeCalculatorForm({
                 type="number"
                 value={formData.charityDonations || ""}
                 onChange={(e) =>
-                  handleInputChange(
-                    "charityDonations",
-                    parseFloat(e.target.value) || 0
-                  )
+                  handleInputChange("charityDonations", parseFloat(e.target.value) || 0)
                 }
                 min="0"
                 step="0.01"
@@ -223,8 +205,7 @@ export function IncomeCalculatorForm({
             <div className="p-3 bg-yellow-50 rounded">
               <div className="text-sm text-gray-600">社保公积金</div>
               <div className="text-xl font-semibold text-yellow-600">
-                ¥
-                {(result.socialInsurance + result.housingFund).toLocaleString()}
+                ¥{(result.socialInsurance + result.housingFund).toLocaleString()}
               </div>
             </div>
 
@@ -258,12 +239,8 @@ export function IncomeCalculatorForm({
           </div>
 
           <div className="mt-4 text-sm text-gray-600">
-            <div>
-              社保缴费基数：¥{result.socialInsuranceBase.toLocaleString()}
-            </div>
-            <div>
-              公积金缴费基数：¥{result.housingFundBase.toLocaleString()}
-            </div>
+            <div>社保缴费基数：¥{result.socialInsuranceBase.toLocaleString()}</div>
+            <div>公积金缴费基数：¥{result.housingFundBase.toLocaleString()}</div>
             <div>适用税率：{result.appliedTaxBracket.rate}%</div>
             <div>
               速算扣除数：¥

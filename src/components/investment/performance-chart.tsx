@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatPercentage } from "@/lib/utils";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface PerformanceData {
   date: string;
@@ -44,22 +52,23 @@ export default function PerformanceChart() {
 
   async function fetchPerformanceData() {
     if (!accountId) return;
-    
+
     setLoading(true);
     try {
       const res = await fetch(`/api/accounts/${accountId}/performance`);
       const data = await res.json();
-      
+
       // 获取估值快照数据用于图表
       const snapshotRes = await fetch(`/api/accounts/${accountId}/snapshots`);
       const snapshotData = await snapshotRes.json();
-      
+
       // 格式化数据用于图表
-      const chartData = snapshotData.snapshots?.map((snap: any) => ({
-        date: new Date(snap.asOf).toLocaleDateString(),
-        value: Number(snap.totalValue),
-      })) || [];
-      
+      const chartData =
+        snapshotData.snapshots?.map((snap: any) => ({
+          date: new Date(snap.asOf).toLocaleDateString(),
+          value: Number(snap.totalValue),
+        })) || [];
+
       setPerformanceData(chartData);
     } catch (error) {
       console.error("Error fetching performance data:", error);
@@ -91,15 +100,15 @@ export default function PerformanceChart() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />
-                    <Tooltip 
+                    <Tooltip
                       formatter={(value) => formatCurrency(Number(value))}
                       labelFormatter={(label) => `日期: ${label}`}
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#8884d8" 
-                      activeDot={{ r: 8 }} 
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#8884d8"
+                      activeDot={{ r: 8 }}
                       name="账户价值"
                     />
                   </LineChart>

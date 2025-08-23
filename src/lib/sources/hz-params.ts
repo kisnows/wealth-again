@@ -1,5 +1,5 @@
-import { taxParamsSchema, TaxParams } from "@/lib/tax";
-import { parseSihfFromHtml, parseGjjFromHtml } from "@/lib/sources/parsers";
+import { parseGjjFromHtml, parseSihfFromHtml } from "@/lib/sources/parsers";
+import { type TaxParams, taxParamsSchema } from "@/lib/tax";
 
 export interface FetchOptions {
   year: number;
@@ -14,9 +14,7 @@ export interface FetchOptions {
  * To enable live fetching in the future, set allowNetwork=true and implement
  * source-specific parsers. The return value is validated by zod schema.
  */
-export async function fetchHangzhouParams(
-  options: FetchOptions
-): Promise<TaxParams> {
+export async function fetchHangzhouParams(options: FetchOptions): Promise<TaxParams> {
   const year = options.year;
   const city = options.city || "Hangzhou";
 
@@ -71,9 +69,9 @@ export async function fetchHangzhouParams(
             { threshold: 960000, rate: 0.45, quickDeduction: 181920 },
           ],
           sihfRates: {
-            "pension": pension,
-            ...(medical ? { "medical": medical } : {}),
-            ...(unemployment ? { "unemployment": unemployment } : {}),
+            pension: pension,
+            ...(medical ? { medical: medical } : {}),
+            ...(unemployment ? { unemployment: unemployment } : {}),
           } as any,
           sihfBase: { min: baseMin, max: baseMax },
           ...(gjjRate && (gjjBaseMin || gjjBaseMax)

@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 type Params = Promise<{ id: string }>;
 
-export async function DELETE(
-  request: NextRequest,
-  props: { params: Params }
-) {
+export async function DELETE(request: NextRequest, props: { params: Params }) {
   try {
     const params = await props.params;
     const id = params.id;

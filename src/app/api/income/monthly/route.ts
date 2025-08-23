@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { z } from "zod";
 
 // 移除city字段，因为收入记录与城市无关
 const schema = z.object({
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const userId = await getCurrentUser(req);
     const body = schema.parse(await req.json());
-    
+
     const effectiveDate = body.effectiveDate
       ? new Date(body.effectiveDate)
       : new Date(body.year, body.month, 0); // 当月最后一天
@@ -50,31 +50,30 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      data: { id: rec.id }
+      data: { id: rec.id },
     });
-
   } catch (error) {
     console.error("Income monthly API error:", error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: error.issues[0].message } },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json(
         { success: false, error: { code: "UNAUTHORIZED", message: "请先登录" } },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -83,9 +82,9 @@ export async function GET(req: NextRequest) {
   try {
     const userId = await getCurrentUser(req);
     const { searchParams } = new URL(req.url);
-    
-    const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
-    const month = searchParams.get('month') ? parseInt(searchParams.get('month')!) : undefined;
+
+    const year = parseInt(searchParams.get("year") || new Date().getFullYear().toString());
+    const month = searchParams.get("month") ? parseInt(searchParams.get("month")!) : undefined;
 
     const where: any = { userId, year };
     if (month) {
@@ -94,30 +93,26 @@ export async function GET(req: NextRequest) {
 
     const records = await prisma.incomeRecord.findMany({
       where,
-      orderBy: [
-        { year: 'desc' },
-        { month: 'desc' }
-      ]
+      orderBy: [{ year: "desc" }, { month: "desc" }],
     });
 
     return NextResponse.json({
       success: true,
-      data: records
+      data: records,
     });
-
   } catch (error) {
     console.error("Income monthly GET error:", error);
-    
+
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json(
         { success: false, error: { code: "UNAUTHORIZED", message: "请先登录" } },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

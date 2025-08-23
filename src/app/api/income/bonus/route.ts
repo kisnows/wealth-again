@@ -1,17 +1,17 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { endOfMonth, parseYMD } from "@/lib/date";
 import {
-  withApiHandler,
-  withValidation,
-  successResponse,
-  errorResponse,
-  parsePaginationParams,
+  type ApiContext,
   buildPaginatedResponse,
   ensureOwnership,
-  ApiContext,
+  errorResponse,
+  parsePaginationParams,
+  successResponse,
+  withApiHandler,
+  withValidation,
 } from "@/lib/api-handler";
+import { endOfMonth, parseYMD } from "@/lib/date";
+import { prisma } from "@/lib/prisma";
 
 // 数据验证模式 - 移除city字段，奖金与城市无关
 const createBonusSchema = z.object({
@@ -21,10 +21,7 @@ const createBonusSchema = z.object({
 });
 
 // 业务逻辑处理器
-async function createBonus(
-  { userId }: ApiContext,
-  data: z.infer<typeof createBonusSchema>
-) {
+async function createBonus({ userId }: ApiContext, data: z.infer<typeof createBonusSchema>) {
   const record = await prisma.bonusPlan.create({
     data: {
       userId,
@@ -77,16 +74,14 @@ async function deleteBonus({ userId }: ApiContext, id: string) {
 }
 
 // API路由处理器
-export const POST = withApiHandler(
-  withValidation(createBonusSchema)(createBonus)
-);
+export const POST = withApiHandler(withValidation(createBonusSchema)(createBonus));
 
 export const GET = withApiHandler(getBonuses);
 
 export const DELETE = withApiHandler(async (context: ApiContext) => {
   const { searchParams } = new URL(context.req.url);
   const id = searchParams.get("id");
-  
+
   if (!id) {
     return errorResponse("VALIDATION_ERROR", "缺少奖金计划ID");
   }

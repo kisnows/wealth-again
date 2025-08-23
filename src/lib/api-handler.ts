@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { ZodError, type z } from "zod";
 import { getCurrentUser } from "@/lib/session";
-import { z, ZodError } from "zod";
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -23,10 +23,7 @@ export interface ApiContext {
   req: NextRequest;
 }
 
-export type ApiHandler<T = any> = (
-  context: ApiContext,
-  params?: any
-) => Promise<ApiResponse<T>>;
+export type ApiHandler<T = any> = (context: ApiContext, params?: any) => Promise<ApiResponse<T>>;
 
 /**
  * 统一的API处理器包装器
@@ -37,15 +34,14 @@ export function withApiHandler<T = any>(handler: ApiHandler<T>) {
     try {
       // 统一的用户认证
       const userId = await getCurrentUser(req);
-      
+
       // 执行业务逻辑
       const result = await handler({ userId, req }, params);
-      
+
       // 统一的响应格式
-      return NextResponse.json(result, { 
-        status: result.success ? 200 : 400 
+      return NextResponse.json(result, {
+        status: result.success ? 200 : 400,
       });
-      
     } catch (error) {
       return handleApiError(error);
     }
@@ -55,12 +51,14 @@ export function withApiHandler<T = any>(handler: ApiHandler<T>) {
 /**
  * 不需要认证的API处理器
  */
-export function withPublicApiHandler<T = any>(handler: (req: NextRequest, params?: any) => Promise<ApiResponse<T>>) {
+export function withPublicApiHandler<T = any>(
+  handler: (req: NextRequest, params?: any) => Promise<ApiResponse<T>>,
+) {
   return async (req: NextRequest, params?: any): Promise<NextResponse> => {
     try {
       const result = await handler(req, params);
-      return NextResponse.json(result, { 
-        status: result.success ? 200 : 400 
+      return NextResponse.json(result, {
+        status: result.success ? 200 : 400,
       });
     } catch (error) {
       return handleApiError(error);
@@ -85,7 +83,7 @@ export function handleApiError(error: unknown): NextResponse {
           details: error.issues,
         },
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -100,7 +98,7 @@ export function handleApiError(error: unknown): NextResponse {
           details: error.message,
         },
       },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
@@ -115,7 +113,7 @@ export function handleApiError(error: unknown): NextResponse {
           details: error.message,
         },
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -130,7 +128,7 @@ export function handleApiError(error: unknown): NextResponse {
           details: error.message,
         },
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -144,7 +142,7 @@ export function handleApiError(error: unknown): NextResponse {
         details: error instanceof Error ? error.message : "Unknown error",
       },
     },
-    { status: 500 }
+    { status: 500 },
   );
 }
 
@@ -155,7 +153,7 @@ export function parsePaginationParams(searchParams: URLSearchParams) {
   const page = Math.max(1, Number(searchParams.get("page") || "1"));
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") || "20")));
   const skip = (page - 1) * pageSize;
-  
+
   return { page, pageSize, skip };
 }
 
@@ -166,7 +164,7 @@ export function buildPaginatedResponse<T>(
   data: T[],
   total: number,
   page: number,
-  pageSize: number
+  pageSize: number,
 ): ApiResponse<T[]> {
   return {
     success: true,
@@ -184,15 +182,14 @@ export function buildPaginatedResponse<T>(
  * 数据验证装饰器
  */
 export function withValidation<T>(schema: z.ZodSchema<T>) {
-  return function <U>(
-    handler: (context: ApiContext, validatedData: T, params?: any) => Promise<ApiResponse<U>>
-  ): ApiHandler<U> {
-    return async (context: ApiContext, params?: any) => {
+  return <U>(
+    handler: (context: ApiContext, validatedData: T, params?: any) => Promise<ApiResponse<U>>,
+  ): ApiHandler<U> =>
+    async (context: ApiContext, params?: any) => {
       const body = await context.req.json();
       const validatedData = schema.parse(body);
       return handler(context, validatedData, params);
     };
-  };
 }
 
 /**
@@ -202,7 +199,7 @@ export async function ensureOwnership(
   prisma: any,
   model: string,
   id: string,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
   const record = await prisma[model].findFirst({
     where: { id, userId },
