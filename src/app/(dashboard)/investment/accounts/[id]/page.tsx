@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import AccountOperationsPanel from "@/components/investment/account-operations-panel";
 import AccountOperationRecords from "@/components/investment/account-operation-records";
+import AccountOperationsPanel from "@/components/investment/account-operations-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";

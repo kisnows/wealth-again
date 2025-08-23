@@ -16,7 +16,7 @@ describe("performance", () => {
     const account = await prisma.account.create({
       data: {
         name: "Test Account",
-        userId: "test-user-id", 
+        userId: "test-user-id",
         baseCurrency: "CNY",
       },
     });
@@ -39,7 +39,7 @@ describe("performance", () => {
 
     const result = await twr(prisma, account.id);
     expect(result.twr).toBeDefined();
-    
+
     // Cleanup
     await prisma.valuationSnapshot.deleteMany({
       where: { accountId: account.id },
@@ -86,7 +86,7 @@ describe("performance", () => {
     const perf = await computePerformance(prisma, account.id);
     expect(perf.currentValue).toBe(1600);
     expect(perf.profit).toBeCloseTo(400, 0); // 1600 - 1000 - 200
-    
+
     // Cleanup
     await prisma.transaction.deleteMany({
       where: { accountId: account.id },

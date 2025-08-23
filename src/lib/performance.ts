@@ -194,11 +194,11 @@ export function xirr(cashflows: { amount: number; date: Date }[], guess = 0.1): 
   const totalCashflow = cashflows.reduce((sum, cf) => sum + cf.amount, 0);
   const firstDate = cashflows[0]?.date;
   const lastDate = cashflows[cashflows.length - 1]?.date;
-  
+
   if (!firstDate || !lastDate || totalCashflow === 0) return 0;
-  
+
   const yearsDiff = (lastDate.getTime() - firstDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
   if (yearsDiff <= 0) return 0;
-  
-  return Math.pow(Math.abs(totalCashflow / cashflows[0].amount), 1 / yearsDiff) - 1;
+
+  return Math.abs(totalCashflow / cashflows[0].amount) ** (1 / yearsDiff) - 1;
 }

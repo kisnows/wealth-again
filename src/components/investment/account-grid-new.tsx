@@ -109,6 +109,12 @@ export default function AccountGridNew({ accounts, loading, onRefresh }: Account
   };
 
   const calculateAccountValue = (account: Account) => {
+    // 优先使用最新估值，如果没有估值则使用本金
+    if (account.currentValue !== undefined && account.currentValue !== null) {
+      return Number(account.currentValue);
+    }
+
+    // 回退到本金计算
     const principal =
       Number(account.initialBalance || 0) +
       Number(account.totalDeposits || 0) -
@@ -130,152 +136,150 @@ export default function AccountGridNew({ accounts, loading, onRefresh }: Account
 
   return (
     <div className="space-y-6" data-testid="account-grid">
-      {/* 添加账户卡片 */}
-      <Card className="border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
-        <CardContent className="pt-6">
-          {!showCreateForm ? (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl text-gray-400">+</span>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">添加新账户</h3>
-              <p className="text-gray-500 mb-4">创建储蓄、投资或借贷账户</p>
+      {/* 添加账户按钮 */}
+      {!showCreateForm && (
+        <div className="flex justify-end">
+          <Button
+            onClick={() => setShowCreateForm(true)}
+            className="flex items-center gap-2"
+            data-testid="add-account-button"
+          >
+            <span className="text-lg">+</span>
+            添加账户
+          </Button>
+        </div>
+      )}
+
+      {/* 创建账户表单 */}
+      {showCreateForm && (
+        <Card className="border-2 border-blue-200 bg-blue-50/30">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>创建新账户</CardTitle>
               <Button
-                onClick={() => setShowCreateForm(true)}
-                variant="outline"
-                data-testid="add-account-button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowCreateForm(false);
+                  setError("");
+                  setSuccess("");
+                }}
+                data-testid="cancel-create-button"
               >
-                创建账户
+                取消
               </Button>
             </div>
-          ) : (
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <CardTitle>创建新账户</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setShowCreateForm(false);
-                    setError("");
-                    setSuccess("");
-                  }}
-                  data-testid="cancel-create-button"
-                >
-                  取消
-                </Button>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                {error}
               </div>
+            )}
 
-              {error && (
-                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                  {error}
-                </div>
-              )}
-
-              {success && (
-                <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-                  {success}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="accountName">账户名称 *</Label>
-                  <Input
-                    id="accountName"
-                    value={newAccountName}
-                    onChange={(e) => setNewAccountName(e.target.value)}
-                    placeholder="请输入账户名称"
-                    data-testid="account-name-input"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="accountType">账户类型 *</Label>
-                  <Select
-                    value={newAccountType}
-                    onValueChange={(value: AccountType) => setNewAccountType(value)}
-                  >
-                    <SelectTrigger data-testid="account-type-select">
-                      <SelectValue placeholder="选择账户类型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SAVINGS">储蓄账户（流动资金）</SelectItem>
-                      <SelectItem value="INVESTMENT">投资账户（长期资金）</SelectItem>
-                      <SelectItem value="LOAN">借贷账户（负债）</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="subType">子类型（可选）</Label>
-                  <Input
-                    id="subType"
-                    value={newSubType}
-                    onChange={(e) => setNewSubType(e.target.value)}
-                    placeholder="如：定期存款、股票账户、房贷等"
-                    data-testid="sub-type-input"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="baseCurrency">账户币种</Label>
-                  <Select value={baseCurrency} onValueChange={setBaseCurrency}>
-                    <SelectTrigger data-testid="currency-select">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                      <SelectItem value="USD">美元 (USD)</SelectItem>
-                      <SelectItem value="HKD">港币 (HKD)</SelectItem>
-                      <SelectItem value="EUR">欧元 (EUR)</SelectItem>
-                      <SelectItem value="JPY">日元 (JPY)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="md:col-span-2">
-                  <Label htmlFor="initialBalance">初始资金</Label>
-                  <Input
-                    id="initialBalance"
-                    type="number"
-                    value={initialBalance}
-                    onChange={(e) => setInitialBalance(Number(e.target.value))}
-                    placeholder="请输入初始资金"
-                    data-testid="initial-balance-input"
-                  />
-                </div>
+            {success && (
+              <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+                {success}
               </div>
-              <div className="mt-4">
-                <Label htmlFor="description">描述（可选）</Label>
-                <Textarea
-                  id="description"
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="账户描述信息"
-                  rows={2}
-                  data-testid="description-input"
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="accountName">账户名称 *</Label>
+                <Input
+                  id="accountName"
+                  value={newAccountName}
+                  onChange={(e) => setNewAccountName(e.target.value)}
+                  placeholder="请输入账户名称"
+                  data-testid="account-name-input"
                 />
               </div>
-              <div className="mt-4 flex gap-2">
-                <Button
-                  onClick={createAccount}
-                  disabled={submitting}
-                  data-testid="create-account-submit"
+              <div>
+                <Label htmlFor="accountType">账户类型 *</Label>
+                <Select
+                  value={newAccountType}
+                  onValueChange={(value: AccountType) => setNewAccountType(value)}
                 >
-                  {submitting ? "创建中..." : "创建账户"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowCreateForm(false);
-                    setError("");
-                    setSuccess("");
-                  }}
-                >
-                  取消
-                </Button>
+                  <SelectTrigger data-testid="account-type-select">
+                    <SelectValue placeholder="选择账户类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SAVINGS">储蓄账户（流动资金）</SelectItem>
+                    <SelectItem value="INVESTMENT">投资账户（长期资金）</SelectItem>
+                    <SelectItem value="LOAN">借贷账户（负债）</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="subType">子类型（可选）</Label>
+                <Input
+                  id="subType"
+                  value={newSubType}
+                  onChange={(e) => setNewSubType(e.target.value)}
+                  placeholder="如：定期存款、股票账户、房贷等"
+                  data-testid="sub-type-input"
+                />
+              </div>
+              <div>
+                <Label htmlFor="baseCurrency">账户币种</Label>
+                <Select value={baseCurrency} onValueChange={setBaseCurrency}>
+                  <SelectTrigger data-testid="currency-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CNY">人民币 (CNY)</SelectItem>
+                    <SelectItem value="USD">美元 (USD)</SelectItem>
+                    <SelectItem value="HKD">港币 (HKD)</SelectItem>
+                    <SelectItem value="EUR">欧元 (EUR)</SelectItem>
+                    <SelectItem value="JPY">日元 (JPY)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="initialBalance">初始资金</Label>
+                <Input
+                  id="initialBalance"
+                  type="number"
+                  value={initialBalance}
+                  onChange={(e) => setInitialBalance(Number(e.target.value))}
+                  placeholder="请输入初始资金"
+                  data-testid="initial-balance-input"
+                />
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className="mt-4">
+              <Label htmlFor="description">描述（可选）</Label>
+              <Textarea
+                id="description"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                placeholder="账户描述信息"
+                rows={2}
+                data-testid="description-input"
+              />
+            </div>
+            <div className="mt-4 flex gap-2">
+              <Button
+                onClick={createAccount}
+                disabled={submitting}
+                data-testid="create-account-submit"
+              >
+                {submitting ? "创建中..." : "创建账户"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCreateForm(false);
+                  setError("");
+                  setSuccess("");
+                }}
+              >
+                取消
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 现有账户列表 */}
       {Object.entries(accountsByType).map(([type, typeAccounts]) => (

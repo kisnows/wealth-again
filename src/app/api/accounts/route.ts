@@ -89,11 +89,27 @@ async function getAccounts({ userId, req }: ApiContext) {
             snapshots: true,
           },
         },
+        snapshots: {
+          orderBy: { asOf: "desc" },
+          take: 1, // 只获取最新的估值快照
+        },
       },
     }),
   ]);
 
-  return buildPaginatedResponse(accounts, total, page, pageSize);
+  // 为每个账户添加当前市值信息
+  const enrichedAccounts = accounts.map((account) => {
+    const latestSnapshot = account.snapshots[0];
+    const currentValue = latestSnapshot ? Number(latestSnapshot.totalValue) : null;
+
+    return {
+      ...account,
+      currentValue,
+      snapshots: undefined, // 不返回快照数据到前端
+    };
+  });
+
+  return buildPaginatedResponse(enrichedAccounts, total, page, pageSize);
 }
 
 async function deleteAccount({ userId }: ApiContext, id: string) {

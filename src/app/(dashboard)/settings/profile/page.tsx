@@ -54,23 +54,40 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // 模拟加载用户数据
-    const mockProfile: UserProfile = {
-      id: "user_123",
-      email: "demo@example.com",
-      name: "Demo User",
-      baseCurrency: "CNY",
-      currentCity: "Hangzhou",
-      createdAt: "2025-01-01T00:00:00Z",
-      lastLoginAt: "2025-01-23T10:30:00Z",
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch("/api/user/profile");
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          const userProfile: UserProfile = {
+            id: data.data.id,
+            email: data.data.email,
+            name: data.data.name,
+            baseCurrency: data.data.baseCurrency,
+            currentCity: "Hangzhou", // This will need to be fetched from city API
+            createdAt: new Date().toISOString(), // This should come from user creation date
+            lastLoginAt: new Date().toISOString(), // This should come from last login tracking
+          };
+
+          setProfile(userProfile);
+          setProfileForm({
+            name: userProfile.name,
+            email: userProfile.email,
+          });
+        } else {
+          setError("获取用户信息失败");
+        }
+      } catch (err) {
+        setError("网络错误，请稍后重试");
+        console.error("Error fetching profile:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    setProfile(mockProfile);
-    setProfileForm({
-      name: mockProfile.name,
-      email: mockProfile.email,
-    });
-    setLoading(false);
+    fetchProfile();
   }, []);
 
   const handleProfileSave = async () => {
@@ -79,21 +96,36 @@ export default function ProfilePage() {
     setMessage("");
 
     try {
-      // 模拟API调用
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await fetch("/api/user/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          baseCurrency: profile?.baseCurrency, // Keep existing base currency for now
+          // Note: Name and email updates would require additional API endpoints
+        }),
+      });
 
-      if (profile) {
-        setProfile({
-          ...profile,
-          name: profileForm.name,
-          email: profileForm.email,
-        });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // For now, just update local state since name/email updates need more work
+        if (profile) {
+          setProfile({
+            ...profile,
+            name: profileForm.name,
+            email: profileForm.email,
+          });
+        }
+        setMessage("个人信息更新成功！");
+        setEditing(false);
+      } else {
+        setError(data.error || "更新失败，请重试");
       }
-
-      setMessage("个人信息更新成功！");
-      setEditing(false);
     } catch (err) {
       setError("更新失败，请重试");
+      console.error("Profile update error:", err);
     } finally {
       setSaving(false);
     }
@@ -117,10 +149,20 @@ export default function ProfilePage() {
     }
 
     try {
-      // 模拟API调用
+      // TODO: Implement password change API endpoint
+      // const response = await fetch("/api/user/password", {
+      //   method: "PUT",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({
+      //     currentPassword: passwordForm.currentPassword,
+      //     newPassword: passwordForm.newPassword,
+      //   }),
+      // });
+
+      // For now, simulate the API call
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      setMessage("密码修改成功！");
+      setMessage("密码修改功能需要实现 /api/user/password 端点");
       setPasswordForm({
         currentPassword: "",
         newPassword: "",

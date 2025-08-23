@@ -1,92 +1,202 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { calculateAccountPerformance } from "@/lib/performance";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { normalizeTaxParamsValue, TaxConfigRepository, TaxService } from "@/lib/tax";
 
 export async function GET(req: NextRequest) {
   try {
     const userId = await getCurrentUser(req);
     const { searchParams } = new URL(req.url);
     const year = Number(searchParams.get("year")) || new Date().getFullYear();
+    const city = searchParams.get("city") || "Hangzhou";
 
-    // 获取收入数据
+    // ==================== 收入数据计算 ====================
+    // 使用与收入汇总API相同的逻辑来获取准确的收入数据
     const incomeRecords = await prisma.incomeRecord.findMany({
       where: { userId, year },
-      orderBy: [{ month: "asc" }],
+      orderBy: { month: "asc" },
     });
 
-    // 计算收入统计数据
-    const annualIncome = incomeRecords.reduce((sum, record) => sum + Number(record.gross || 0), 0);
-    const annualBonus = incomeRecords.reduce((sum, record) => sum + Number(record.bonus || 0), 0);
-    const annualTax = incomeRecords.reduce((sum, record) => sum + Number(record.incomeTax || 0), 0);
-    const annualNetIncome = incomeRecords.reduce(
-      (sum, record) => sum + Number(record.netIncome || 0),
-      0,
-    );
+    let incomeData = {
+      monthlyIncome: 0,
+      annualIncome: 0,
+      annualTax: 0,
+      annualNetIncome: 0,
+    };
 
-    // 获取本月收入 (注意：数据库中的月份是1-12，JavaScript的月份是0-11)
-    const currentDate = new Date();
-    const currentMonthRecord = incomeRecords.find(
-      (record) =>
-        record.year === currentDate.getFullYear() && record.month === currentDate.getMonth() + 1,
-    );
-    const monthlyIncome = currentMonthRecord ? Number(currentMonthRecord.gross || 0) : 0;
+    if (incomeRecords.length > 0) {
+      // 获取税务参数
+      const cfg = await prisma.config.findFirst({
+        where: { key: `tax:${city}:${year}` },
+        orderBy: { effectiveFrom: "desc" },
+      });
 
-    // 获取投资账户数据
+      if (cfg) {
+        try {
+          const params = normalizeTaxParamsValue(cfg.value as string);
+
+          // 使用税务服务计算准确的收入数据
+          const svc = new TaxService(new TaxConfigRepository(prisma));
+          const months = incomeRecords.map((record: any) => ({
+            year: record.year,
+            month: record.month,
+            gross: Number(record.gross),
+            bonus: record.bonus ? Number(record.bonus) : 0,
+          }));
+
+          const results = await svc.calculateForecastWithholdingCumulative({
+            userId,
+            months,
+          });
+
+          // 计算年度汇总
+          let totalGross = 0;
+          let totalBonus = 0;
+          let totalTax = 0;
+          let totalNet = 0;
+
+          results.forEach((result, index) => {
+            const record = incomeRecords[index];
+            totalGross += Number(record.gross);
+            totalBonus += record.bonus ? Number(record.bonus) : 0;
+            totalTax += result.taxThisMonth;
+            totalNet += result.net;
+          });
+
+          // 获取本月收入
+          const currentDate = new Date();
+          const currentMonthRecord = incomeRecords.find(
+            (record) =>
+              record.year === currentDate.getFullYear() &&
+              record.month === currentDate.getMonth() + 1,
+          );
+          const monthlyIncome = currentMonthRecord ? Number(currentMonthRecord.gross || 0) : 0;
+
+          incomeData = {
+            monthlyIncome,
+            annualIncome: totalGross + totalBonus,
+            annualTax: totalTax,
+            annualNetIncome: totalNet,
+          };
+        } catch (err) {
+          // 如果税务计算失败，使用简化计算
+          console.error("Tax calculation error:", err);
+          const totalGross = incomeRecords.reduce(
+            (sum, record) => sum + Number(record.gross || 0),
+            0,
+          );
+          const totalBonus = incomeRecords.reduce(
+            (sum, record) => sum + Number(record.bonus || 0),
+            0,
+          );
+          const totalTax = incomeRecords.reduce(
+            (sum, record) => sum + Number(record.incomeTax || 0),
+            0,
+          );
+          const totalNet = incomeRecords.reduce(
+            (sum, record) => sum + Number(record.netIncome || 0),
+            0,
+          );
+
+          const currentDate = new Date();
+          const currentMonthRecord = incomeRecords.find(
+            (record) =>
+              record.year === currentDate.getFullYear() &&
+              record.month === currentDate.getMonth() + 1,
+          );
+          const monthlyIncome = currentMonthRecord ? Number(currentMonthRecord.gross || 0) : 0;
+
+          incomeData = {
+            monthlyIncome,
+            annualIncome: totalGross + totalBonus,
+            annualTax: totalTax,
+            annualNetIncome: totalNet,
+          };
+        }
+      } else {
+        // 没有税务配置时的简化计算
+        const totalGross = incomeRecords.reduce(
+          (sum, record) => sum + Number(record.gross || 0),
+          0,
+        );
+        const totalBonus = incomeRecords.reduce(
+          (sum, record) => sum + Number(record.bonus || 0),
+          0,
+        );
+
+        const currentDate = new Date();
+        const currentMonthRecord = incomeRecords.find(
+          (record) =>
+            record.year === currentDate.getFullYear() &&
+            record.month === currentDate.getMonth() + 1,
+        );
+        const monthlyIncome = currentMonthRecord ? Number(currentMonthRecord.gross || 0) : 0;
+
+        incomeData = {
+          monthlyIncome,
+          annualIncome: totalGross + totalBonus,
+          annualTax: 0,
+          annualNetIncome: totalGross + totalBonus, // 假设没有税收
+        };
+      }
+    }
+
+    // ==================== 投资数据计算 ====================
+    // 使用与账户API相同的逻辑来获取投资数据
     const accounts = await prisma.account.findMany({
-      where: { userId },
+      where: { userId, status: "ACTIVE" },
       include: {
         snapshots: {
-          orderBy: [{ asOf: "desc" }],
-          take: 1,
+          orderBy: { asOf: "desc" },
+          take: 2, // 获取最新两个快照来计算变化
         },
       },
     });
 
-    // 计算投资统计数据
     let totalInvestmentValue = 0;
     let monthlyPnl = 0;
 
-    // 计算每个账户的收益
     for (const account of accounts) {
-      // 使用改进的投资绩效计算方法
-      const performance = await calculateAccountPerformance(prisma, account.id);
-
-      // 累加总投资价值
-      totalInvestmentValue += performance.currentValue;
-
-      // 计算本月盈亏（简化计算，实际应该更复杂）
       const latestSnapshot = account.snapshots[0];
+      const previousSnapshot = account.snapshots[1];
+
       if (latestSnapshot) {
-        // 这里简化处理，实际应该比较月初和月末的差异
-        monthlyPnl += performance.profit;
+        const currentValue = Number(latestSnapshot.totalValue);
+        totalInvestmentValue += currentValue;
+
+        // 计算相对于上个快照的变化作为近期盈亏
+        if (previousSnapshot) {
+          const previousValue = Number(previousSnapshot.totalValue);
+          monthlyPnl += currentValue - previousValue;
+        }
       }
     }
 
-    // 计算年度收益率 (简化计算，实际应该更复杂)
-    const annualReturn = totalInvestmentValue > 0 ? (monthlyPnl * 12) / totalInvestmentValue : 0;
+    // 计算年化收益率（基于近期变化的简化估算）
+    const annualReturn =
+      totalInvestmentValue > 0 && monthlyPnl !== 0 ? (monthlyPnl / totalInvestmentValue) * 100 : 0;
 
-    // 计算财务健康度指标
-    // 储蓄率 = 年度税后收入 / 年度税前收入
-    const totalGrossIncome = annualIncome + annualBonus;
-    const savingsRate = totalGrossIncome > 0 ? (annualNetIncome / totalGrossIncome) * 100 : 0;
+    // ==================== 财务健康度指标 ====================
+    const savingsRate =
+      incomeData.annualIncome > 0
+        ? (incomeData.annualNetIncome / incomeData.annualIncome) * 100
+        : 0;
 
-    // 投资资产占比 (这里简化为投资总额占总资产的比例)
-    const totalAssets = totalGrossIncome + totalInvestmentValue;
+    const totalAssets = incomeData.annualIncome + totalInvestmentValue;
     const investmentRatio = totalAssets > 0 ? (totalInvestmentValue / totalAssets) * 100 : 0;
 
     const result = {
       income: {
-        monthlyIncome,
-        annualIncome: totalGrossIncome,
-        annualTax,
-        annualNetIncome,
+        monthlyIncome: incomeData.monthlyIncome,
+        annualIncome: incomeData.annualIncome,
+        annualTax: incomeData.annualTax,
+        annualNetIncome: incomeData.annualNetIncome,
       },
       investment: {
         totalValue: totalInvestmentValue,
-        todayPnl: 0, // 简化处理，实际应该计算当日盈亏
-        monthlyPnl,
-        annualReturn,
+        todayPnl: 0, // 需要更复杂的逻辑来计算当日盈亏
+        monthlyPnl: monthlyPnl,
+        annualReturn: annualReturn,
       },
       financialHealth: {
         savingsRate,

@@ -89,85 +89,6 @@ export default function IncomePage() {
         {/* ==================== 消息提示区域 ==================== */}
         <MessagesContainer error={error} onClearError={() => setError("")} />
 
-        {/* ==================== 快速统计概览 ==================== */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="wealth-card bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-600 mb-1">总工资收入</p>
-                  <CurrencyDisplay
-                    amount={totals.totalSalary}
-                    userBaseCurrency={baseCurrency}
-                    className="text-2xl font-bold text-blue-700"
-                    data-testid="total-salary-amount"
-                  />
-                </div>
-                <div className="p-3 bg-blue-200 rounded-xl">
-                  <DollarSign className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="wealth-card bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-amber-600 mb-1">奖金收入</p>
-                  <CurrencyDisplay
-                    amount={totals.totalBonus}
-                    userBaseCurrency={baseCurrency}
-                    className="text-2xl font-bold text-amber-700"
-                    data-testid="total-bonus-amount"
-                  />
-                </div>
-                <div className="p-3 bg-amber-200 rounded-xl">
-                  <TrendingUp className="w-6 h-6 text-amber-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="wealth-card bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-emerald-600 mb-1">长期现金</p>
-                  <CurrencyDisplay
-                    amount={totals.totalLongTermCash}
-                    userBaseCurrency={baseCurrency}
-                    className="text-2xl font-bold text-emerald-700"
-                    data-testid="total-long-term-cash-amount"
-                  />
-                </div>
-                <div className="p-3 bg-emerald-200 rounded-xl">
-                  <Wallet className="w-6 h-6 text-emerald-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="wealth-card bg-gradient-to-br from-violet-50 to-violet-100 border-violet-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-violet-600 mb-1">预计税后收入</p>
-                  <CurrencyDisplay
-                    amount={totals.totalNet}
-                    userBaseCurrency={baseCurrency}
-                    className="text-2xl font-bold text-violet-700"
-                    data-testid="total-net-amount"
-                  />
-                </div>
-                <div className="p-3 bg-violet-200 rounded-xl">
-                  <PieChart className="w-6 h-6 text-violet-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* ==================== 系统配置区域 ==================== */}
         <Card className="wealth-card">
           <CardHeader className="wealth-card-header">
@@ -241,6 +162,85 @@ export default function IncomePage() {
             <p className="text-sm text-slate-600">基于历史数据和政策变动，预测未来收入趋势</p>
           </CardHeader>
           <CardContent className="wealth-card-content">
+            {/* ==================== 快速统计概览 ==================== */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Card className="wealth-card bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-600 mb-1">总工资收入</p>
+                      <CurrencyDisplay
+                        amount={totals.totalSalary}
+                        userBaseCurrency={baseCurrency}
+                        className="text-2xl font-bold text-blue-700"
+                        data-testid="total-salary-amount"
+                      />
+                    </div>
+                    <div className="p-3 bg-blue-200 rounded-xl">
+                      <DollarSign className="w-6 h-6 text-blue-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="wealth-card bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-amber-600 mb-1">奖金收入</p>
+                      <CurrencyDisplay
+                        amount={totals.totalBonus}
+                        userBaseCurrency={baseCurrency}
+                        className="text-2xl font-bold text-amber-700"
+                        data-testid="total-bonus-amount"
+                      />
+                    </div>
+                    <div className="p-3 bg-amber-200 rounded-xl">
+                      <TrendingUp className="w-6 h-6 text-amber-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="wealth-card bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-emerald-600 mb-1">长期现金</p>
+                      <CurrencyDisplay
+                        amount={totals.totalLongTermCash}
+                        userBaseCurrency={baseCurrency}
+                        className="text-2xl font-bold text-emerald-700"
+                        data-testid="total-long-term-cash-amount"
+                      />
+                    </div>
+                    <div className="p-3 bg-emerald-200 rounded-xl">
+                      <Wallet className="w-6 h-6 text-emerald-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="wealth-card bg-gradient-to-br from-violet-50 to-violet-100 border-violet-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-violet-600 mb-1">预计税后收入</p>
+                      <CurrencyDisplay
+                        amount={totals.totalNet}
+                        userBaseCurrency={baseCurrency}
+                        className="text-2xl font-bold text-violet-700"
+                        data-testid="total-net-amount"
+                      />
+                    </div>
+                    <div className="p-3 bg-violet-200 rounded-xl">
+                      <PieChart className="w-6 h-6 text-violet-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* ==================== 预测时间范围选择器 ==================== */}
             <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-slate-50 rounded-xl">
               <div className="flex items-center gap-2">
@@ -264,7 +264,49 @@ export default function IncomePage() {
                 />
               </div>
 
-              <div className="flex gap-2">
+              {/* 快捷时间选择 */}
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const year = new Date().getFullYear() - 1;
+                    setDateRange({ start: `${year}-01`, end: `${year}-12` });
+                  }}
+                  className="wealth-button-secondary"
+                >
+                  去年
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const year = new Date().getFullYear() - 2;
+                    setDateRange({
+                      start: `${year}-01`,
+                      end: `${new Date().getFullYear() - 1}-12`,
+                    });
+                  }}
+                  className="wealth-button-secondary"
+                >
+                  去两年
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = now.getMonth() + 1;
+                    setDateRange({
+                      start: `${year}-01`,
+                      end: `${year}-${String(month).padStart(2, "0")}`,
+                    });
+                  }}
+                  className="wealth-button-secondary"
+                >
+                  今年（截至目前）
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -274,7 +316,7 @@ export default function IncomePage() {
                   }}
                   className="wealth-button-secondary"
                 >
-                  今年
+                  今年（整年）
                 </Button>
                 <Button
                   size="sm"
@@ -286,6 +328,17 @@ export default function IncomePage() {
                   className="wealth-button-secondary"
                 >
                   未来两年
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const year = new Date().getFullYear();
+                    setDateRange({ start: `${year + 1}-01`, end: `${year + 3}-12` });
+                  }}
+                  className="wealth-button-secondary"
+                >
+                  未来三年
                 </Button>
               </div>
             </div>

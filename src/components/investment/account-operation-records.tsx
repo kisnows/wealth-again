@@ -89,12 +89,14 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
       // 并行获取快照和交易记录
       const [snapshotsResponse, transactionsResponse] = await Promise.all([
         fetch(`/api/accounts/${accountId}/snapshots?page=${page}&pageSize=${pagination.pageSize}`),
-        fetch(`/api/transactions?accountId=${accountId}&page=${page}&pageSize=${pagination.pageSize}`)
+        fetch(
+          `/api/transactions?accountId=${accountId}&page=${page}&pageSize=${pagination.pageSize}`,
+        ),
       ]);
 
       const [snapshotsData, transactionsData] = await Promise.all([
         snapshotsResponse.json(),
-        transactionsResponse.json()
+        transactionsResponse.json(),
       ]);
 
       if (snapshotsData.success && transactionsData.success) {
@@ -132,7 +134,7 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
         allRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         // 应用筛选器
-        const filteredRecords = allRecords.filter(record => {
+        const filteredRecords = allRecords.filter((record) => {
           if (filters.type && filters.type !== "all" && record.type !== filters.type) return false;
           if (filters.startDate && record.date < filters.startDate) return false;
           if (filters.endDate && record.date > filters.endDate) return false;
@@ -208,51 +210,58 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
     <Card data-testid="account-operation-records">
       <CardHeader>
         <CardTitle>账户操作记录</CardTitle>
-        
+
         {/* 筛选器 */}
         <div className="flex flex-wrap gap-4 mt-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="type-filter">操作类型</Label>
-            <Select value={filters.type || "all"} onValueChange={(value) => setFilters(prev => ({ ...prev, type: value === "all" ? "" : value }))}>
+            <Select
+              value={filters.type || "all"}
+              onValueChange={(value) =>
+                setFilters((prev) => ({ ...prev, type: value === "all" ? "" : value }))
+              }
+            >
               <SelectTrigger className="w-32" data-testid="type-filter">
                 <SelectValue placeholder="全部类型" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部类型</SelectItem>
                 {Object.entries(OPERATION_TYPE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                  <SelectItem key={key} value={key}>
+                    {label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="start-date-filter">开始日期</Label>
             <Input
               id="start-date-filter"
               type="date"
               value={filters.startDate}
-              onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+              onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
               className="w-40"
               data-testid="start-date-filter"
             />
           </div>
-          
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="end-date-filter">结束日期</Label>
             <Input
               id="end-date-filter"
               type="date"
               value={filters.endDate}
-              onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+              onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
               className="w-40"
               data-testid="end-date-filter"
             />
           </div>
-          
+
           <div className="flex flex-col gap-2 justify-end">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setFilters({ type: "", startDate: "", endDate: "" })}
               data-testid="clear-filters-button"
             >
@@ -261,7 +270,7 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         {records.length === 0 ? (
           <p className="text-center text-gray-500 py-8">暂无操作记录</p>
@@ -284,13 +293,21 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
                     <tr key={record.id} className="border-b hover:bg-gray-50">
                       <td className="py-3">{new Date(record.date).toLocaleDateString()}</td>
                       <td className="py-3">
-                        <span className={`px-2 py-1 rounded text-sm ${OPERATION_TYPE_COLORS[record.type]}`}>
+                        <span
+                          className={`px-2 py-1 rounded text-sm ${OPERATION_TYPE_COLORS[record.type]}`}
+                        >
                           {OPERATION_TYPE_LABELS[record.type]}
                         </span>
                       </td>
                       <td className="py-3">{record.description}</td>
                       <td className="py-3 font-medium">
-                        <span className={record.type === "WITHDRAW" || record.type === "TRANSFER_OUT" ? "text-red-600" : "text-green-600"}>
+                        <span
+                          className={
+                            record.type === "WITHDRAW" || record.type === "TRANSFER_OUT"
+                              ? "text-red-600"
+                              : "text-green-600"
+                          }
+                        >
                           {record.type === "WITHDRAW" || record.type === "TRANSFER_OUT" ? "-" : "+"}
                           {formatCurrency(record.amount)}
                         </span>
@@ -318,7 +335,8 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
             {pagination.totalPages > 1 && (
               <div className="flex justify-between items-center mt-6">
                 <div className="text-sm text-gray-600">
-                  第 {pagination.page} 页，共 {pagination.totalPages} 页 | 总计 {pagination.total} 条记录
+                  第 {pagination.page} 页，共 {pagination.totalPages} 页 | 总计 {pagination.total}{" "}
+                  条记录
                 </div>
                 <div className="flex gap-2">
                   <Button

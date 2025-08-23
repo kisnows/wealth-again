@@ -35,8 +35,8 @@ export default function PerformanceChart() {
     try {
       const res = await fetch("/api/accounts");
       const data = await res.json();
-      if (data.accounts && data.accounts.length > 0) {
-        setAccountId(data.accounts[0].id);
+      if (data.success && data.data && data.data.length > 0) {
+        setAccountId(data.data[0].id);
       }
     } catch (error) {
       console.error("Error fetching accounts:", error);
@@ -55,23 +55,23 @@ export default function PerformanceChart() {
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/accounts/${accountId}/performance`);
-      const data = await res.json();
-
       // 获取估值快照数据用于图表
       const snapshotRes = await fetch(`/api/accounts/${accountId}/snapshots`);
       const snapshotData = await snapshotRes.json();
 
       // 格式化数据用于图表
-      const chartData =
-        snapshotData.snapshots?.map((snap: any) => ({
+      if (snapshotData.success && snapshotData.data) {
+        const chartData = snapshotData.data.map((snap: any) => ({
           date: new Date(snap.asOf).toLocaleDateString(),
           value: Number(snap.totalValue),
-        })) || [];
-
-      setPerformanceData(chartData);
+        }));
+        setPerformanceData(chartData);
+      } else {
+        setPerformanceData([]);
+      }
     } catch (error) {
       console.error("Error fetching performance data:", error);
+      setPerformanceData([]);
     } finally {
       setLoading(false);
     }

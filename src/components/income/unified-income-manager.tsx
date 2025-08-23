@@ -101,6 +101,7 @@ export function UnifiedIncomeManager({
   // ==================== 数据加载 ====================
   const loadRecords = async () => {
     setLoading(true);
+    setError("");
     try {
       // 并发加载三种类型的数据
       const [salariesRes, bonusesRes, longTermRes] = await Promise.all([
@@ -109,37 +110,65 @@ export function UnifiedIncomeManager({
         fetch("/api/income/long-term-cash?page=1&pageSize=50"),
       ]);
 
+      // 检查响应状态
+      if (!salariesRes.ok || !bonusesRes.ok || !longTermRes.ok) {
+        console.error("API responses:", {
+          salaries: salariesRes.status,
+          bonuses: bonusesRes.status,
+          longTerm: longTermRes.status,
+        });
+        throw new Error("API 请求失败");
+      }
+
       const [salariesData, bonusesData, longTermData] = await Promise.all([
         salariesRes.json(),
         bonusesRes.json(),
         longTermRes.json(),
       ]);
 
+      console.log("API data received:", {
+        salariesData,
+        bonusesData,
+        longTermData,
+      });
+
+      // 检查数据结构并安全地处理
+      const salaryRecords = (salariesData?.data || []).map((item: any) => ({
+        ...item,
+        type: "salary" as IncomeRecordType,
+        amount: item.grossMonthly || 0,
+        effectiveDate: item.effectiveFrom || new Date().toISOString(),
+        createdAt: item.createdAt || new Date().toISOString(),
+      }));
+
+      const bonusRecords = (bonusesData?.data || []).map((item: any) => ({
+        ...item,
+        type: "bonus" as IncomeRecordType,
+        amount: item.amount || 0,
+        effectiveDate: item.effectiveDate || new Date().toISOString(),
+        createdAt: item.createdAt || new Date().toISOString(),
+      }));
+
+      const longTermRecords = (longTermData?.data || []).map((item: any) => ({
+        ...item,
+        type: "long_term_cash" as IncomeRecordType,
+        amount: item.totalAmount || 0,
+        effectiveDate: item.effectiveDate || new Date().toISOString(),
+        createdAt: item.createdAt || new Date().toISOString(),
+      }));
+
       // 组合并标准化数据
       const combinedRecords: IncomeRecord[] = [
-        ...salariesData.data.map((item: any) => ({
-          ...item,
-          type: "salary" as IncomeRecordType,
-          amount: item.grossMonthly,
-          effectiveDate: item.effectiveFrom,
-        })),
-        ...bonusesData.data.map((item: any) => ({
-          ...item,
-          type: "bonus" as IncomeRecordType,
-          effectiveDate: item.effectiveDate,
-        })),
-        ...longTermData.data.map((item: any) => ({
-          ...item,
-          type: "long_term_cash" as IncomeRecordType,
-          amount: item.totalAmount,
-          effectiveDate: item.effectiveDate,
-        })),
+        ...salaryRecords,
+        ...bonusRecords,
+        ...longTermRecords,
       ];
 
+      console.log("Combined records:", combinedRecords);
       setRecords(combinedRecords);
     } catch (err) {
-      setError("加载数据失败");
       console.error("Load records error:", err);
+      setError(`加载数据失败: ${err instanceof Error ? err.message : "未知错误"}`);
     } finally {
       setLoading(false);
     }
@@ -424,10 +453,24 @@ export function UnifiedIncomeManager({
           </div>
         </CardHeader>
         <CardContent className="wealth-card-content">
-          {loading ? (
+          {error ? (
+            <div className="text-center py-8">
+              <div className="text-red-500 mb-2">{error}</div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={loadRecords}
+                className="wealth-button-secondary"
+              >
+                重新加载
+              </Button>
+            </div>
+          ) : loading ? (
             <div className="text-center py-8 text-slate-500">加载中...</div>
           ) : filteredRecords.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">暂无数据</div>
+            <div className="text-center py-8 text-slate-500">
+              {records.length === 0 ? "暂无数据" : "没有符合条件的记录"}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="wealth-table">

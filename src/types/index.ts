@@ -43,6 +43,7 @@ export interface Account extends BaseEntity {
   initialBalance: string;
   totalDeposits: string;
   totalWithdrawals: string;
+  currentValue?: number; // 添加当前市值字段
   status: AccountStatus;
   description?: string;
   _count?: {
