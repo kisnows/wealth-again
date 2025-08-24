@@ -198,10 +198,11 @@ model IncomeRecord {
   cityId              String?
   currency            String   @default("CNY")
 
-  // 来自工资/奖金/长期现金等的“毛收入”组成
+  // 来自工资/奖金/长期现金/股权激励的“毛收入”组成
   gross               Decimal              // 月薪（从 IncomeChange 推）
   bonus               Decimal? @default(0) // 一次性奖金（同月累加）
-  otherIncome         Decimal? @default(0) // 长期现金等合计（可扩展）
+  ltcIncome           Decimal? @default(0) // 长期现金
+  equityIncome        Decimal? @default(0) // 股权激励
 
   // 基数可覆盖
   socialInsuranceBase Decimal?
@@ -555,7 +556,8 @@ async function seed() {
         update: {
           gross,
           bonus,
-          otherIncome: ltc,
+          ltcIncome: ltc,
+          equityIncome: 0,
           cityId: hz.id,
           isForecast: y === 2025 && m > 6, // 示例：把 2025/07-08 标记为预测
         },
@@ -566,7 +568,8 @@ async function seed() {
           currency: "CNY",
           gross,
           bonus,
-          otherIncome: ltc,
+          ltcIncome: ltc,
+          equityIncome: 0,
           isForecast: y === 2025 && m > 6,
         },
       });

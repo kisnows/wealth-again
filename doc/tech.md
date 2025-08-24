@@ -37,7 +37,7 @@
 - `BonusPlan`：一次性奖金（`effectiveDate`）。
 - `LongTermCashPlan` + `LongTermCashPayout`：长期现金计划与发放日程（季度/期数）。
 - `EquityGrant` + `EquityVest`：股权激励授予与归属事件（年度/半年度；`fairValue` 可在归属日按行情回填）。
-- `IncomeRecord`：**月度收入快照**（工资、奖金、其他、社保、公积金、月度应税基、当月个税、累计已缴、税后）。
+- `IncomeRecord`：**月度收入快照**（工资、奖金、长期现金、股权激励、社保、公积金、月度应税基、当月个税、累计已缴、税后）。
 - `City`：城市词表。
 - `CityRuleSS`/`CityRuleHF`：城市社保/公积金规则（上下限与比例，时间区间）。
 - `TaxConfig`/`TaxBracket`：税制（国家 + 税年 + 速算扣除，阈值为**年化累计档**）。
@@ -458,7 +458,7 @@ export function useRecalcIncome() {
 ## 4.1 年度累计个税（中国综合所得）
 
 - 逐月：
-  `gross + bonus + otherIncome + ltc + equityFairValue - ss - hf - standardDeduction - special - others - charity >= 0 → monthlyTaxable`
+  `gross + bonus + ltcIncome + equityIncome + ltc + equityFairValue - ss - hf - standardDeduction - special - others - charity >= 0 → monthlyTaxable`
 - 累计到当月：`cumulativeTaxable = Σ monthlyTaxable(1..M)`
 - 映射 `TaxBracket(M 年)`：
   `cumulativeTax = cumulativeTaxable * rate - quickDeduction`
@@ -487,7 +487,7 @@ export function useRecalcIncome() {
 - **规则**：5 月前后社保上下限不同，月度计算结果两侧断点正确
 - **个税**：1–8 月累计后，5–8 月展示税率不会“从 3% 重新开始”
 - **长期现金**：16 期季度发放正确分布到 16 个不同月份
-- **RSU**：年度/半年度归属，归属月计入 `otherIncome`（或专列），回算正确
+- **RSU**：年度/半年度归属，归属月计入 `equityIncome`（或专列），回算正确
 - **报表**：净资产折算与趋势曲线端到端验证
 
 ## 5.2 迁移与演进
