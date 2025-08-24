@@ -65,22 +65,24 @@ export default function TaxManagementPage() {
   ];
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      {/* 页面头部 */}
-      <div className="flex justify-between items-center">
+    <div className="page-container">
+      <div className="page-header">
         <div>
-          <h1 className="text-3xl font-bold">税务管理</h1>
-          <p className="text-gray-600 mt-2">管理个人所得税、社保公积金等税务相关配置和计算</p>
+          <h1 className="page-title">税务管理</h1>
+          <p className="page-subtitle">管理个人所得税、社保公积金等税务相关配置和计算</p>
         </div>
         <div className="flex space-x-3">
           <Link href="/income">
-            <Button variant="outline">
+            <Button variant="outline" size="sm" className="back-button">
               <Calculator className="w-4 h-4 mr-2" />
               税务计算
             </Button>
           </Link>
           <Link href="/dashboard">
-            <Button variant="outline">返回仪表板</Button>
+            <Button variant="outline" size="sm" className="back-button">
+              <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
+              返回仪表板
+            </Button>
           </Link>
         </div>
       </div>
@@ -88,13 +90,13 @@ export default function TaxManagementPage() {
       {/* 税务概览统计 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {quickStats.map((stat, index) => (
-          <Card key={index}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">{stat.label}</CardTitle>
+          <Card key={index} className="app-card">
+            <CardHeader className="app-card-header pb-2">
+              <CardTitle className="text-sm font-medium text-secondary">{stat.label}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-gray-500 mt-1">{stat.subtitle}</p>
+            <CardContent className="app-card-content">
+              <div className="text-2xl font-bold text-primary">{stat.value}</div>
+              <p className="text-xs text-muted mt-1">{stat.subtitle}</p>
             </CardContent>
           </Card>
         ))}
@@ -102,16 +104,20 @@ export default function TaxManagementPage() {
 
       {/* 功能模块导航 */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">税务管理功能</h2>
+        <h2 className="section-title">税务管理功能</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {taxModules.map((module) => {
             const IconComponent = module.icon;
+            const cardClass = module.href.includes('config') ? 'feature-card-blue' :
+              module.href.includes('rates') ? 'feature-card-green' :
+              module.href.includes('social') ? 'feature-card-purple' : 'feature-card-orange';
+            
             return (
               <Link key={module.href} href={module.href}>
-                <Card className={`cursor-pointer transition-colors ${module.bgColor}`}>
-                  <CardHeader className="pb-3">
+                <Card className={`feature-card ${cardClass}`}>
+                  <CardHeader className="app-card-header pb-3">
                     <div className="flex items-center space-x-3">
-                      <div className={`p-2 rounded-lg bg-white`}>
+                      <div className="p-2 rounded-lg bg-white">
                         <IconComponent className={`w-6 h-6 ${module.color}`} />
                       </div>
                       <div className="flex-1">
@@ -120,8 +126,8 @@ export default function TaxManagementPage() {
                       <ArrowRight className="w-4 h-4 text-gray-400" />
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">{module.description}</p>
+                  <CardContent className="app-card-content">
+                    <p className="text-sm text-secondary">{module.description}</p>
                   </CardContent>
                 </Card>
               </Link>
@@ -131,31 +137,31 @@ export default function TaxManagementPage() {
       </div>
 
       {/* 最近政策更新 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+      <Card className="app-card">
+        <CardHeader className="app-card-header">
+          <CardTitle className="app-card-title flex items-center space-x-2">
             <FileText className="w-5 h-5" />
             <span>政策更新提醒</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="app-card-content">
           <div className="space-y-3">
-            <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
+            <div className="flex items-start space-x-3 p-3 status-info rounded-lg">
               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
               <div className="flex-1">
-                <p className="text-sm font-medium">2025年个人所得税政策更新</p>
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-sm font-medium text-primary">2025年个人所得税政策更新</p>
+                <p className="text-xs text-secondary mt-1">
                   税率表和专项附加扣除标准已更新，请及时调整配置参数
                 </p>
                 <p className="text-xs text-blue-600 mt-2">生效日期: 2025-01-01</p>
               </div>
             </div>
 
-            <div className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
+            <div className="flex items-start space-x-3 p-3 status-warning rounded-lg">
               <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
               <div className="flex-1">
-                <p className="text-sm font-medium">杭州社保缴费基数调整</p>
-                <p className="text-xs text-gray-600 mt-1">2025年杭州市社保缴费基数上下限已调整</p>
+                <p className="text-sm font-medium text-primary">杭州社保缴费基数调整</p>
+                <p className="text-xs text-secondary mt-1">2025年杭州市社保缴费基数上下限已调整</p>
                 <p className="text-xs text-yellow-600 mt-2">生效日期: 2025-07-01</p>
               </div>
             </div>
@@ -172,25 +178,25 @@ export default function TaxManagementPage() {
       </Card>
 
       {/* 使用帮助 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>使用说明</CardTitle>
+      <Card className="app-card">
+        <CardHeader className="app-card-header">
+          <CardTitle className="app-card-title">使用说明</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-gray-600">
+        <CardContent className="app-card-content space-y-3 text-sm text-secondary">
           <div>
-            <strong>基础配置：</strong>
+            <strong className="text-primary">基础配置：</strong>
             管理税务计算所需的基础参数，包括专项附加扣除、起征点等全国统一政策参数。
           </div>
           <div>
-            <strong>税率管理：</strong>
+            <strong className="text-primary">税率管理：</strong>
             查看和管理个人所得税七级累进税率表，支持历史版本查询和未来政策录入。
           </div>
           <div>
-            <strong>社保公积金：</strong>
+            <strong className="text-primary">社保公积金：</strong>
             按城市管理社保和公积金的缴费基数、缴费比例等参数，支持时间版本管理。
           </div>
           <div>
-            <strong>税务计算：</strong>
+            <strong className="text-primary">税务计算：</strong>
             在收入管理页面可以实时计算个人所得税、社保、公积金等费用。
           </div>
         </CardContent>

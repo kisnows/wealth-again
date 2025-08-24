@@ -42,24 +42,24 @@ const RECORD_TYPE_CONFIG = {
     label: "工资变更",
     icon: DollarSign,
     color: "blue",
-    bgClass: "bg-income-salary",
-    textClass: "text-income-salary",
+    bgClass: "bg-blue-100",
+    textClass: "text-blue-800",
     endpoint: "/api/income/changes",
   },
   bonus: {
     label: "奖金计划",
     icon: Award,
     color: "amber",
-    bgClass: "bg-income-bonus",
-    textClass: "text-income-bonus",
+    bgClass: "bg-amber-100",
+    textClass: "text-amber-800",
     endpoint: "/api/income/bonus",
   },
   long_term_cash: {
     label: "长期现金",
     icon: TrendingUp,
     color: "emerald",
-    bgClass: "bg-income-investment",
-    textClass: "text-income-investment",
+    bgClass: "bg-green-100",
+    textClass: "text-green-800",
     endpoint: "/api/income/long-term-cash",
   },
 } as const;
@@ -305,22 +305,22 @@ export function UnifiedIncomeManager({
     <div className="space-y-6">
       {/* 错误提示 */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg">
           {error}
-          <button onClick={() => setError("")} className="ml-2 text-red-500 hover:text-red-700">
+          <button onClick={() => setError("")} className="ml-2 text-destructive hover:text-destructive/80">
             ×
           </button>
         </div>
       )}
 
-      <Card className="wealth-card">
-        <CardHeader className="wealth-card-header">
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-blue-600" />
+      <Card className="bg-card border-border">
+        <CardHeader className="border-b border-border">
+          <CardTitle className="flex items-center gap-2 text-card-foreground">
+            <Plus className="w-5 h-5 text-primary" />
             {editingRecord ? "编辑收入记录" : "添加收入记录"}
           </CardTitle>
         </CardHeader>
-        <CardContent className="wealth-card-content">
+        <CardContent className="pt-6">
           <Tabs
             value={formData.type}
             onValueChange={(value) =>
@@ -344,7 +344,7 @@ export function UnifiedIncomeManager({
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor="amount">
+                      <Label htmlFor="amount" className="text-foreground">
                         {key === "salary" ? "月薪" : key === "bonus" ? "奖金金额" : "总金额"}
                       </Label>
                       <Input
@@ -355,13 +355,13 @@ export function UnifiedIncomeManager({
                         onChange={(e) =>
                           setFormData((prev) => ({ ...prev, amount: e.target.value }))
                         }
-                        className="wealth-input"
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
                         required
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="currency">货币</Label>
+                      <Label htmlFor="currency" className="text-foreground">货币</Label>
                       <CurrencySelect
                         value={formData.currency}
                         onChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
@@ -370,7 +370,7 @@ export function UnifiedIncomeManager({
                     </div>
 
                     <div>
-                      <Label htmlFor="effectiveDate">生效日期</Label>
+                      <Label htmlFor="effectiveDate" className="text-foreground">生效日期</Label>
                       <Input
                         id="effectiveDate"
                         type="date"
@@ -378,14 +378,14 @@ export function UnifiedIncomeManager({
                         onChange={(e) =>
                           setFormData((prev) => ({ ...prev, effectiveDate: e.target.value }))
                         }
-                        className="wealth-input"
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
                         required
                       />
                     </div>
                   </div>
 
                   <div className="flex gap-3">
-                    <Button type="submit" disabled={submitting} className="wealth-button-primary">
+                    <Button type="submit" disabled={submitting} className="bg-primary text-primary-foreground hover:bg-primary/90">
                       {submitting ? "提交中..." : editingRecord ? "更新记录" : "添加记录"}
                     </Button>
                     {editingRecord && (
@@ -393,7 +393,7 @@ export function UnifiedIncomeManager({
                         type="button"
                         onClick={resetForm}
                         variant="outline"
-                        className="wealth-button-secondary"
+                        className="border-border bg-background text-foreground hover:bg-accent"
                       >
                         取消编辑
                       </Button>
@@ -407,11 +407,11 @@ export function UnifiedIncomeManager({
       </Card>
 
       {/* 记录列表 */}
-      <Card className="wealth-card">
-        <CardHeader className="wealth-card-header">
+      <Card className="bg-card border-border">
+        <CardHeader className="border-b border-border">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-slate-600" />
+            <CardTitle className="flex items-center gap-2 text-card-foreground">
+              <Filter className="w-5 h-5 text-muted-foreground" />
               收入记录管理
             </CardTitle>
 
@@ -452,35 +452,35 @@ export function UnifiedIncomeManager({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="wealth-card-content">
+        <CardContent className="pt-6">
           {error ? (
             <div className="text-center py-8">
-              <div className="text-red-500 mb-2">{error}</div>
+              <div className="text-destructive mb-2">{error}</div>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={loadRecords}
-                className="wealth-button-secondary"
+                className="border-border bg-background text-foreground hover:bg-accent"
               >
                 重新加载
               </Button>
             </div>
           ) : loading ? (
-            <div className="text-center py-8 text-slate-500">加载中...</div>
+            <div className="text-center py-8 text-muted-foreground">加载中...</div>
           ) : filteredRecords.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">
+            <div className="text-center py-8 text-muted-foreground">
               {records.length === 0 ? "暂无数据" : "没有符合条件的记录"}
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="wealth-table">
+              <table className="w-full border-collapse">
                 <thead>
-                  <tr>
-                    <th>类型</th>
-                    <th>金额</th>
-                    <th>生效日期</th>
-                    <th>创建时间</th>
-                    <th>操作</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 font-medium text-foreground">类型</th>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">金额</th>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">生效日期</th>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">创建时间</th>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -489,27 +489,25 @@ export function UnifiedIncomeManager({
                     const Icon = config.icon;
 
                     return (
-                      <tr key={`${record.type}-${record.id}`}>
-                        <td>
-                          <span
-                            className={`wealth-badge wealth-badge-${config.color} inline-flex items-center gap-1`}
-                          >
+                      <tr key={`${record.type}-${record.id}`} className="border-b border-border hover:bg-muted/50">
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.bgClass} ${config.textClass}`}>
                             <Icon className="w-3 h-3" />
                             {config.label}
                           </span>
                         </td>
-                        <td>
+                        <td className="py-3 px-4">
                           <CurrencyDisplay
                             amount={record.amount}
                             fromCurrency={record.currency}
                             userBaseCurrency={userBaseCurrency}
-                            className="font-semibold"
+                            className="font-semibold text-foreground"
                             data-testid={`record-amount-${record.id}`}
                           />
                         </td>
-                        <td>{new Date(record.effectiveDate).toLocaleDateString()}</td>
-                        <td>{new Date(record.createdAt).toLocaleDateString()}</td>
-                        <td>
+                        <td className="py-3 px-4 text-foreground">{new Date(record.effectiveDate).toLocaleDateString()}</td>
+                        <td className="py-3 px-4 text-foreground">{new Date(record.createdAt).toLocaleDateString()}</td>
+                        <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             <Button
                               size="sm"
