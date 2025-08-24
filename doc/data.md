@@ -49,12 +49,13 @@ model User {
   id           String           @id @default(uuid())
   email        String           @unique
   password     String
-  name         String?
-  baseCurrency String           @default("CNY")
-  currentCity  String           @default("Hangzhou")
-  isActive     Boolean          @default(true)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  name          String?
+  baseCurrency  String           @default("CNY")
+  currentCityId String
+  currentCity   City             @relation(fields: [currentCityId], references: [id])
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   incomes       IncomeRecord[]
   incomeChanges IncomeChange[]
@@ -63,6 +64,7 @@ model User {
 
   @@index([email])
   @@index([isActive])
+  @@index([currentCityId])
 }
 
 /* ==== 城市 & 规则 ==== */
@@ -309,6 +311,12 @@ async function upsertTax(country: string, year: number) {
 
 async function seed() {
   // 0) demo 用户 + 城市
+  const hz = await prisma.city.upsert({
+    where: { name: "Hangzhou" },
+    update: {},
+    create: { name: "Hangzhou", country: "CN" },
+  });
+
   const user = await prisma.user.upsert({
     where: { email: "demo@example.com" },
     update: {},
@@ -317,14 +325,8 @@ async function seed() {
       password: "hashed",
       name: "Demo",
       baseCurrency: "CNY",
-      currentCity: "Hangzhou",
+      currentCityId: hz.id,
     },
-  });
-
-  const hz = await prisma.city.upsert({
-    where: { name: "Hangzhou" },
-    update: {},
-    create: { name: "Hangzhou", country: "CN" },
   });
 
   // 1) 城市规则：社保（ZJ 口径，杭州适用）
