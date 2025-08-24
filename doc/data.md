@@ -156,12 +156,14 @@ model BonusPlan {
   userId        String
   amount        Decimal
   currency      String   @default("CNY")
+  taxMethod     String   @default("MERGE") // MERGE: 并入工资综合计税; SEPARATE: 单独计税
   effectiveDate DateTime
   createdAt     DateTime @default(now())
 
   user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId, effectiveDate])
+  @@check(taxMethod IN ("MERGE", "SEPARATE"))
 }
 
 model LongTermCashPlan {

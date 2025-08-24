@@ -193,6 +193,7 @@
 #### 奖金计划（一次性）
 
 - `POST /income/bonus-plans`
+  - `taxMethod`: `MERGE`（并入工资综合计税）或 `SEPARATE`（单独计税），默认 `MERGE`
 
   ```json
   {
