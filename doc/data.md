@@ -185,6 +185,7 @@ model LongTermCashPayout {
   planId    String
   payDate   DateTime
   amount    Decimal
+  currency  String   @default("CNY") // 生成时写入 plan.currency，避免计划币种变更影响已生成记录
   createdAt DateTime @default(now())
 
   plan      LongTermCashPlan @relation(fields: [planId], references: [id])
