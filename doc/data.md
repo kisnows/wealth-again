@@ -200,6 +200,8 @@ model IncomeRecord {
   monthDate           DateTime // 当月第一天
   cityId              String?
   currency            String   @default("CNY")
+  sourceCurrency      String?          // 原始币种
+  fxRateId            String?          // 汇率快照ID
 
   // 来自工资/奖金/长期现金等的“毛收入”组成
   gross               Decimal              // 月薪（从 IncomeChange 推）
@@ -228,6 +230,7 @@ model IncomeRecord {
 
   user                User     @relation(fields: [userId], references: [id])
   city                City?    @relation(fields: [cityId], references: [id])
+  fxRate              FxRate?  @relation(fields: [fxRateId], references: [id])
 
   @@unique([userId, monthDate])
   @@index([userId, monthDate])
@@ -556,6 +559,8 @@ async function seed() {
       await prisma.incomeRecord.upsert({
         where: { userId_monthDate: { userId: user.id, monthDate: d } },
         update: {
+          sourceCurrency: "CNY",
+          fxRateId: null,
           gross,
           bonus,
           otherIncome: ltc,
@@ -567,6 +572,8 @@ async function seed() {
           monthDate: d,
           cityId: hz.id,
           currency: "CNY",
+          sourceCurrency: "CNY",
+          fxRateId: null,
           gross,
           bonus,
           otherIncome: ltc,
