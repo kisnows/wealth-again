@@ -113,12 +113,13 @@
 
 - `POST /entries/deposit`
 
+  - 币种默认为账户的 `baseCurrency`，服务端会校验并拒绝不一致的币种。
+
   ```json
   {
     "accountId": "acc-id",
     "occurredAt": "2025-08-01T10:00:00+08:00",
     "amount": 1000,
-    "currency": "CNY",
     "note": "cash in"
   }
   ```
@@ -128,6 +129,8 @@
 #### 转账（同/跨币种）
 
 - `POST /entries/transfer`
+
+  - `from`/`to` 的 `currency`（如提供）必须分别等于对应账户的 `baseCurrency`，服务器会校验并拒绝不一致的币种。
 
   ```json
   {
@@ -151,6 +154,8 @@
 #### 估值
 
 - `POST /valuations`
+
+  - `currency` 必须等于账户的 `baseCurrency`，服务器会校验并拒绝不一致的币种。
 
   ```json
   {
