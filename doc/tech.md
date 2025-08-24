@@ -11,6 +11,7 @@
 - **币种不可变更**：`Account.baseCurrency` 创建后不允许更新（应用层校验；如迁到 Postgres 再加触发器）。
 - **政策随时间生效**：`CityRuleSS/HF`、`TaxConfig/TaxBracket` 以 **\[start, end)** 区间管理，历史可追溯。
 - **收入以月为单位**：`IncomeRecord` 用月份第一天 `monthDate` 作为唯一键（userId, monthDate）。
+- **跨币种收入**：入账保留 `sourceCurrency` 与 `fxRateId`，金额统一折算到 `currency`。
 - **长期激励“计划 → 日程”**：`LongTermCashPlan/LongTermCashPayout`、`EquityGrant/EquityVest` 生成落库，计算时直接汇总当月事件。
 - **精度**：SQLite 环境下用 `Decimal`；如迁移到 Postgres，可改为 `numeric(20,6)` 等。
 
@@ -37,7 +38,7 @@
 - `BonusPlan`：一次性奖金（`effectiveDate`）。
 - `LongTermCashPlan` + `LongTermCashPayout`：长期现金计划与发放日程（季度/期数）。
 - `EquityGrant` + `EquityVest`：股权激励授予与归属事件（年度/半年度；`fairValue` 可在归属日按行情回填）。
-- `IncomeRecord`：**月度收入快照**（工资、奖金、其他、社保、公积金、月度应税基、当月个税、累计已缴、税后）。
+- `IncomeRecord`：**月度收入快照**（工资、奖金、其他、社保、公积金、月度应税基、当月个税、累计已缴、税后；保留 `sourceCurrency` 与 `fxRateId` 以按快照折算到 `currency`）。
 - `City`：城市词表。
 - `CityRuleSS`/`CityRuleHF`：城市社保/公积金规则（上下限与比例，时间区间）。
 - `TaxConfig`/`TaxBracket`：税制（国家 + 税年 + 速算扣除，阈值为**年化累计档**）。
@@ -475,6 +476,13 @@ export function useRecalcIncome() {
 ## 4.3 汇率选择
 
 - 转账 **必须**使用当时快照（idempotent）；报表默认取**最近日期**的中间价（可在 UI 允许“截至日期”选择）
+
+## 4.4 收入记账汇率流程
+
+1. 收入源头可能是非用户基准币种，入账时记录 `sourceCurrency`。
+2. 以 `monthDate` 为基准查询对应 `FxRate`，保存 `fxRateId` 快照。
+3. 按该汇率将 `gross/bonus/otherIncome` 等折算到 `currency` 字段中，保持与用户基准币种一致。
+4. 若 `sourceCurrency === currency`，`fxRateId` 可为空，但仍保留 `sourceCurrency` 以示来源。
 
 ---
 
