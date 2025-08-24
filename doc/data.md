@@ -49,12 +49,13 @@ model User {
   id           String           @id @default(uuid())
   email        String           @unique
   password     String
-  name         String?
-  baseCurrency String           @default("CNY")
-  currentCity  String           @default("Hangzhou")
-  isActive     Boolean          @default(true)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  name          String?
+  baseCurrency  String           @default("CNY")
+  currentCityId String
+  currentCity   City             @relation(fields: [currentCityId], references: [id])
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   incomes       IncomeRecord[]
   incomeChanges IncomeChange[]
@@ -63,6 +64,7 @@ model User {
 
   @@index([email])
   @@index([isActive])
+  @@index([currentCityId])
 }
 
 /* ==== 城市 & 规则 ==== */
@@ -156,12 +158,14 @@ model BonusPlan {
   userId        String
   amount        Decimal
   currency      String   @default("CNY")
+  taxMethod     String   @default("MERGE") // MERGE: 并入工资综合计税; SEPARATE: 单独计税
   effectiveDate DateTime
   createdAt     DateTime @default(now())
 
   user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId, effectiveDate])
+  @@check(taxMethod IN ("MERGE", "SEPARATE"))
 }
 
 model LongTermCashPlan {
@@ -185,6 +189,7 @@ model LongTermCashPayout {
   planId    String
   payDate   DateTime
   amount    Decimal
+  currency  String   @default("CNY") // 生成时写入 plan.currency，避免计划币种变更影响已生成记录
   createdAt DateTime @default(now())
 
   plan      LongTermCashPlan @relation(fields: [planId], references: [id])
@@ -197,6 +202,8 @@ model IncomeRecord {
   monthDate           DateTime // 当月第一天
   cityId              String?
   currency            String   @default("CNY")
+  sourceCurrency      String?          // 原始币种
+  fxRateId            String?          // 汇率快照ID
 
   // 来自工资/奖金/长期现金/股权激励的“毛收入”组成
   gross               Decimal              // 月薪（从 IncomeChange 推）
@@ -226,6 +233,7 @@ model IncomeRecord {
 
   user                User     @relation(fields: [userId], references: [id])
   city                City?    @relation(fields: [cityId], references: [id])
+  fxRate              FxRate?  @relation(fields: [fxRateId], references: [id])
 
   @@unique([userId, monthDate])
   @@index([userId, monthDate])
@@ -304,6 +312,12 @@ async function upsertTax(country: string, year: number) {
 
 async function seed() {
   // 0) demo 用户 + 城市
+  const hz = await prisma.city.upsert({
+    where: { name: "Hangzhou" },
+    update: {},
+    create: { name: "Hangzhou", country: "CN" },
+  });
+
   const user = await prisma.user.upsert({
     where: { email: "demo@example.com" },
     update: {},
@@ -312,14 +326,8 @@ async function seed() {
       password: "hashed",
       name: "Demo",
       baseCurrency: "CNY",
-      currentCity: "Hangzhou",
+      currentCityId: hz.id,
     },
-  });
-
-  const hz = await prisma.city.upsert({
-    where: { name: "Hangzhou" },
-    update: {},
-    create: { name: "Hangzhou", country: "CN" },
   });
 
   // 1) 城市规则：社保（ZJ 口径，杭州适用）
@@ -554,6 +562,8 @@ async function seed() {
       await prisma.incomeRecord.upsert({
         where: { userId_monthDate: { userId: user.id, monthDate: d } },
         update: {
+          sourceCurrency: "CNY",
+          fxRateId: null,
           gross,
           bonus,
           ltcIncome: ltc,
@@ -566,6 +576,8 @@ async function seed() {
           monthDate: d,
           cityId: hz.id,
           currency: "CNY",
+          sourceCurrency: "CNY",
+          fxRateId: null,
           gross,
           bonus,
           ltcIncome: ltc,

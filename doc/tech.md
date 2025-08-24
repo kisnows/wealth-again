@@ -11,6 +11,7 @@
 - **币种不可变更**：`Account.baseCurrency` 创建后不允许更新（应用层校验；如迁到 Postgres 再加触发器）。
 - **政策随时间生效**：`CityRuleSS/HF`、`TaxConfig/TaxBracket` 以 **\[start, end)** 区间管理，历史可追溯。
 - **收入以月为单位**：`IncomeRecord` 用月份第一天 `monthDate` 作为唯一键（userId, monthDate）。
+- **跨币种收入**：入账保留 `sourceCurrency` 与 `fxRateId`，金额统一折算到 `currency`。
 - **长期激励“计划 → 日程”**：`LongTermCashPlan/LongTermCashPayout`、`EquityGrant/EquityVest` 生成落库，计算时直接汇总当月事件。
 - **精度**：SQLite 环境下用 `Decimal`；如迁移到 Postgres，可改为 `numeric(20,6)` 等。
 
@@ -113,12 +114,13 @@
 
 - `POST /entries/deposit`
 
+  - 币种默认为账户的 `baseCurrency`，服务端会校验并拒绝不一致的币种。
+
   ```json
   {
     "accountId": "acc-id",
     "occurredAt": "2025-08-01T10:00:00+08:00",
     "amount": 1000,
-    "currency": "CNY",
     "note": "cash in"
   }
   ```
@@ -128,6 +130,8 @@
 #### 转账（同/跨币种）
 
 - `POST /entries/transfer`
+
+  - `from`/`to` 的 `currency`（如提供）必须分别等于对应账户的 `baseCurrency`，服务器会校验并拒绝不一致的币种。
 
   ```json
   {
@@ -151,6 +155,8 @@
 #### 估值
 
 - `POST /valuations`
+
+  - `currency` 必须等于账户的 `baseCurrency`，服务器会校验并拒绝不一致的币种。
 
   ```json
   {
@@ -193,6 +199,7 @@
 #### 奖金计划（一次性）
 
 - `POST /income/bonus-plans`
+  - `taxMethod`: `MERGE`（并入工资综合计税）或 `SEPARATE`（单独计税），默认 `MERGE`
 
   ```json
   {
@@ -475,6 +482,13 @@ export function useRecalcIncome() {
 ## 4.3 汇率选择
 
 - 转账 **必须**使用当时快照（idempotent）；报表默认取**最近日期**的中间价（可在 UI 允许“截至日期”选择）
+
+## 4.4 收入记账汇率流程
+
+1. 收入源头可能是非用户基准币种，入账时记录 `sourceCurrency`。
+2. 以 `monthDate` 为基准查询对应 `FxRate`，保存 `fxRateId` 快照。
+3. 按该汇率将 `gross/bonus/otherIncome` 等折算到 `currency` 字段中，保持与用户基准币种一致。
+4. 若 `sourceCurrency === currency`，`fxRateId` 可为空，但仍保留 `sourceCurrency` 以示来源。
 
 ---
 
