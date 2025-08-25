@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ==== 基础枚举（用字符串枚举语义） ====
+ */
+enum RecurrenceLike {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+// 账户类型
+enum AccountType {
+  SAVINGS
+  INVESTMENT
+  LOAN
+}
+
+// 账户状态
+enum AccountStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// 分录类型
+enum EntryTypeLike {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+  ADJUST
+  SYSTEM
+}
+
+/**
+ * ==== 用户 ====
+ */
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String
+  name          String?
+  baseCurrency  String   @default("CNY")
+  currentCityId String
+  currentCity   City     @relation(fields: [currentCityId], references: [id])
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  incomes       IncomeRecord[]
+  incomeChanges IncomeChange[]
+  bonusPlans    BonusPlan[]
+  ltcPlans      LongTermCashPlan[]
+  accounts      Account[]
+  txnEntries    TxnEntry[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+  @@index([isActive])
+  @@index([currentCityId])
+}
+
+/**
+ * ==== 城市 & 规则 ====
+ */
+model City {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  country   String   @default("CN")
+  createdAt DateTime @default(now())
+
+  ssRules       CityRuleSS[]
+  hfRules       CityRuleHF[]
+  users         User[]
+  incomeRecords IncomeRecord[]
+}
+
+model CityRuleSS {
+  id               String    @id @default(uuid())
+  cityId           String
+  startDate        DateTime
+  endDate          DateTime?
+  baseMin          Decimal
+  baseMax          Decimal
+  ratePension      Decimal // 个人
+  rateMedical      Decimal // 个人
+  rateUnemployment Decimal // 个人
+  createdAt        DateTime  @default(now())
+
+  city City @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, startDate])
+  @@index([cityId, startDate])
+}
+
+model CityRuleHF {
+  id           String    @id @default(uuid())
+  cityId       String
+  startDate    DateTime
+  endDate      DateTime?
+  baseMin      Decimal
+  baseMax      Decimal
+  rateEmployee Decimal // 个人比例
+  createdAt    DateTime  @default(now())
+
+  city City @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, startDate])
+  @@index([cityId, startDate])
+}
+
+/**
+ * ==== 税制（国家 + 税年） ====
+ */
+model TaxConfig {
+  id                String  @id @default(uuid())
+  country           String
+  taxYear           Int
+  standardDeduction Decimal // 月度起征额（例：5000）
+
+  createdAt DateTime     @default(now())
+  brackets  TaxBracket[]
+
+  @@unique([country, taxYear])
+}
+
+model TaxBracket {
+  id             String  @id @default(uuid())
+  country        String
+  taxYear        Int
+  position       Int
+  threshold      Decimal // 年度累计应纳税所得额阈值上限（含）
+  taxRate        Decimal
+  quickDeduction Decimal
+
+  config TaxConfig @relation(fields: [country, taxYear], references: [country, taxYear], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([country, taxYear, position])
+}
+
+/**
+ * ==== 账户与账务 ====
+ */
+model Account {
+  id             String        @id @default(uuid())
+  userId         String
+  name           String
+  accountType    AccountType
+  baseCurrency   String
+  initialBalance Decimal       @default(0)
+  subType        String?
+  description    String?
+  status         AccountStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id])
+  txnLines   TxnLine[]
+  valuations ValuationSnapshot[]
+
+  @@index([userId])
+}
+
+model FxRate {
+  id        String   @id @default(uuid())
+  base      String
+  quote     String
+  rate      Decimal
+  asOf      DateTime
+  createdAt DateTime @default(now())
+
+  entries       TxnEntry[]
+  valuations    ValuationSnapshot[]
+  incomeRecords IncomeRecord[]
+
+  @@unique([base, quote, asOf])
+}
+
+model TxnEntry {
+  id         String        @id @default(uuid())
+  userId     String
+  type       EntryTypeLike
+  occurredAt DateTime
+  fxRateId   String?
+  note       String?
+  meta       Json?
+  createdAt  DateTime      @default(now())
+
+  user   User      @relation(fields: [userId], references: [id])
+  fxRate FxRate?   @relation(fields: [fxRateId], references: [id])
+  lines  TxnLine[]
+
+  @@index([userId, occurredAt])
+}
+
+model TxnLine {
+  id        String   @id @default(uuid())
+  entryId   String
+  accountId String
+  amount    Decimal
+  currency  String
+  note      String?
+  createdAt DateTime @default(now())
+
+  entry   TxnEntry @relation(fields: [entryId], references: [id])
+  account Account  @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, createdAt])
+}
+
+model ValuationSnapshot {
+  id         String   @id @default(uuid())
+  accountId  String
+  asOf       DateTime
+  totalValue Decimal
+  currency   String
+  fxRateId   String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id])
+  fxRate  FxRate? @relation(fields: [fxRateId], references: [id])
+
+  @@unique([accountId, asOf])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+/**
+ * ==== 收入（工资变更/奖金/长期现金/月度记录） ====
+ */
+model IncomeChange {
+  id            String   @id @default(uuid())
+  userId        String
+  grossMonthly  Decimal
+  currency      String   @default("CNY")
+  effectiveFrom DateTime
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, effectiveFrom])
+}
+
+model BonusPlan {
+  id            String   @id @default(uuid())
+  userId        String
+  amount        Decimal
+  currency      String   @default("CNY")
+  taxMethod     String   @default("MERGE") // MERGE: 并入工资综合计税; SEPARATE: 单独计税
+  effectiveDate DateTime
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, effectiveDate])
+}
+
+model LongTermCashPlan {
+  id          String   @id @default(uuid())
+  userId      String
+  totalAmount Decimal
+  currency    String   @default("CNY")
+  startDate   DateTime // 授予起始（第一期）
+  periods     Int // 每年4期：示例=4
+  recurrence  String // QUARTERLY
+  createdAt   DateTime @default(now())
+
+  user    User                 @relation(fields: [userId], references: [id])
+  payouts LongTermCashPayout[]
+
+  @@index([userId, startDate])
+}
+
+model LongTermCashPayout {
+  id        String   @id @default(uuid())
+  planId    String
+  payDate   DateTime
+  amount    Decimal
+  currency  String   @default("CNY") // 生成时写入 plan.currency，避免计划币种变更影响已生成记录
+  createdAt DateTime @default(now())
+
+  plan LongTermCashPlan @relation(fields: [planId], references: [id])
+
+  @@unique([planId, payDate])
+}
+
+model IncomeRecord {
+  id             String   @id @default(uuid())
+  userId         String
+  monthDate      DateTime // 当月第一天
+  cityId         String?
+  currency       String   @default("CNY")
+  sourceCurrency String? // 原始币种
+  fxRateId       String? // 汇率快照ID
+
+  // 来自工资/奖金/长期现金/股权激励的“毛收入”组成
+  gross        Decimal // 月薪（从 IncomeChange 推）
+  bonus        Decimal? @default(0) // 一次性奖金（同月累加）
+  ltcIncome    Decimal? @default(0) // 长期现金
+  equityIncome Decimal? @default(0) // 股权激励
+
+  // 基数可覆盖
+  socialInsuranceBase Decimal?
+  housingFundBase     Decimal?
+
+  // 计算快照
+  socialInsurance   Decimal? @default(0)
+  housingFund       Decimal? @default(0)
+  specialDeductions Decimal? @default(0)
+  otherDeductions   Decimal? @default(0)
+  charityDonations  Decimal? @default(0)
+
+  taxableIncome Decimal?
+  incomeTax     Decimal?
+  taxPaid       Decimal? @default(0) // 累计已缴
+  netIncome     Decimal?
+  isForecast    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id])
+  city   City?   @relation(fields: [cityId], references: [id])
+  fxRate FxRate? @relation(fields: [fxRateId], references: [id])
+
+  @@unique([userId, monthDate])
+  @@index([userId, monthDate])
+}
