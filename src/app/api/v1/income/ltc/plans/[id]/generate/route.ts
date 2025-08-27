@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * POST /api/v1/income/ltc/plans/:id/generate
@@ -8,9 +9,11 @@ import prisma from "@/server/db";
  */
 
 // 生成长期现金发放日程
-export async function POST(_: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const user = await getUserFromRequest(req as any);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const plan = await prisma.longTermCashPlan.findUnique({ where: { id: params.id } });
-  if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+  if (!plan || plan.userId !== (user as any).id) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
   const start = new Date(plan.startDate);
   let monthsStep = 3;
   if (plan.recurrence === "MONTHLY") monthsStep = 1;

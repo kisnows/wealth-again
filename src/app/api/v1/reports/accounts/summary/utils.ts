@@ -1,7 +1,7 @@
 import prisma from "@/server/db";
 
-export async function computeAccountSummary(displayCurrency?: string) {
-  const accounts = await prisma.account.findMany({ include: { valuations: { orderBy: { asOf: "desc" }, take: 1 }, txnLines: true } });
+export async function computeAccountSummary(displayCurrency?: string, userId?: string) {
+  const accounts = await prisma.account.findMany({ where: userId ? { userId } : undefined, include: { valuations: { orderBy: { asOf: "desc" }, take: 1 }, txnLines: true } });
   const latestFx = await prisma.fxRate.findMany({ orderBy: { asOf: "desc" } });
   const getRate = (quote: string) => latestFx.find((r) => r.base === "USD" && r.quote === quote)?.rate as unknown as number | undefined;
   const usdToDisplay = displayCurrency ? getRate(displayCurrency) : undefined;
@@ -23,4 +23,3 @@ export async function computeAccountSummary(displayCurrency?: string) {
     return { id: a.id, name: a.name, currency: a.baseCurrency, principal, valuation, profit, roi, displayValue: displayVal };
   });
 }
-

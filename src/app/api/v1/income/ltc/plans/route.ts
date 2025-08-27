@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { ensureIdempotent, markIdempotencyUsed } from "@/server/utils/idempotency";
 import { logAudit } from "@/server/services/audit";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * GET /api/v1/income/ltc/plans
@@ -12,17 +13,20 @@ import { logAudit } from "@/server/services/audit";
  */
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId") || undefined;
-  const items = await prisma.longTermCashPlan.findMany({ where: { userId }, orderBy: { startDate: "asc" } });
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const items = await prisma.longTermCashPlan.findMany({ where: { userId: (user as any).id }, orderBy: { startDate: "asc" } });
   return NextResponse.json({ items });
 }
 
 export async function POST(req: Request) {
-  const { userId, totalAmount, currency = "CNY", startDate, periods, recurrence } = await req.json();
-  if (!userId || typeof totalAmount !== "number" || !startDate || !periods || !recurrence) {
+  const user = await getUserFromRequest(req as any);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { totalAmount, currency = "CNY", startDate, periods, recurrence } = await (req as any).json();
+  if (typeof totalAmount !== "number" || !startDate || !periods || !recurrence) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
+  const userId = (user as any).id;
   const { key, existed } = await ensureIdempotent(req as any, userId, `${userId}:${totalAmount}:${startDate}:${periods}:${recurrence}`);
   if (existed) return NextResponse.json({ error: "Idempotency key reused" }, { status: 409 });
   const created = await prisma.longTermCashPlan.create({

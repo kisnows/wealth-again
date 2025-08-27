@@ -3,6 +3,7 @@ import prisma from "@/server/db";
 import { convert } from "@/server/services/fx";
 import { ensureIdempotent, markIdempotencyUsed } from "@/server/utils/idempotency";
 import { logAudit } from "@/server/services/audit";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * POST /api/v1/entries/transfer
@@ -12,6 +13,8 @@ import { logAudit } from "@/server/services/audit";
  */
 export async function POST(req: NextRequest) {
   const { from, to, occurredAt, note, asOf } = await req.json();
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const fromAccount = await prisma.account.findUnique({
     where: { id: from.accountId },
   });
@@ -20,6 +23,9 @@ export async function POST(req: NextRequest) {
   });
   if (!fromAccount || !toAccount) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
+  }
+  if (fromAccount.userId !== (user as any).id || toAccount.userId !== (user as any).id) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   let toAmount = Math.abs(to.amount ?? from.amount);
   // 跨币种：若未指定入账金额，则尝试按 asOf 汇率折算
@@ -31,11 +37,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "fx conversion failed" }, { status: 400 });
     }
   }
-  const { key, existed } = await ensureIdempotent(req, fromAccount.userId, `${from.accountId}:${to.accountId}:${from.amount}:${to.amount ?? ""}:${occurredAt}`);
+  const { key, existed } = await ensureIdempotent(req, (user as any).id, `${from.accountId}:${to.accountId}:${from.amount}:${to.amount ?? ""}:${occurredAt}`);
   if (existed) return NextResponse.json({ error: "Idempotency key reused" }, { status: 409 });
   const entry = await prisma.txnEntry.create({
     data: {
-      userId: fromAccount.userId,
+      userId: (user as any).id,
       type: "TRANSFER",
       occurredAt: new Date(occurredAt),
       note,
@@ -53,7 +59,7 @@ export async function POST(req: NextRequest) {
     },
     include: { lines: true },
   });
-  await logAudit("ENTRY_TRANSFER", { userId: fromAccount.userId, meta: { entryId: entry.id } });
+  await logAudit("ENTRY_TRANSFER", { userId: (user as any).id, meta: { entryId: entry.id } });
   await markIdempotencyUsed(key);
   return NextResponse.json(entry, { status: 201 });
 }

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { ensureIdempotent, markIdempotencyUsed } from "@/server/utils/idempotency";
 import { logAudit } from "@/server/services/audit";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * POST /api/v1/entries/withdraw
@@ -11,15 +12,17 @@ import { logAudit } from "@/server/services/audit";
  */
 export async function POST(req: NextRequest) {
   const { accountId, amount, occurredAt, note } = await req.json();
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account) {
+  if (!account || account.userId !== (user as any).id) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
-  const { key, existed } = await ensureIdempotent(req, account.userId, `${accountId}:${amount}:${occurredAt}:${note ?? ""}`);
+  const { key, existed } = await ensureIdempotent(req, (user as any).id, `${accountId}:${amount}:${occurredAt}:${note ?? ""}`);
   if (existed) return NextResponse.json({ error: "Idempotency key reused" }, { status: 409 });
   const entry = await prisma.txnEntry.create({
     data: {
-      userId: account.userId,
+      userId: (user as any).id,
       type: "WITHDRAW",
       occurredAt: new Date(occurredAt),
       note,
@@ -34,7 +37,7 @@ export async function POST(req: NextRequest) {
     },
     include: { lines: true },
   });
-  await logAudit("ENTRY_WITHDRAW", { userId: account.userId, meta: { entryId: entry.id } });
+  await logAudit("ENTRY_WITHDRAW", { userId: (user as any).id, meta: { entryId: entry.id } });
   await markIdempotencyUsed(key);
   return NextResponse.json(entry, { status: 201 });
 }

@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { postDeposit } from "@/lib/api/accounts";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 export default function DepositPage() {
   const [form, setForm] = useState({
@@ -17,15 +21,11 @@ export default function DepositPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/v1/entries/deposit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accountId: form.accountId,
-        amount: Number(form.amount),
-        occurredAt: new Date(form.occurredAt).toISOString(),
-        note: form.note,
-      }),
+    await postDeposit({
+      accountId: form.accountId,
+      amount: Number(form.amount),
+      occurredAt: new Date(form.occurredAt).toISOString(),
+      note: form.note,
     });
     setForm({ accountId: "", amount: "", occurredAt: "", note: "" });
   };
@@ -33,42 +33,16 @@ export default function DepositPage() {
   return (
     <main className="p-6 max-w-md">
       <h1 className="text-xl font-bold mb-4">Deposit</h1>
-      <form onSubmit={handleSubmit} className="space-y-2">
-        <input
-          className="border p-2 w-full"
-          name="accountId"
-          value={form.accountId}
-          onChange={handleChange}
-          placeholder="Account ID"
-        />
-        <input
-          className="border p-2 w-full"
-          name="amount"
-          type="number"
-          value={form.amount}
-          onChange={handleChange}
-          placeholder="Amount"
-        />
-        <input
-          className="border p-2 w-full"
-          name="occurredAt"
-          type="datetime-local"
-          value={form.occurredAt}
-          onChange={handleChange}
-        />
-        <input
-          className="border p-2 w-full"
-          name="note"
-          value={form.note}
-          onChange={handleChange}
-          placeholder="Note"
-        />
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-500 text-white rounded"
-        >
-          Submit
-        </button>
+      <form onSubmit={handleSubmit} className="grid gap-2">
+        <Label>Account ID</Label>
+        <Input name="accountId" value={form.accountId} onChange={handleChange} placeholder="a1" />
+        <Label>Amount</Label>
+        <Input name="amount" type="number" value={form.amount} onChange={handleChange} />
+        <Label>Occurred At</Label>
+        <Input name="occurredAt" type="datetime-local" value={form.occurredAt} onChange={handleChange} />
+        <Label>Note</Label>
+        <Input name="note" value={form.note} onChange={handleChange} placeholder="可选" />
+        <Button type="submit" className="mt-2">提交</Button>
       </form>
     </main>
   );

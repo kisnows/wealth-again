@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * GET /api/v1/income/records?from=YYYY-MM-01&to=YYYY-MM-01
@@ -11,8 +12,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
-  const userId = searchParams.get("userId") || undefined;
-  const where: any = { userId };
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const where: any = { userId: (user as any).id };
   if (from || to) {
     where.monthDate = {} as any;
     if (from) (where.monthDate as any).gte = new Date(from);

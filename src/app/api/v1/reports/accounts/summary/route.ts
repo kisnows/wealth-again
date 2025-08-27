@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { computeAccountSummary } from "./utils";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * GET /api/v1/reports/accounts/summary?displayCurrency=CNY
@@ -10,6 +11,8 @@ import { computeAccountSummary } from "./utils";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const displayCurrency = searchParams.get("displayCurrency") || undefined;
-  const items = await computeAccountSummary(displayCurrency || undefined);
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const items = await computeAccountSummary(displayCurrency || undefined, (user as any).id);
   return NextResponse.json({ items, displayCurrency: displayCurrency || null });
 }

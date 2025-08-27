@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * GET /api/v1/accounts/:id/summary
@@ -7,9 +8,11 @@ import prisma from "@/server/db";
  * - 返回: { id, name, currency, principal, valuation, profit, roi }
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const account = await prisma.account.findUnique({
     where: { id: params.id },
     include: {
@@ -17,7 +20,7 @@ export async function GET(
       valuations: { orderBy: { asOf: "desc" }, take: 1 },
     },
   });
-  if (!account) {
+  if (!account || account.userId !== (user as any).id) {
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   }
   const principal = account.txnLines.reduce(

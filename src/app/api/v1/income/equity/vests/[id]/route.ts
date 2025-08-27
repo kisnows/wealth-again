@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * PATCH /api/v1/income/equity/vests/:id
@@ -9,10 +10,14 @@ import prisma from "@/server/db";
 
 // 回填归属日 fairValue/currency
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const { fairValue, currency } = await req.json();
+  const user = await getUserFromRequest(req as any);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { fairValue, currency } = await (req as any).json();
   if (typeof fairValue !== "number" || !currency) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
+  const vest = await prisma.equityVest.findUnique({ where: { id: params.id }, include: { grant: true } });
+  if (!vest || vest.grant.userId !== (user as any).id) return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const updated = await prisma.equityVest.update({ where: { id: params.id }, data: { fairValue, currency } });
   return NextResponse.json(updated);
 }

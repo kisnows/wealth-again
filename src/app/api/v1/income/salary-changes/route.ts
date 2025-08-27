@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { ensureIdempotent, markIdempotencyUsed } from "@/server/utils/idempotency";
 import { logAudit } from "@/server/services/audit";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * GET /api/v1/income/salary-changes
@@ -12,20 +13,23 @@ import { logAudit } from "@/server/services/audit";
  */
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId") || undefined;
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const items = await prisma.incomeChange.findMany({
-    where: { userId },
+    where: { userId: (user as any).id },
     orderBy: { effectiveFrom: "asc" },
   });
   return NextResponse.json({ items });
 }
 
 export async function POST(req: Request) {
-  const { userId, grossMonthly, currency = "CNY", effectiveFrom } = await req.json();
-  if (!userId || typeof grossMonthly !== "number" || !effectiveFrom) {
+  const user = await getUserFromRequest(req as any);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { grossMonthly, currency = "CNY", effectiveFrom } = await (req as any).json();
+  if (typeof grossMonthly !== "number" || !effectiveFrom) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
+  const userId = (user as any).id;
   const { key, existed } = await ensureIdempotent(req as any, userId, `${userId}:${grossMonthly}:${effectiveFrom}`);
   if (existed) return NextResponse.json({ error: "Idempotency key reused" }, { status: 409 });
   const created = await prisma.incomeChange.create({

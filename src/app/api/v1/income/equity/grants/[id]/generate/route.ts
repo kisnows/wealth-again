@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * POST /api/v1/income/equity/grants/:id/generate
@@ -7,9 +8,11 @@ import prisma from "@/server/db";
  * - 入参: none
  */
 
-export async function POST(_: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const user = await getUserFromRequest(req as any);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const grant = await prisma.equityGrant.findUnique({ where: { id: params.id } });
-  if (!grant) return NextResponse.json({ error: "Grant not found" }, { status: 404 });
+  if (!grant || grant.userId !== (user as any).id) return NextResponse.json({ error: "Grant not found" }, { status: 404 });
   const start = new Date(grant.startVestDate);
   let monthsStep = 12;
   if (grant.vestInterval === "QUARTERLY") monthsStep = 3;

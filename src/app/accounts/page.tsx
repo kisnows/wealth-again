@@ -1,37 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-interface Account {
-  id: string;
-  name: string;
-  accountType: string;
-  baseCurrency: string;
-}
+import { useAccounts } from "@/lib/api/accounts";
+import AccountTable from "@/components/modules/AccountTable";
+import TransferDialog from "@/components/modules/TransferDialog";
+import ValuationFormDialog from "@/components/modules/ValuationFormDialog";
+import CreateAccountDialog from "@/components/modules/CreateAccountDialog";
 
 export default function AccountsPage() {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-
-  useEffect(() => {
-    fetch("/api/v1/accounts")
-      .then((res) => res.json())
-      .then((data) => setAccounts(data))
-      .catch(() => setAccounts([]));
-  }, []);
-
+  const { data, isLoading, error } = useAccounts();
   return (
     <main className="p-6">
       <h1 className="text-xl font-bold mb-4">Accounts</h1>
-      <ul className="space-y-2">
-        {accounts.map((acc) => (
-          <li key={acc.id} className="border p-2 rounded">
-            {acc.name}{" "}
-            <span className="text-sm text-muted-foreground">
-              ({acc.baseCurrency})
-            </span>
-          </li>
-        ))}
-      </ul>
+      {isLoading && <div className="text-sm text-muted-foreground">加载中…</div>}
+      {error && <div className="text-sm text-red-500">加载失败</div>}
+      <div className="flex gap-3 mb-3">
+        <CreateAccountDialog />
+        <TransferDialog />
+        <ValuationFormDialog />
+      </div>
+      {!isLoading && !error && <AccountTable />}
     </main>
   );
 }

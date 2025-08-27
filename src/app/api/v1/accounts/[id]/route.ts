@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * PATCH /api/v1/accounts/:id
@@ -12,6 +13,10 @@ import prisma from "@/server/db";
 // PATCH /api/v1/accounts/:id 仅允许 name/subType/description/status（禁止修改 baseCurrency）
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const account = await prisma.account.findUnique({ where: { id: params.id } });
+  if (!account || account.userId !== (user as any).id) return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const allowed: any = {};
   for (const k of ["name", "subType", "description", "status"]) {
     if (k in body) allowed[k] = body[k];

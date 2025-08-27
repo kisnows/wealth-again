@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { ensureIdempotent, markIdempotencyUsed } from "@/server/utils/idempotency";
 import { logAudit } from "@/server/services/audit";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * GET /api/v1/accounts
@@ -13,27 +14,42 @@ import { logAudit } from "@/server/services/audit";
  * 入参: { userId, name, accountType: "SAVINGS"|"INVESTMENT"|"LOAN", baseCurrency, initialBalance?, subType?, description? }
  * 返回: Account
  */
-export async function GET() {
-  const accounts = await prisma.account.findMany();
-  return NextResponse.json(accounts);
+export async function GET(req: NextRequest) {
+  const { getUserFromRequest } = await import("@/server/utils/auth");
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const accounts = await prisma.account.findMany({ where: { id: undefined as any } });
+  // prisma types workaround above: re-query properly
+  const list = await prisma.account.findMany({ where: { userId: (user as any).id } });
+  return NextResponse.json(list);
 }
 
 export async function POST(req: NextRequest) {
   const data = await req.json();
-  const { key, existed } = await ensureIdempotent(req, data.userId, undefined);
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userId = user.id;
+  const { key, existed } = await ensureIdempotent(req, userId, undefined);
   if (existed) return NextResponse.json({ error: "Idempotency key reused" }, { status: 409 });
-  const account = await prisma.account.create({
-    data: {
-      userId: data.userId,
-      name: data.name,
-      accountType: data.accountType,
-      baseCurrency: data.baseCurrency,
-      initialBalance: data.initialBalance ?? 0,
-      subType: data.subType,
-      description: data.description,
-    },
-  });
-  await logAudit("ACCOUNT_CREATE", { userId: data.userId, meta: { accountId: account.id } });
-  await markIdempotencyUsed(key);
-  return NextResponse.json(account, { status: 201 });
+  try {
+    const account = await prisma.account.create({
+      data: {
+        userId,
+        name: data.name,
+        accountType: data.accountType,
+        baseCurrency: data.baseCurrency,
+        initialBalance: data.initialBalance ?? 0,
+        subType: data.subType,
+        description: data.description,
+      },
+    });
+    await logAudit("ACCOUNT_CREATE", { userId, meta: { accountId: account.id } });
+    await markIdempotencyUsed(key);
+    return NextResponse.json(account, { status: 201 });
+  } catch (e: any) {
+    if (e?.code === "P2003") {
+      return NextResponse.json({ error: "invalid userId (foreign key)" }, { status: 400 });
+    }
+    throw e;
+  }
 }

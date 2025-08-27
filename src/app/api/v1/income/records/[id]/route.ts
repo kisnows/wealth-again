@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * PATCH /api/v1/income/records/:id
@@ -8,7 +9,9 @@ import prisma from "@/server/db";
  */
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const body = await req.json();
+  const user = await getUserFromRequest(req as any);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const body = await (req as any).json();
   const allowed: any = {};
   for (const k of [
     "socialInsuranceBase",
@@ -19,6 +22,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   ]) {
     if (k in body) allowed[k] = body[k];
   }
+  const rec = await prisma.incomeRecord.findUnique({ where: { id: params.id } });
+  if (!rec || rec.userId !== (user as any).id) return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const updated = await prisma.incomeRecord.update({ where: { id: params.id }, data: allowed });
   return NextResponse.json(updated);
 }
