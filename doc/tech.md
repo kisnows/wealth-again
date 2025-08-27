@@ -1,5 +1,115 @@
 # 技术设计文档
 
+## 评审与改进方案（vNext）
+
+结论与评审
+- 总体方向与 prd 一致：账务分录、估值、汇率、工资/奖金/长期激励/股权、城市与税表规则、年度累计计税、报表与服务分层已覆盖。
+- 关键缺口：缺少股权激励表（EquityGrant/EquityVest）；LTC 计划的 recurrence 需用枚举；跨币种转账与估值未强制携带汇率快照；缺少幂等键；部分业务约束仅在文档中，未在接口层校验；规则需要“区间不重叠”校验；RBAC/审计与 API 写操作未闭环。
+- 风险点：年度累计回算的幂等与规则版本化、时区一致性、报表性能需工程化加强。
+
+表结构（ASCII 摘要）
+```
++---------+       1      M +---------+ 1     M +----------+   M    1 +---------+
+|  User   +---------------+| Account |+-------+| TxnLine  |--------->| TxnEntry|
++----+----+                +----+----+        +-----+-----+         +----+----+
+|id  |... |                     |                   |                      |
+|base|city|                     |                   |currency               |fxRateId?
++----+----+                     |                   |amount                 |occurredAt
+                                |                   +-----------------------+type/note
+                                |1     M +--------------------+
+                                +-------+| ValuationSnapshot  |----+
+                                        +---------+-----------+    |  ?   1
+                                                  |fxRateId?       +------+
+                                                  v                       |
+                                               +--+------+                |
+                                               | FxRate  |<---------------+
+                                               +---------+
+```
+
+收入与规则
+```
+User 1-M IncomeChange(grossMonthly,effectiveFrom)
+User 1-M BonusPlan(amount,effectiveDate,taxMethod)
+User 1-M LongTermCashPlan(totalAmount,startDate,periods,recurrence:ENUM)
+Plan 1-M LongTermCashPayout(payDate,amount,currency)
+
+User 1-M EquityGrant(totalUnits,startVestDate,vestPeriods,vestInterval:ENUM,currency)
+Grant 1-M EquityVest(vestDate,units,fairValue?,currency)
+
+User 1-M IncomeRecord(monthDate UNIQUE(user,month), cityId?, currency, fxRateId?)
+City 1-M CityRuleSS/CityRuleHF [start,end)
+TaxConfig 1-M TaxBracket (country,taxYear)
+AuditLog(*)    IdempotencyKey(key,userId,hash,expiresAt)
+```
+
+API 设计总览（骨架）
+```
+/api/v1
+  /accounts           GET, POST
+  /accounts/{id}      PATCH(name/subType/desc/status), POST /archive
+  /accounts/{id}/summary        GET
+  /accounts/{id}/timeseries     GET ?metric=valuation|principal&from&to
+  /valuations          POST {accountId, asOf, totalValue, fxRateId?}
+  /entries/deposit     POST {accountId, amount, occurredAt, note}
+  /entries/withdraw    POST {accountId, amount, occurredAt, note}
+  /entries/transfer    POST {from:{accountId,amount}, to:{accountId,amount?}, occurredAt, note, fxRateId?}
+  /fxrates             POST, GET ?base=USD&quote=CNY&on=2025-08-01
+  /income/salary-changes     POST, GET
+  /income/bonus              POST, GET
+  /income/ltc/plans          POST, GET ; /{id}/generate POST
+  /income/equity/grants      POST, GET ; /{id}/generate POST
+  /income/equity/vests/{id}  PATCH {fairValue, currency}
+  /income/records            GET ?from&to ; /records/{id} PATCH
+  /income/recalc             POST {taxYear, endMonth, cityId?}
+  /rules/cities              PUT
+  /rules/social-security     PUT ; GET ?city&on
+  /rules/housing-fund        PUT ; GET ?city&on
+  /rules/tax/config          PUT
+  /rules/tax/brackets        PUT ; GET ?country&taxYear
+  /reports/dashboard         GET ?asOf&displayCurrency
+  /reports/accounts/summary  GET ?displayCurrency
+  /reports/income/timeseries GET ?from&to
+```
+
+模块依赖架构（ASCII）
+```
++----------- API Layer (REST/DTO) ------------+
+| Auth/RBAC | Validation | Idempotency | Audit|
++-------------------+------------------------+
+                    v
+       +-----------------------------+
+       |        Domain Services      |
+       |  Ledger  Fx  Income  Tax    |
+       |  Rule   Report              |
+       +---+----+----+----+----+-----+
+           |    |    |    |    |
+           |    |    |    |    +--> uses Rule (SS/HF, TaxConfig/Bracket)
+           |    |    |    +-------> tax calc (年度累计)
+           |    |    +-------------> income aggregation (工资/奖金/LTC/股权)
+           |    +-------------------> FX snap & conversion
+           +------------------------> posting/valuation/principal ROI
+                    v
+             +-------------+
+             | Repositories|
+             |  (Prisma)   |
+             +------+------+ 
+                    |
+                 +--+-- Database (SQLite→Postgres)
+```
+
+一致性核对（与 prd）
+- 账户/估值/多币种：满足；需强制“跨币种转账带 fx 快照”，SAVINGS 不允许估值；净资产折算口径按 asOf 最近 Fx。
+- 收入与税务：工资/奖金/LTC/股权、规则与税表、年度累计回算与月度快照，设计满足；需补齐股权数据模型与 fairValue 回填流程。
+- 报表：Dashboard/账户汇总/收入时序具备；建议做物化或缓存优化。
+- 审计/权限/时区：需落地 RBAC 与 API 审计；统一“自然月首日 UTC 化”策略。
+
+改进与落地步骤
+- 数据层：新增 EquityGrant/EquityVest、IdempotencyKey；LTC.recurrence 改枚举；接口层强校验（账号币种不可改、TxnLine.currency=Account.baseCurrency、SAVINGS 禁估值）；规则区间不重叠检查。
+- API 层：补齐上述端点；写操作支持 Idempotency-Key；返回 requestId；为跨币种转账要求 fxRateId。
+- 服务层：实现 TaxService（年度累计）、IncomeService（聚合写回 IncomeRecord）、Ledger/Fx/Report 分工清晰。
+- 前端：按路由骨架搭建页面；统一金额/币种格式化；转账弹窗联动 /fxrates。
+- 非功能：NextAuth/JWT、审计落库、核心路径单测、性能优化。
+
 本文包含三部分：**数据模型（表设计）→ 后端 API 设计（精简且可扩展）→ 前端页面与交互设计**。方案基于 **Prisma + SQLite**，可平滑迁移到 Postgres，并涵盖年度累计个税、城市社保/公积金、长期激励与股权激励以及分录账本等数据结构。
 
 # 一、数据模型（表设计）

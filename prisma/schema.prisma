@@ -7,40 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/**
- * ==== 基础枚举（用字符串枚举语义） ====
- */
-enum RecurrenceLike {
-  MONTHLY
-  QUARTERLY
-  YEARLY
-}
+// ==== 基础枚举（用字符串枚举语义） ====
+// SQLite 不支持枚举，使用 String 类型
+// RecurrenceLike: "MONTHLY" | "QUARTERLY" | "YEARLY"
+// AccountType: "SAVINGS" | "INVESTMENT" | "LOAN"
+// AccountStatus: "ACTIVE" | "ARCHIVED"
+// EntryTypeLike: "DEPOSIT" | "WITHDRAW" | "TRANSFER" | "ADJUST" | "SYSTEM"
 
-// 账户类型
-enum AccountType {
-  SAVINGS
-  INVESTMENT
-  LOAN
-}
-
-// 账户状态
-enum AccountStatus {
-  ACTIVE
-  ARCHIVED
-}
-
-// 分录类型
-enum EntryTypeLike {
-  DEPOSIT
-  WITHDRAW
-  TRANSFER
-  ADJUST
-  SYSTEM
-}
-
-/**
- * ==== 用户 ====
- */
+// ==== 用户 ====
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -60,15 +34,14 @@ model User {
   accounts      Account[]
   txnEntries    TxnEntry[]
   auditLogs     AuditLog[]
+  equityGrants  EquityGrant[]
 
   @@index([email])
   @@index([isActive])
   @@index([currentCityId])
 }
 
-/**
- * ==== 城市 & 规则 ====
- */
+// ==== 城市 & 规则 ====
 model City {
   id        String   @id @default(uuid())
   name      String   @unique
@@ -115,9 +88,7 @@ model CityRuleHF {
   @@index([cityId, startDate])
 }
 
-/**
- * ==== 税制（国家 + 税年） ====
- */
+// ==== 税制（国家 + 税年） ====
 model TaxConfig {
   id                String  @id @default(uuid())
   country           String
@@ -144,21 +115,19 @@ model TaxBracket {
   @@unique([country, taxYear, position])
 }
 
-/**
- * ==== 账户与账务 ====
- */
+// ==== 账户与账务 ====
 model Account {
-  id             String        @id @default(uuid())
+  id             String   @id @default(uuid())
   userId         String
   name           String
-  accountType    AccountType
+  accountType    String // AccountType: "SAVINGS" | "INVESTMENT" | "LOAN"
   baseCurrency   String
-  initialBalance Decimal       @default(0)
+  initialBalance Decimal  @default(0)
   subType        String?
   description    String?
-  status         AccountStatus @default(ACTIVE)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  status         String   @default("ACTIVE") // AccountStatus: "ACTIVE" | "ARCHIVED"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   user       User                @relation(fields: [userId], references: [id])
   txnLines   TxnLine[]
@@ -183,14 +152,14 @@ model FxRate {
 }
 
 model TxnEntry {
-  id         String        @id @default(uuid())
+  id         String   @id @default(uuid())
   userId     String
-  type       EntryTypeLike
+  type       String // EntryTypeLike: "DEPOSIT" | "WITHDRAW" | "TRANSFER" | "ADJUST" | "SYSTEM"
   occurredAt DateTime
   fxRateId   String?
   note       String?
-  meta       Json?
-  createdAt  DateTime      @default(now())
+  meta       String? // JSON serialized string
+  createdAt  DateTime @default(now())
 
   user   User      @relation(fields: [userId], references: [id])
   fxRate FxRate?   @relation(fields: [fxRateId], references: [id])
@@ -234,7 +203,7 @@ model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
   action    String
-  meta      Json?
+  meta      String? // JSON serialized string
   createdAt DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id])
@@ -242,9 +211,7 @@ model AuditLog {
   @@index([userId, createdAt])
 }
 
-/**
- * ==== 收入（工资变更/奖金/长期现金/月度记录） ====
- */
+// ==== 收入（工资变更/奖金/长期现金/月度记录） ====
 model IncomeChange {
   id            String   @id @default(uuid())
   userId        String
@@ -279,7 +246,7 @@ model LongTermCashPlan {
   currency    String   @default("CNY")
   startDate   DateTime // 授予起始（第一期）
   periods     Int // 每年4期：示例=4
-  recurrence  String // QUARTERLY
+  recurrence  String // RecurrenceLike: "QUARTERLY"
   createdAt   DateTime @default(now())
 
   user    User                 @relation(fields: [userId], references: [id])
@@ -298,7 +265,7 @@ model LongTermCashPayout {
 
   plan LongTermCashPlan @relation(fields: [planId], references: [id])
 
-  @@unique([planId, payDate])
+  @@unique([planId, payDate], map: "planId_payDate")
 }
 
 model IncomeRecord {
@@ -342,4 +309,47 @@ model IncomeRecord {
 
   @@unique([userId, monthDate])
   @@index([userId, monthDate])
+}
+
+// ==== 股权激励（授予与归属） ====
+model EquityGrant {
+  id            String   @id @default(uuid())
+  userId        String
+  totalUnits    Decimal
+  currency      String   @default("CNY")
+  startVestDate DateTime
+  vestPeriods   Int
+  vestInterval  String // RecurrenceLike: "YEARLY" | "QUARTERLY"
+  createdAt     DateTime @default(now())
+
+  user  User         @relation(fields: [userId], references: [id])
+  vests EquityVest[]
+
+  @@index([userId, startVestDate])
+}
+
+model EquityVest {
+  id        String   @id @default(uuid())
+  grantId   String
+  vestDate  DateTime
+  units     Decimal
+  fairValue Decimal?
+  currency  String
+  createdAt DateTime @default(now())
+
+  grant EquityGrant @relation(fields: [grantId], references: [id])
+
+  @@unique([grantId, vestDate], map: "grantId_vestDate")
+}
+
+// ==== 幂等键（写操作请求指纹） ====
+model IdempotencyKey {
+  key       String    @id
+  userId    String?
+  hash      String?
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  expiresAt DateTime?
+
+  @@index([userId, createdAt])
 }

@@ -34,3 +34,41 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Prisma 与环境变量（新增）
+
+本项目使用 Prisma 管理数据库模型与客户端，开发环境默认使用本地 SQLite。
+
+1) 初始化与迁移
+
+```bash
+# 生成 Prisma 客户端
+npx prisma generate
+
+# 应用/创建本地开发迁移（会更新 prisma/dev.db）
+npx prisma migrate dev
+```
+
+2) `.env` 示例（请勿提交到仓库）
+
+```env
+# 本地 SQLite 示例
+DATABASE_URL="file:./prisma/dev.db"
+
+# 如使用 NextAuth，可配置：
+# NEXTAUTH_SECRET=your-secret
+```
+
+3) 运行测试
+
+已添加 Vitest 脚本，可执行：
+
+```bash
+npm test
+```
+
+首次运行前请安装依赖（包含 Vitest）：
+
+```bash
+npm install
+```

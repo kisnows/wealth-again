@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 
+/**
+ * GET /api/v1/accounts/:id/summary
+ * - 计算账户本金/估值/收益/ROI（账户币种）。
+ * - 返回: { id, name, currency, principal, valuation, profit, roi }
+ */
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } },

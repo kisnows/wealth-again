@@ -1,0 +1,95 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeJsonRequest, makeGet } from "@/tests/helpers";
+
+const mockPrisma: any = {
+  account: { findUnique: vi.fn() },
+  valuationSnapshot: { create: vi.fn() },
+  auditLog: { create: vi.fn() },
+};
+
+vi.mock("@/server/db", () => ({ default: mockPrisma }));
+
+beforeEach(() => vi.clearAllMocks());
+
+// 覆盖估值接口的两个路径：SAVINGS 禁止、INVESTMENT 允许；并通过摘要验证 ROI。
+describe("Valuations routes", () => {
+  it("POST /valuations forbids SAVINGS", async () => {
+    const route = await import("@/app/api/v1/valuations/route");
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "a",
+      accountType: "SAVINGS",
+      baseCurrency: "CNY",
+    });
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+        accountId: "a",
+        asOf: "2025-08-01",
+        totalValue: 100,
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /valuations ok for INVESTMENT and ROI computed in summary", async () => {
+    const route = await import("@/app/api/v1/valuations/route");
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "a",
+      accountType: "INVESTMENT",
+      baseCurrency: "CNY",
+    });
+    mockPrisma.valuationSnapshot.create.mockResolvedValueOnce({ id: "v1" });
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+        accountId: "a",
+        asOf: "2025-08-01",
+        totalValue: 120,
+      })
+    );
+    expect(res.status).toBe(201);
+
+    // ROI 验证：principal=100，valuation=120 → roi=0.2
+    const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
+    const acc = {
+      id: "a",
+      name: "Invest",
+      baseCurrency: "CNY",
+      accountType: "INVESTMENT",
+      initialBalance: 100,
+      txnLines: [],
+      valuations: [{ totalValue: { toNumber: () => 120 } }],
+    };
+    // 用 mockPrisma 覆盖 account.findUnique，返回估值数据
+    (mockPrisma.account.findUnique as any).mockResolvedValueOnce(acc);
+    const resSum = await summary.GET(
+      makeGet("http://localhost/api/v1/accounts/a/summary"),
+      { params: { id: "a" } }
+    );
+    const j = await resSum.json();
+    expect(j.valuation).toBe(120);
+    expect(j.roi).toBeCloseTo(0.2);
+  });
+
+  it("POST /valuations 404 when account not found", async () => {
+    const route = await import("@/app/api/v1/valuations/route");
+    mockPrisma.account.findUnique.mockResolvedValueOnce(null);
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+        accountId: "not-exist",
+        asOf: "2025-08-01",
+        totalValue: 100,
+      })
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("POST /valuations invalid body -> 400", async () => {
+    const route = await import("@/app/api/v1/valuations/route");
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+        accountId: "a",
+        totalValue: 100,
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+});
