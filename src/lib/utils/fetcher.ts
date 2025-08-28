@@ -1,4 +1,7 @@
-import { headersWithIdempotency, makeIdempotencyKey } from "@/lib/utils/idempotency";
+import {
+  headersWithIdempotency,
+  makeIdempotencyKey,
+} from "@/lib/utils/idempotency";
 
 export type FetchJsonOptions = {
   method?: string;
@@ -8,9 +11,20 @@ export type FetchJsonOptions = {
   headers?: HeadersInit;
 };
 
-export async function fetchJson<T = unknown>(url: string, opts: FetchJsonOptions = {}): Promise<T> {
-  const { method = "GET", body, idempotent = false, idempotencyKey, headers } = opts;
-  const key = idempotent ? idempotencyKey ?? makeIdempotencyKey("cl") : undefined;
+export async function fetchJson<T = unknown>(
+  url: string,
+  opts: FetchJsonOptions = {},
+): Promise<T> {
+  const {
+    method = "GET",
+    body,
+    idempotent = false,
+    idempotencyKey,
+    headers,
+  } = opts;
+  const key = idempotent
+    ? (idempotencyKey ?? makeIdempotencyKey("cl"))
+    : undefined;
   const res = await fetch(url, {
     method,
     headers: headersWithIdempotency(headers, key),
@@ -27,15 +41,41 @@ export async function getJson<T = unknown>(url: string, headers?: HeadersInit) {
   return fetchJson<T>(url, { method: "GET", headers });
 }
 
-export async function postJson<T = unknown>(url: string, body: unknown, idempotencyKey?: string) {
-  return fetchJson<T>(url, { method: "POST", body, idempotent: true, idempotencyKey });
+export async function postJson<T = unknown>(
+  url: string,
+  body: unknown,
+  idempotencyKey?: string,
+) {
+  return fetchJson<T>(url, {
+    method: "POST",
+    body,
+    idempotent: true,
+    idempotencyKey,
+  });
 }
 
-export async function putJson<T = unknown>(url: string, body: unknown, idempotencyKey?: string) {
-  return fetchJson<T>(url, { method: "PUT", body, idempotent: true, idempotencyKey });
+export async function putJson<T = unknown>(
+  url: string,
+  body: unknown,
+  idempotencyKey?: string,
+) {
+  return fetchJson<T>(url, {
+    method: "PUT",
+    body,
+    idempotent: true,
+    idempotencyKey,
+  });
 }
 
-export async function patchJson<T = unknown>(url: string, body: unknown, idempotencyKey?: string) {
-  return fetchJson<T>(url, { method: "PATCH", body, idempotent: true, idempotencyKey });
+export async function patchJson<T = unknown>(
+  url: string,
+  body: unknown,
+  idempotencyKey?: string,
+) {
+  return fetchJson<T>(url, {
+    method: "PATCH",
+    body,
+    idempotent: true,
+    idempotencyKey,
+  });
 }
-

@@ -8,7 +8,12 @@ async function upsertTax(country, year) {
   const cfg = await prisma.taxConfig.upsert({
     where: { country_taxYear: { country, taxYear: year } },
     update: {},
-    create: { country, taxYear: year, standardDeduction: 5000 },
+    create: {
+      country,
+      taxYear: year,
+      standardDeduction: 5000,
+      specialAdditionalDeduction: 0,
+    },
   });
   const brackets = [
     { position: 1, threshold: 36000, rate: 0.03, quick: 0 },
@@ -68,7 +73,9 @@ async function seed() {
 
   // 社保（示例：ZJ 区间）
   await prisma.cityRuleSS.upsert({
-    where: { cityId_startDate: { cityId: hz.id, startDate: new Date("2023-01-01") } },
+    where: {
+      cityId_startDate: { cityId: hz.id, startDate: new Date("2023-01-01") },
+    },
     update: {},
     create: {
       cityId: hz.id,
@@ -82,7 +89,9 @@ async function seed() {
     },
   });
   await prisma.cityRuleSS.upsert({
-    where: { cityId_startDate: { cityId: hz.id, startDate: new Date("2024-01-01") } },
+    where: {
+      cityId_startDate: { cityId: hz.id, startDate: new Date("2024-01-01") },
+    },
     update: {},
     create: {
       cityId: hz.id,
@@ -96,7 +105,9 @@ async function seed() {
     },
   });
   await prisma.cityRuleSS.upsert({
-    where: { cityId_startDate: { cityId: hz.id, startDate: new Date("2025-01-01") } },
+    where: {
+      cityId_startDate: { cityId: hz.id, startDate: new Date("2025-01-01") },
+    },
     update: {},
     create: {
       cityId: hz.id,
@@ -107,12 +118,15 @@ async function seed() {
       ratePension: 0.08,
       rateMedical: 0.02,
       rateUnemployment: 0.005,
+      fixedMedicalPersonal: 3,
     },
   });
 
   // 公积金
   await prisma.cityRuleHF.upsert({
-    where: { cityId_startDate: { cityId: hz.id, startDate: new Date("2023-07-01") } },
+    where: {
+      cityId_startDate: { cityId: hz.id, startDate: new Date("2023-07-01") },
+    },
     update: {},
     create: {
       cityId: hz.id,
@@ -124,7 +138,9 @@ async function seed() {
     },
   });
   await prisma.cityRuleHF.upsert({
-    where: { cityId_startDate: { cityId: hz.id, startDate: new Date("2024-07-01") } },
+    where: {
+      cityId_startDate: { cityId: hz.id, startDate: new Date("2024-07-01") },
+    },
     update: {},
     create: {
       cityId: hz.id,
@@ -136,7 +152,9 @@ async function seed() {
     },
   });
   await prisma.cityRuleHF.upsert({
-    where: { cityId_startDate: { cityId: hz.id, startDate: new Date("2025-07-01") } },
+    where: {
+      cityId_startDate: { cityId: hz.id, startDate: new Date("2025-07-01") },
+    },
     update: {},
     create: {
       cityId: hz.id,
@@ -155,12 +173,27 @@ async function seed() {
   try {
     await prisma.incomeChange.createMany({
       data: [
-        { userId: user.id, grossMonthly: 11000, currency: "CNY", effectiveFrom: new Date("2023-01-01") },
-        { userId: user.id, grossMonthly: 13000, currency: "CNY", effectiveFrom: new Date("2024-01-01") },
-        { userId: user.id, grossMonthly: 15000, currency: "CNY", effectiveFrom: new Date("2025-01-01") },
+        {
+          userId: user.id,
+          grossMonthly: 11000,
+          currency: "CNY",
+          effectiveFrom: new Date("2023-01-01"),
+        },
+        {
+          userId: user.id,
+          grossMonthly: 13000,
+          currency: "CNY",
+          effectiveFrom: new Date("2024-01-01"),
+        },
+        {
+          userId: user.id,
+          grossMonthly: 15000,
+          currency: "CNY",
+          effectiveFrom: new Date("2025-01-01"),
+        },
       ],
     });
-  } catch (e) {
+  } catch (_e) {
     // 忽略重复插入错误
     console.log("IncomeChange data already exists, skipping...");
   }
@@ -169,12 +202,27 @@ async function seed() {
   try {
     await prisma.bonusPlan.createMany({
       data: [
-        { userId: user.id, amount: 20000, currency: "CNY", effectiveDate: new Date("2023-01-10") },
-        { userId: user.id, amount: 20000, currency: "CNY", effectiveDate: new Date("2024-01-10") },
-        { userId: user.id, amount: 20000, currency: "CNY", effectiveDate: new Date("2025-01-10") },
+        {
+          userId: user.id,
+          amount: 20000,
+          currency: "CNY",
+          effectiveDate: new Date("2023-01-10"),
+        },
+        {
+          userId: user.id,
+          amount: 20000,
+          currency: "CNY",
+          effectiveDate: new Date("2024-01-10"),
+        },
+        {
+          userId: user.id,
+          amount: 20000,
+          currency: "CNY",
+          effectiveDate: new Date("2025-01-10"),
+        },
       ],
     });
-  } catch (e) {
+  } catch (_e) {
     // 忽略重复插入错误
     console.log("BonusPlan data already exists, skipping...");
   }
@@ -196,16 +244,36 @@ async function seed() {
       try {
         await prisma.longTermCashPayout.createMany({
           data: [
-            { planId: plan.id, payDate: new Date(`${year}-04-01`), amount: per, currency: "CNY" },
-            { planId: plan.id, payDate: new Date(`${year}-07-01`), amount: per, currency: "CNY" },
-            { planId: plan.id, payDate: new Date(`${year}-10-01`), amount: per, currency: "CNY" },
-            { planId: plan.id, payDate: new Date(`${year + 1}-01-01`), amount: per, currency: "CNY" },
+            {
+              planId: plan.id,
+              payDate: new Date(`${year}-04-01`),
+              amount: per,
+              currency: "CNY",
+            },
+            {
+              planId: plan.id,
+              payDate: new Date(`${year}-07-01`),
+              amount: per,
+              currency: "CNY",
+            },
+            {
+              planId: plan.id,
+              payDate: new Date(`${year}-10-01`),
+              amount: per,
+              currency: "CNY",
+            },
+            {
+              planId: plan.id,
+              payDate: new Date(`${year + 1}-01-01`),
+              amount: per,
+              currency: "CNY",
+            },
           ],
         });
-      } catch (e) {
+      } catch (_e) {
         console.log(`LTC Payouts for ${year} already exist, skipping...`);
       }
-    } catch (e) {
+    } catch (_e) {
       console.log(`LTC Plan for ${year} already exists, skipping...`);
     }
   }
@@ -224,4 +292,3 @@ seed()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

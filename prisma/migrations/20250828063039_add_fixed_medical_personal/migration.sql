@@ -31,6 +31,7 @@ CREATE TABLE "CityRuleSS" (
     "ratePension" DECIMAL NOT NULL,
     "rateMedical" DECIMAL NOT NULL,
     "rateUnemployment" DECIMAL NOT NULL,
+    "fixedMedicalPersonal" DECIMAL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "CityRuleSS_cityId_fkey" FOREIGN KEY ("cityId") REFERENCES "City" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
@@ -54,6 +55,7 @@ CREATE TABLE "TaxConfig" (
     "country" TEXT NOT NULL,
     "taxYear" INTEGER NOT NULL,
     "standardDeduction" DECIMAL NOT NULL,
+    "specialAdditionalDeduction" DECIMAL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -216,6 +218,8 @@ CREATE TABLE "IncomeRecord" (
     "taxableIncome" DECIMAL,
     "incomeTax" DECIMAL,
     "taxPaid" DECIMAL DEFAULT 0,
+    "taxableCumulative" DECIMAL,
+    "taxCumulative" DECIMAL,
     "netIncome" DECIMAL,
     "isForecast" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

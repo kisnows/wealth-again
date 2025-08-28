@@ -13,13 +13,17 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const where: any = { userId: (user as any).id };
   if (from || to) {
     where.monthDate = {} as any;
     if (from) (where.monthDate as any).gte = new Date(from);
     if (to) (where.monthDate as any).lte = new Date(to);
   }
-  const items = await prisma.incomeRecord.findMany({ where, orderBy: { monthDate: "asc" } });
+  const items = await prisma.incomeRecord.findMany({
+    where,
+    orderBy: { monthDate: "asc" },
+  });
   return NextResponse.json({ items });
 }

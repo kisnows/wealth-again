@@ -6,10 +6,12 @@ export function makeIdempotencyKey(prefix = "req"): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function headersWithIdempotency(headers?: HeadersInit, key?: string): HeadersInit {
+export function headersWithIdempotency(
+  headers?: HeadersInit,
+  key?: string,
+): HeadersInit {
   const h = new Headers(headers);
   h.set("Content-Type", "application/json");
   if (key) h.set("Idempotency-Key", key);
   return h;
 }
-

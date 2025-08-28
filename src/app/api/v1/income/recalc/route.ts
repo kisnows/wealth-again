@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { recalcIncome } from "@/server/services/income";
-import { ensureIdempotent, markIdempotencyUsed } from "@/server/utils/idempotency";
 import { logAudit } from "@/server/services/audit";
+import { recalcIncome } from "@/server/services/income";
+import {
+  ensureIdempotent,
+  markIdempotencyUsed,
+} from "@/server/utils/idempotency";
 
 /**
  * POST /api/v1/income/recalc
@@ -12,11 +15,22 @@ import { logAudit } from "@/server/services/audit";
 
 export async function POST(req: Request) {
   const { taxYear, endMonth, cityId } = await req.json();
-  if (!taxYear || !endMonth) return NextResponse.json({ error: "invalid body" }, { status: 400 });
-  const { key, existed } = await ensureIdempotent(req, undefined, `${taxYear}:${endMonth}:${cityId ?? ""}`);
-  if (existed) return NextResponse.json({ error: "Idempotency key reused" }, { status: 409 });
+  if (!taxYear || !endMonth)
+    return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  const { key, existed } = await ensureIdempotent(
+    req,
+    undefined,
+    `${taxYear}:${endMonth}:${cityId ?? ""}`,
+  );
+  if (existed)
+    return NextResponse.json(
+      { error: "Idempotency key reused" },
+      { status: 409 },
+    );
   const res = await recalcIncome({ taxYear, endMonth, cityId });
-  await logAudit("INCOME_RECALC", { meta: { taxYear, endMonth, cityId, updated: res.updated } });
+  await logAudit("INCOME_RECALC", {
+    meta: { taxYear, endMonth, cityId, updated: res.updated },
+  });
   await markIdempotencyUsed(key);
   return NextResponse.json(res);
 }

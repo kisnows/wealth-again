@@ -18,4 +18,3 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
   },
   clear: () => set({ selectedIds: new Set() }),
 }));
-

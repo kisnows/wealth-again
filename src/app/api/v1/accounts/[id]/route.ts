@@ -11,19 +11,31 @@ import { getUserFromRequest } from "@/server/utils/auth";
  */
 
 // PATCH /api/v1/accounts/:id 仅允许 name/subType/description/status（禁止修改 baseCurrency）
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const body = await req.json();
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const account = await prisma.account.findUnique({ where: { id: params.id } });
-  if (!account || account.userId !== (user as any).id) return NextResponse.json({ error: "Not Found" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const account = await prisma.account.findUnique({ where: { id } });
+  if (!account || account.userId !== (user as any).id)
+    return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const allowed: any = {};
   for (const k of ["name", "subType", "description", "status"]) {
     if (k in body) allowed[k] = body[k];
   }
   if ("baseCurrency" in body) {
-    return NextResponse.json({ error: "baseCurrency is immutable" }, { status: 400 });
+    return NextResponse.json(
+      { error: "baseCurrency is immutable" },
+      { status: 400 }
+    );
   }
-  const updated = await prisma.account.update({ where: { id: params.id }, data: allowed });
+  const updated = await prisma.account.update({
+    where: { id },
+    data: allowed,
+  });
   return NextResponse.json(updated);
 }

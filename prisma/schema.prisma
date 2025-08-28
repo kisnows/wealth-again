@@ -55,16 +55,18 @@ model City {
 }
 
 model CityRuleSS {
-  id               String    @id @default(uuid())
-  cityId           String
-  startDate        DateTime
-  endDate          DateTime?
-  baseMin          Decimal
-  baseMax          Decimal
-  ratePension      Decimal // 个人
-  rateMedical      Decimal // 个人
-  rateUnemployment Decimal // 个人
-  createdAt        DateTime  @default(now())
+  id                   String    @id @default(uuid())
+  cityId               String
+  startDate            DateTime
+  endDate              DateTime?
+  baseMin              Decimal
+  baseMax              Decimal
+  ratePension          Decimal // 个人
+  rateMedical          Decimal // 个人
+  rateUnemployment     Decimal // 个人
+  fixedMedicalPersonal Decimal? // 固定医疗费用（个人）
+
+  createdAt DateTime @default(now())
 
   city City @relation(fields: [cityId], references: [id])
 
@@ -90,10 +92,11 @@ model CityRuleHF {
 
 // ==== 税制（国家 + 税年） ====
 model TaxConfig {
-  id                String  @id @default(uuid())
-  country           String
-  taxYear           Int
-  standardDeduction Decimal // 月度起征额（例：5000）
+  id                         String   @id @default(uuid())
+  country                    String
+  taxYear                    Int
+  standardDeduction          Decimal // 月度起征额（例：5000）
+  specialAdditionalDeduction Decimal? // 专项附加扣除（按月），默认 0
 
   createdAt DateTime     @default(now())
   brackets  TaxBracket[]
@@ -294,11 +297,13 @@ model IncomeRecord {
   otherDeductions   Decimal? @default(0)
   charityDonations  Decimal? @default(0)
 
-  taxableIncome Decimal?
-  incomeTax     Decimal?
-  taxPaid       Decimal? @default(0) // 累计已缴
-  netIncome     Decimal?
-  isForecast    Boolean  @default(false)
+  taxableIncome     Decimal?
+  incomeTax         Decimal?
+  taxPaid           Decimal? @default(0) // 累计已缴
+  taxableCumulative Decimal?
+  taxCumulative     Decimal?
+  netIncome         Decimal?
+  isForecast        Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

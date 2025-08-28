@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet } from "@/tests/helpers";
 
 const mockPrisma: any = {
@@ -31,8 +31,8 @@ describe("Reports routes", () => {
     ]);
     const res = await m.GET(
       makeGet(
-        "http://localhost/api/v1/reports/accounts/summary?displayCurrency=CNY"
-      )
+        "http://localhost/api/v1/reports/accounts/summary?displayCurrency=CNY",
+      ),
     );
     expect(res.status).toBe(200);
     const j = await res.json();
@@ -48,19 +48,35 @@ describe("Reports routes", () => {
       (
         await m.GET(
           makeGet(
-            "http://localhost/api/v1/reports/dashboard?displayCurrency=CNY"
-          )
+            "http://localhost/api/v1/reports/dashboard?displayCurrency=CNY",
+          ),
         )
-      ).status
+      ).status,
     ).toBe(200);
   });
 
   it("income timeseries returns series for given range", async () => {
     const m = await import("@/app/api/v1/reports/income/timeseries/route");
-    (mockPrisma as any).incomeRecord = { findMany: vi.fn().mockResolvedValueOnce([
-      { monthDate: new Date("2025-01-01"), gross: 10000, bonus: 0, ltcIncome: 0, equityIncome: 0, socialInsurance: 0, housingFund: 0, incomeTax: 300, netIncome: 9700 },
-    ]) };
-    const res = await m.GET(makeGet("http://localhost/api/v1/reports/income/timeseries?from=2025-01-01&to=2025-12-01&userId=u1"));
+    (mockPrisma as any).incomeRecord = {
+      findMany: vi.fn().mockResolvedValueOnce([
+        {
+          monthDate: new Date("2025-01-01"),
+          gross: 10000,
+          bonus: 0,
+          ltcIncome: 0,
+          equityIncome: 0,
+          socialInsurance: 0,
+          housingFund: 0,
+          incomeTax: 300,
+          netIncome: 9700,
+        },
+      ]),
+    };
+    const res = await m.GET(
+      makeGet(
+        "http://localhost/api/v1/reports/income/timeseries?from=2025-01-01&to=2025-12-01&userId=u1",
+      ),
+    );
     expect(res.status).toBe(200);
     const j = await res.json();
     expect(j.series.gross.length).toBe(1);

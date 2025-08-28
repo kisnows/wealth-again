@@ -1,8 +1,15 @@
 "use client";
 
 import { SalaryChangeForm } from "@/components/modules/IncomeForms";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useSalaryChanges } from "@/lib/api/income";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function SalaryChangesPage() {
   const { data, isLoading } = useSalaryChanges();
@@ -22,7 +29,14 @@ export default function SalaryChangesPage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={4} className="text-sm text-muted-foreground">加载中…</TableCell></TableRow>
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="text-sm text-muted-foreground"
+                >
+                  加载中…
+                </TableCell>
+              </TableRow>
             ) : items.length ? (
               items.map((it) => (
                 <TableRow key={it.id}>
@@ -33,7 +47,14 @@ export default function SalaryChangesPage() {
                 </TableRow>
               ))
             ) : (
-              <TableRow><TableCell colSpan={4} className="text-sm text-muted-foreground">暂无数据</TableCell></TableRow>
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="text-sm text-muted-foreground"
+                >
+                  暂无数据
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>

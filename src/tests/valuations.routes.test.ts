@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makeJsonRequest, makeGet } from "@/tests/helpers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeGet, makeJsonRequest } from "@/tests/helpers";
 
 const mockPrisma: any = {
   account: { findUnique: vi.fn() },
@@ -8,6 +8,10 @@ const mockPrisma: any = {
 };
 
 vi.mock("@/server/db", () => ({ default: mockPrisma }));
+// Mock 认证函数，返回测试用户
+vi.mock("@/server/utils/auth", () => ({
+  getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
+}));
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -17,6 +21,7 @@ describe("Valuations routes", () => {
     const route = await import("@/app/api/v1/valuations/route");
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "a",
+      userId: "u1",
       accountType: "SAVINGS",
       baseCurrency: "CNY",
     });
@@ -34,6 +39,7 @@ describe("Valuations routes", () => {
     const route = await import("@/app/api/v1/valuations/route");
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "a",
+      userId: "u1",
       accountType: "INVESTMENT",
       baseCurrency: "CNY",
     });
@@ -51,6 +57,7 @@ describe("Valuations routes", () => {
     const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
     const acc = {
       id: "a",
+      userId: "u1",
       name: "Invest",
       baseCurrency: "CNY",
       accountType: "INVESTMENT",

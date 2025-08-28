@@ -1,40 +1,270 @@
 "use client";
 
+import {
+  AlertCircleIcon,
+  CheckCircleIcon,
+  FileTextIcon,
+  Loader2,
+} from "lucide-react";
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 
 type Props = {
   title: string;
+  description?: string;
   placeholder?: string;
   onSubmit: (items: unknown) => Promise<any>;
+  examples?: { name: string; data: any }[];
 };
 
-export default function RulesUpsertForm({ title, placeholder, onSubmit }: Props) {
-  const [text, setText] = useState(placeholder ?? "");
+export default function RulesUpsertForm({
+  title,
+  description,
+  placeholder,
+  onSubmit,
+  examples = [],
+}: Props) {
+  const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [validationState, setValidationState] = useState<{
+    isValid: boolean;
+    error?: string;
+    parsedData?: any[];
+    itemCount?: number;
+  }>({ isValid: false });
+
+  // 实时验证JSON格式
+  const validateJson = (jsonText: string) => {
+    if (!jsonText.trim()) {
+      setValidationState({ isValid: false });
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (!Array.isArray(parsed)) {
+        setValidationState({
+          isValid: false,
+          error: "数据必须是数组格式",
+        });
+        return;
+      }
+
+      setValidationState({
+        isValid: true,
+        parsedData: parsed,
+        itemCount: parsed.length,
+      });
+    } catch (e) {
+      setValidationState({
+        isValid: false,
+        error: `JSON 格式错误：${(e as Error).message}`,
+      });
+    }
+  };
+
+  const handleTextChange = (value: string) => {
+    setText(value);
+    validateJson(value);
+  };
+
   const submit = async () => {
+    if (!validationState.isValid || !validationState.parsedData) {
+      toast.error("请检查数据格式");
+      return;
+    }
+
     try {
       setLoading(true);
-      const json = JSON.parse(text || "[]");
-      await onSubmit(json);
-      toast.success("已提交配置");
+      await onSubmit(validationState.parsedData);
+      toast.success(`已成功提交 ${validationState.itemCount} 条规则配置`);
+      setText("");
+      setValidationState({ isValid: false });
     } catch (e: any) {
-      toast.error(e?.message || "提交失败");
+      toast.error(e?.message || "提交失败，请重试");
     } finally {
       setLoading(false);
     }
   };
+
+  const loadExample = (example: { name: string; data: any }) => {
+    const jsonText = JSON.stringify(example.data, null, 2);
+    setText(jsonText);
+    validateJson(jsonText);
+  };
+
   return (
     <Card>
-      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
-      <CardContent className="grid gap-3">
-        <Textarea rows={10} value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} />
-        <Button onClick={submit} disabled={loading}>{loading ? "提交中…" : "提交"}</Button>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileTextIcon className="w-5 h-5" />
+          {title}
+        </CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {examples.length > 0 && (
+          <Tabs defaultValue="input" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="input">数据输入</TabsTrigger>
+              <TabsTrigger value="examples">示例数据</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="input" className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  JSON 数据 (数组格式)
+                </label>
+                <Textarea
+                  rows={12}
+                  value={text}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  placeholder={placeholder}
+                  className={`font-mono text-sm ${
+                    validationState.error
+                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                      : validationState.isValid
+                        ? "border-green-300 focus:ring-green-500 focus:border-green-500"
+                        : ""
+                  }`}
+                />
+
+                {/* 验证状态显示 */}
+                <div className="flex items-center gap-2">
+                  {validationState.isValid ? (
+                    <div className="flex items-center gap-1 text-green-600">
+                      <CheckCircleIcon className="w-4 h-4" />
+                      <span className="text-sm">
+                        JSON 格式正确，共 {validationState.itemCount} 条记录
+                      </span>
+                    </div>
+                  ) : validationState.error ? (
+                    <div className="flex items-center gap-1 text-red-600">
+                      <AlertCircleIcon className="w-4 h-4" />
+                      <span className="text-sm">{validationState.error}</span>
+                    </div>
+                  ) : text.trim() ? (
+                    <div className="flex items-center gap-1 text-gray-500">
+                      <AlertCircleIcon className="w-4 h-4" />
+                      <span className="text-sm">正在验证...</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <Button
+                onClick={submit}
+                disabled={loading || !validationState.isValid}
+                className="w-full"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    提交中...
+                  </>
+                ) : (
+                  `提交配置 ${validationState.itemCount ? `(${validationState.itemCount} 条)` : ""}`
+                )}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="examples" className="space-y-4">
+              <div className="text-sm text-gray-600 mb-4">
+                选择示例数据快速填入，你可以基于示例修改后提交：
+              </div>
+              <div className="grid gap-3">
+                {examples.map((example, index) => (
+                  <Card key={index} className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">{example.name}</h4>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadExample(example)}
+                      >
+                        使用此示例
+                      </Button>
+                    </div>
+                    <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-32">
+                      {JSON.stringify(example.data, null, 2)}
+                    </pre>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {examples.length === 0 && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                JSON 数据 (数组格式)
+              </label>
+              <Textarea
+                rows={12}
+                value={text}
+                onChange={(e) => handleTextChange(e.target.value)}
+                placeholder={placeholder}
+                className={`font-mono text-sm ${
+                  validationState.error
+                    ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                    : validationState.isValid
+                      ? "border-green-300 focus:ring-green-500 focus:border-green-500"
+                      : ""
+                }`}
+              />
+
+              {/* 验证状态显示 */}
+              <div className="flex items-center gap-2">
+                {validationState.isValid ? (
+                  <div className="flex items-center gap-1 text-green-600">
+                    <CheckCircleIcon className="w-4 h-4" />
+                    <span className="text-sm">
+                      JSON 格式正确，共 {validationState.itemCount} 条记录
+                    </span>
+                  </div>
+                ) : validationState.error ? (
+                  <div className="flex items-center gap-1 text-red-600">
+                    <AlertCircleIcon className="w-4 h-4" />
+                    <span className="text-sm">{validationState.error}</span>
+                  </div>
+                ) : text.trim() ? (
+                  <div className="flex items-center gap-1 text-gray-500">
+                    <AlertCircleIcon className="w-4 h-4" />
+                    <span className="text-sm">正在验证...</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <Button
+              onClick={submit}
+              disabled={loading || !validationState.isValid}
+              className="w-full"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  提交中...
+                </>
+              ) : (
+                `提交配置 ${validationState.itemCount ? `(${validationState.itemCount} 条)` : ""}`
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
-

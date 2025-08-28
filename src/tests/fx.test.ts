@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makeJsonRequest, makeGet } from "@/tests/helpers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeGet, makeJsonRequest } from "@/tests/helpers";
 
 const mockPrisma: any = {
   fxRate: {
@@ -16,8 +16,18 @@ beforeEach(() => vi.clearAllMocks());
 describe("FX routes", () => {
   it("GET /fxrates returns nearest asOf match", async () => {
     const m = await import("@/app/api/v1/fxrates/route");
-    mockPrisma.fxRate.findFirst.mockResolvedValueOnce({ id: "r1", base: "USD", quote: "CNY", rate: 7.2, asOf: new Date("2025-08-01") });
-    const res = await m.GET(makeGet("http://localhost/api/v1/fxrates?base=USD&quote=CNY&on=2025-08-01"));
+    mockPrisma.fxRate.findFirst.mockResolvedValueOnce({
+      id: "r1",
+      base: "USD",
+      quote: "CNY",
+      rate: 7.2,
+      asOf: new Date("2025-08-01"),
+    });
+    const res = await m.GET(
+      makeGet(
+        "http://localhost/api/v1/fxrates?base=USD&quote=CNY&on=2025-08-01",
+      ),
+    );
     expect(res.status).toBe(200);
     const j = await res.json();
     expect(j.rate).toBe(7.2);
@@ -25,14 +35,24 @@ describe("FX routes", () => {
 
   it("GET /fxrates missing quote -> 400", async () => {
     const m = await import("@/app/api/v1/fxrates/route");
-    const res = await m.GET(makeGet("http://localhost/api/v1/fxrates?base=USD"));
+    const res = await m.GET(
+      makeGet("http://localhost/api/v1/fxrates?base=USD"),
+    );
     expect(res.status).toBe(400);
   });
 
   it("GET /fxrates without on returns latest snapshot", async () => {
     const m = await import("@/app/api/v1/fxrates/route");
-    mockPrisma.fxRate.findFirst.mockResolvedValueOnce({ id: "r-latest", base: "USD", quote: "EUR", rate: 0.9, asOf: new Date("2025-08-03") });
-    const res = await m.GET(makeGet("http://localhost/api/v1/fxrates?base=USD&quote=EUR"));
+    mockPrisma.fxRate.findFirst.mockResolvedValueOnce({
+      id: "r-latest",
+      base: "USD",
+      quote: "EUR",
+      rate: 0.9,
+      asOf: new Date("2025-08-03"),
+    });
+    const res = await m.GET(
+      makeGet("http://localhost/api/v1/fxrates?base=USD&quote=EUR"),
+    );
     expect(res.status).toBe(200);
     const j = await res.json();
     expect(j.id).toBe("r-latest");
@@ -40,14 +60,25 @@ describe("FX routes", () => {
 
   it("POST /fxrates invalid body -> 400", async () => {
     const m = await import("@/app/api/v1/fxrates/route");
-    const res = await m.POST(makeJsonRequest("http://localhost/api/v1/fxrates", "POST", { base: "USD" }));
+    const res = await m.POST(
+      makeJsonRequest("http://localhost/api/v1/fxrates", "POST", {
+        base: "USD",
+      }),
+    );
     expect(res.status).toBe(400);
   });
 
   it("POST /fxrates creates snapshot", async () => {
     const m = await import("@/app/api/v1/fxrates/route");
     mockPrisma.fxRate.create.mockResolvedValueOnce({ id: "r2" });
-    const res = await m.POST(makeJsonRequest("http://localhost/api/v1/fxrates", "POST", { base: "USD", quote: "CNY", rate: 7.1, asOf: "2025-08-02" }));
+    const res = await m.POST(
+      makeJsonRequest("http://localhost/api/v1/fxrates", "POST", {
+        base: "USD",
+        quote: "CNY",
+        rate: 7.1,
+        asOf: "2025-08-02",
+      }),
+    );
     expect(res.status).toBe(201);
   });
 });

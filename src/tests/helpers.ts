@@ -17,4 +17,3 @@ export function makeJsonRequest(
 export function makeGet(url: string) {
   return makeJsonRequest(url, "GET");
 }
-

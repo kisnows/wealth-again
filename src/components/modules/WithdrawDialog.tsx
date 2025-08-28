@@ -1,34 +1,88 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { postWithdraw } from "@/lib/api/accounts";
-import { toast } from "sonner";
 
-export default function WithdrawDialog({ defaultAccountId }: { defaultAccountId?: string }) {
+export default function WithdrawDialog({
+  defaultAccountId,
+}: {
+  defaultAccountId?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ accountId: defaultAccountId ?? "", amount: "", occurredAt: "", note: "" });
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
+  const [form, setForm] = useState({
+    accountId: defaultAccountId ?? "",
+    amount: "",
+    occurredAt: "",
+    note: "",
+  });
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await postWithdraw({ accountId: form.accountId, amount: Number(form.amount), occurredAt: new Date(form.occurredAt).toISOString(), note: form.note || undefined });
+    await postWithdraw({
+      accountId: form.accountId,
+      amount: Number(form.amount),
+      occurredAt: new Date(form.occurredAt).toISOString(),
+      note: form.note || undefined,
+    });
     toast.success("已记录取出");
     setOpen(false);
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button variant="outline">记录取出</Button></DialogTrigger>
+      <DialogTrigger asChild>
+        <Button variant="outline">记录取出</Button>
+      </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>记录取出</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>记录取出</DialogTitle>
+        </DialogHeader>
         <form onSubmit={submit} className="grid gap-2">
-          <div className="grid gap-1"><Label>Account ID</Label><Input name="accountId" value={form.accountId} onChange={onChange} /></div>
-          <div className="grid gap-1"><Label>Amount</Label><Input name="amount" type="number" value={form.amount} onChange={onChange} /></div>
-          <div className="grid gap-1"><Label>Occurred At</Label><Input name="occurredAt" type="datetime-local" value={form.occurredAt} onChange={onChange} /></div>
-          <div className="grid gap-1"><Label>Note</Label><Input name="note" value={form.note} onChange={onChange} /></div>
-          <DialogFooter><Button type="submit">提交</Button></DialogFooter>
+          <div className="grid gap-1">
+            <Label>Account ID</Label>
+            <Input
+              name="accountId"
+              value={form.accountId}
+              onChange={onChange}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label>Amount</Label>
+            <Input
+              name="amount"
+              type="number"
+              value={form.amount}
+              onChange={onChange}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label>Occurred At</Label>
+            <Input
+              name="occurredAt"
+              type="datetime-local"
+              value={form.occurredAt}
+              onChange={onChange}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label>Note</Label>
+            <Input name="note" value={form.note} onChange={onChange} />
+          </div>
+          <DialogFooter>
+            <Button type="submit">提交</Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

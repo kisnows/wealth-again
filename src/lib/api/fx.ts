@@ -8,7 +8,11 @@ export async function getFxRate(base: string, quote: string, on?: string) {
   return getJson(`/api/v1/fxrates?${p.toString()}`);
 }
 
-export async function createFxRate(input: { base: string; quote: string; rate: number; asOf: string }) {
+export async function createFxRate(input: {
+  base: string;
+  quote: string;
+  rate: number;
+  asOf: string;
+}) {
   return postJson("/api/v1/fxrates", input);
 }
-

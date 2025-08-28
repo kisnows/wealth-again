@@ -12,5 +12,9 @@ export async function getDashboard(displayCurrency?: string) {
     { assets: 0, liabilities: 0 },
   );
   const netWorth = totals.assets - totals.liabilities;
-  return { totals: { ...totals, netWorth }, allocations: [], timeseries: [] } as const;
+  return {
+    totals: { ...totals, netWorth },
+    allocations: [],
+    timeseries: [],
+  } as const;
 }

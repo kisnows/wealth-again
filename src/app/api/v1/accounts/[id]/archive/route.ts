@@ -10,11 +10,20 @@ import { getUserFromRequest } from "@/server/utils/auth";
  */
 
 // POST /api/v1/accounts/:id/archive 归档账户
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const user = await getUserFromRequest(req as any);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const account = await prisma.account.findUnique({ where: { id: params.id } });
-  if (!account || account.userId !== (user as any).id) return NextResponse.json({ error: "Not Found" }, { status: 404 });
-  const updated = await prisma.account.update({ where: { id: params.id }, data: { status: "ARCHIVED" } });
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const account = await prisma.account.findUnique({ where: { id } });
+  if (!account || account.userId !== (user as any).id)
+    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+  const updated = await prisma.account.update({
+    where: { id },
+    data: { status: "ARCHIVED" },
+  });
   return NextResponse.json({ id: updated.id, status: updated.status });
 }

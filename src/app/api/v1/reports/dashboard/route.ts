@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { computeAccountSummary } from "../accounts/summary/utils";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { computeAccountSummary } from "../accounts/summary/utils";
 
 /**
  * GET /api/v1/reports/dashboard?asOf=YYYY-MM-DD&displayCurrency=CNY
@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const displayCurrency = searchParams.get("displayCurrency") || undefined;
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const items = await computeAccountSummary(displayCurrency, (user as any).id);
   const totals = items.reduce(
     (acc, i) => {
@@ -31,5 +32,10 @@ export async function GET(req: NextRequest) {
     { assets: 0, liabilities: 0 },
   );
   const netWorth = totals.assets - totals.liabilities;
-  return NextResponse.json({ totals: { ...totals, netWorth }, displayCurrency: displayCurrency || null, allocations: [], timeseries: [] });
+  return NextResponse.json({
+    totals: { ...totals, netWorth },
+    displayCurrency: displayCurrency || null,
+    allocations: [],
+    timeseries: [],
+  });
 }

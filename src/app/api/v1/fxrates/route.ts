@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
   const base = searchParams.get("base") ?? "USD";
   const quote = searchParams.get("quote");
   const on = searchParams.get("on");
-  if (!quote) return NextResponse.json({ error: "quote is required" }, { status: 400 });
+  if (!quote)
+    return NextResponse.json({ error: "quote is required" }, { status: 400 });
   let where: any = { base, quote };
   if (on) {
     const onDate = new Date(on);
@@ -29,7 +30,10 @@ export async function GET(req: NextRequest) {
     // 回退精确匹配
     where = { base, quote, asOf: onDate };
   }
-  const rate = await prisma.fxRate.findFirst({ where, orderBy: { asOf: "desc" } });
+  const rate = await prisma.fxRate.findFirst({
+    where,
+    orderBy: { asOf: "desc" },
+  });
   if (!rate) return NextResponse.json({ error: "Not Found" }, { status: 404 });
   return NextResponse.json(rate);
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { authOptions } from "@/lib/auth";
 
 describe("auth config", () => {
@@ -16,4 +16,3 @@ describe("auth config", () => {
     expect(authOptions.pages?.signIn).toBe("/login");
   });
 });
-

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { postDeposit } from "@/lib/api/accounts";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { postDeposit } from "@/lib/api/accounts";
 
 export default function DepositPage() {
   const [form, setForm] = useState({
@@ -35,14 +35,36 @@ export default function DepositPage() {
       <h1 className="text-xl font-bold mb-4">Deposit</h1>
       <form onSubmit={handleSubmit} className="grid gap-2">
         <Label>Account ID</Label>
-        <Input name="accountId" value={form.accountId} onChange={handleChange} placeholder="a1" />
+        <Input
+          name="accountId"
+          value={form.accountId}
+          onChange={handleChange}
+          placeholder="a1"
+        />
         <Label>Amount</Label>
-        <Input name="amount" type="number" value={form.amount} onChange={handleChange} />
+        <Input
+          name="amount"
+          type="number"
+          value={form.amount}
+          onChange={handleChange}
+        />
         <Label>Occurred At</Label>
-        <Input name="occurredAt" type="datetime-local" value={form.occurredAt} onChange={handleChange} />
+        <Input
+          name="occurredAt"
+          type="datetime-local"
+          value={form.occurredAt}
+          onChange={handleChange}
+        />
         <Label>Note</Label>
-        <Input name="note" value={form.note} onChange={handleChange} placeholder="可选" />
-        <Button type="submit" className="mt-2">提交</Button>
+        <Input
+          name="note"
+          value={form.note}
+          onChange={handleChange}
+          placeholder="可选"
+        />
+        <Button type="submit" className="mt-2">
+          提交
+        </Button>
       </form>
     </main>
   );

@@ -9,11 +9,17 @@ import { getUserFromRequest } from "@/server/utils/auth";
  */
 
 // GET /api/v1/accounts/:id/timeseries?metric=valuation|principal&from&to
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const acc = await prisma.account.findUnique({ where: { id: params.id } });
-  if (!acc || acc.userId !== (user as any).id) return NextResponse.json({ error: "Not Found" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const acc = await prisma.account.findUnique({ where: { id } });
+  if (!acc || acc.userId !== (user as any).id)
+    return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const { searchParams } = new URL(req.url);
   const metric = searchParams.get("metric") ?? "valuation";
   const from = searchParams.get("from");
@@ -22,14 +28,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const toDate = to ? new Date(to) : new Date();
   if (metric === "valuation") {
     const snaps = await prisma.valuationSnapshot.findMany({
-      where: { accountId: params.id, asOf: { gte: fromDate, lte: toDate } },
+      where: { accountId: id, asOf: { gte: fromDate, lte: toDate } },
       orderBy: { asOf: "asc" },
     });
-    return NextResponse.json({ points: snaps.map((s) => ({ asOf: s.asOf, value: Number(s.totalValue) })) });
+    return NextResponse.json({
+      points: snaps.map((s) => ({ asOf: s.asOf, value: Number(s.totalValue) })),
+    });
   }
   // principal: 仅返回 toDate 的一个点（初版聚合）
   const acc2 = await prisma.account.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { txnLines: { include: { entry: true } } },
   });
   if (!acc2) return NextResponse.json({ error: "Not Found" }, { status: 404 });

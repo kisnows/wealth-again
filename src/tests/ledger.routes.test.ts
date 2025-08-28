@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makeJsonRequest, makeGet } from "@/tests/helpers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeGet, makeJsonRequest } from "@/tests/helpers";
 
 const mockPrisma: any = {
   account: {
@@ -20,15 +20,21 @@ vi.mock("@/server/db", () => ({ default: mockPrisma }));
 vi.mock("@/server/services/fx", () => ({
   convert: vi.fn().mockResolvedValue(70),
 }));
+// Mock 认证函数，返回测试用户
+vi.mock("@/server/utils/auth", () => ({
+  getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
+}));
 
 beforeEach(() => vi.clearAllMocks());
 
 // 本文件覆盖账户与记账接口，验证白名单更新、归档、时序查询与跨币种校验等逻辑。
 describe("Accounts & Entries routes", () => {
   it("GET /accounts returns list", async () => {
-    mockPrisma.account.findMany.mockResolvedValueOnce([]);
+    mockPrisma.account.findMany
+      .mockResolvedValueOnce([]) // 第一次调用 (workaround query)
+      .mockResolvedValueOnce([]); // 第二次调用 (实际查询)
     const m = await import("@/app/api/v1/accounts/route");
-    const res = await m.GET();
+    const res = await m.GET(makeGet("http://localhost/api/v1/accounts"));
     expect(res.status).toBe(200);
   });
 
@@ -55,6 +61,11 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("PATCH /accounts/:id blocks baseCurrency change", async () => {
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "a1",
+      userId: "u1",
+      baseCurrency: "CNY",
+    });
     const m = await import("@/app/api/v1/accounts/[id]/route");
     const res = await m.PATCH(
       makeJsonRequest("http://localhost/api/v1/accounts/a1", "PATCH", {
@@ -66,6 +77,11 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("POST /accounts/:id/archive updates status", async () => {
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "a1",
+      userId: "u1",
+      status: "ACTIVE",
+    });
     mockPrisma.account.update.mockResolvedValueOnce({
       id: "a1",
       status: "ARCHIVED",
@@ -79,6 +95,10 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("GET /accounts/:id/timeseries valuation points", async () => {
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "acc1",
+      userId: "u1",
+    });
     mockPrisma.valuationSnapshot.findMany.mockResolvedValueOnce([
       { asOf: new Date("2025-08-01"), totalValue: 100 },
     ]);
@@ -97,14 +117,26 @@ describe("Accounts & Entries routes", () => {
   it("GET /accounts/:id/timeseries principal point uses toDate filter", async () => {
     const m = await import("@/app/api/v1/accounts/[id]/timeseries/route");
     // 两条分录：一条在 toDate 之前，一条在之后；应仅计入之前那条
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "a",
-      initialBalance: 100,
-      txnLines: [
-        { amount: 10, entry: { occurredAt: new Date("2025-08-01T00:00:00Z") } },
-        { amount: 99, entry: { occurredAt: new Date("2025-09-02T00:00:00Z") } },
-      ],
-    });
+    mockPrisma.account.findUnique
+      .mockResolvedValueOnce({
+        id: "a",
+        userId: "u1",
+      }) // 第一次调用：权限检查
+      .mockResolvedValueOnce({
+        id: "a",
+        userId: "u1",
+        initialBalance: 100,
+        txnLines: [
+          {
+            amount: 10,
+            entry: { occurredAt: new Date("2025-08-01T00:00:00Z") },
+          },
+          {
+            amount: 99,
+            entry: { occurredAt: new Date("2025-09-02T00:00:00Z") },
+          },
+        ],
+      }); // 第二次调用：获取详细数据
     const res = await m.GET(
       makeGet(
         "http://localhost/api/v1/accounts/a/timeseries?metric=principal&to=2025-09-01"
@@ -118,6 +150,11 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("PATCH /accounts/:id success for allowed fields", async () => {
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "a",
+      userId: "u1",
+      name: "Old",
+    });
     mockPrisma.account.update.mockResolvedValueOnce({ id: "a", name: "New" });
     const route = await import("@/app/api/v1/accounts/[id]/route");
     const res = await route.PATCH(
@@ -222,6 +259,7 @@ describe("Accounts & Entries routes", () => {
     // 摘要：初始100 + 10 = 110
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "a",
+      userId: "u1",
       name: "A",
       baseCurrency: "CNY",
       accountType: "SAVINGS",
@@ -260,6 +298,7 @@ describe("Accounts & Entries routes", () => {
     // 摘要：初始100 - 10 = 90
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "a",
+      userId: "u1",
       name: "A",
       baseCurrency: "CNY",
       accountType: "SAVINGS",
@@ -304,6 +343,7 @@ describe("Account summary route", () => {
   it("computes principal/valuation/profit/roi", async () => {
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "acc1",
+      userId: "u1",
       name: "Invest",
       baseCurrency: "CNY",
       accountType: "INVESTMENT",
@@ -354,6 +394,7 @@ describe("Entries transfer success case", () => {
     // 2) A 账户摘要：初始100 + (-5) = 95
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "a",
+      userId: "u1",
       name: "A",
       baseCurrency: "CNY",
       accountType: "SAVINGS",
@@ -371,6 +412,7 @@ describe("Entries transfer success case", () => {
     // 3) B 账户摘要：初始50 + 5 = 55
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "b",
+      userId: "u1",
       name: "B",
       baseCurrency: "CNY",
       accountType: "SAVINGS",

@@ -22,4 +22,3 @@ export function monthRange(from: string, to: string): string[] {
   }
   return res;
 }
-

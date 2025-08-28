@@ -1,0 +1,5 @@
+model = "gpt-5"
+model_verbosity = "high"
+[mcp_servers.playwright]
+command = "npx"
+args = ["@playwright/mcp@latest"]

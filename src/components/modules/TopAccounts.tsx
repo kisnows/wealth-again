@@ -1,21 +1,31 @@
 "use client";
 
+import Link from "next/link";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useAccountsSummary } from "@/lib/api/reports";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import DepositDialog from "./DepositDialog";
-import WithdrawDialog from "./WithdrawDialog";
 import TransferDialog from "./TransferDialog";
 import ValuationFormDialog from "./ValuationFormDialog";
-import { useState } from "react";
+import WithdrawDialog from "./WithdrawDialog";
 
 export default function TopAccounts() {
   const { displayCurrency } = useUserPrefsStore();
   const { data, isLoading } = useAccountsSummary(displayCurrency ?? undefined);
   const items = (data?.items ?? [])
-    .map((it: any) => ({ ...it, value: Number(it.displayValue ?? it.valuation ?? 0) }))
+    .map((it: any) => ({
+      ...it,
+      value: Number(it.displayValue ?? it.valuation ?? 0),
+    }))
     .sort((a: any, b: any) => b.value - a.value)
     .slice(0, 5);
   const [active, setActive] = useState<string | null>(null);
@@ -39,12 +49,24 @@ export default function TopAccounts() {
           <TableBody>
             {items.map((it: any) => (
               <TableRow key={it.id}>
-                <TableCell className="font-medium"><Link className="underline" href={`/accounts/${it.id}`}>{it.name}</Link></TableCell>
-                <TableCell>{(it.value).toLocaleString()}</TableCell>
-                <TableCell>{it.roi == null ? "-" : `${(it.roi * 100).toFixed(2)}%`}</TableCell>
+                <TableCell className="font-medium">
+                  <Link className="underline" href={`/accounts/${it.id}`}>
+                    {it.name}
+                  </Link>
+                </TableCell>
+                <TableCell>{it.value.toLocaleString()}</TableCell>
+                <TableCell>
+                  {it.roi == null ? "-" : `${(it.roi * 100).toFixed(2)}%`}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex gap-2 justify-end">
-                    <Button size="sm" variant="outline" onClick={() => setActive(it.id)}>快捷</Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setActive(it.id)}
+                    >
+                      快捷
+                    </Button>
                   </div>
                   {active === it.id && (
                     <div className="flex gap-2 mt-2 justify-end">
@@ -63,4 +85,3 @@ export default function TopAccounts() {
     </div>
   );
 }
-

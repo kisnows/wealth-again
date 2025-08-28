@@ -8,9 +8,14 @@ import { getUserFromRequest } from "@/server/utils/auth";
  * - 入参: Partial<{ socialInsuranceBase, housingFundBase, specialDeductions, otherDeductions, charityDonations }>
  */
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const user = await getUserFromRequest(req as any);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = await (req as any).json();
   const allowed: any = {};
   for (const k of [
@@ -22,8 +27,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   ]) {
     if (k in body) allowed[k] = body[k];
   }
-  const rec = await prisma.incomeRecord.findUnique({ where: { id: params.id } });
-  if (!rec || rec.userId !== (user as any).id) return NextResponse.json({ error: "Not Found" }, { status: 404 });
-  const updated = await prisma.incomeRecord.update({ where: { id: params.id }, data: allowed });
+  const rec = await prisma.incomeRecord.findUnique({
+    where: { id },
+  });
+  if (!rec || rec.userId !== (user as any).id)
+    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+  const updated = await prisma.incomeRecord.update({
+    where: { id },
+    data: allowed,
+  });
   return NextResponse.json(updated);
 }

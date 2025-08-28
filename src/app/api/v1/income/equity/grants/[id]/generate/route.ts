@@ -8,11 +8,19 @@ import { getUserFromRequest } from "@/server/utils/auth";
  * - 入参: none
  */
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const user = await getUserFromRequest(req as any);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const grant = await prisma.equityGrant.findUnique({ where: { id: params.id } });
-  if (!grant || grant.userId !== (user as any).id) return NextResponse.json({ error: "Grant not found" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const grant = await prisma.equityGrant.findUnique({
+    where: { id },
+  });
+  if (!grant || grant.userId !== (user as any).id)
+    return NextResponse.json({ error: "Grant not found" }, { status: 404 });
   const start = new Date(grant.startVestDate);
   let monthsStep = 12;
   if (grant.vestInterval === "QUARTERLY") monthsStep = 3;
@@ -21,7 +29,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const data = Array.from({ length: grant.vestPeriods }).map((_, i) => {
     const d = new Date(start);
     d.setMonth(d.getMonth() + i * monthsStep);
-    return { grantId: grant.id, vestDate: d, units: per, currency: grant.currency };
+    return {
+      grantId: grant.id,
+      vestDate: d,
+      units: per,
+      currency: grant.currency,
+    };
   });
   for (const v of data) {
     await prisma.equityVest.upsert({

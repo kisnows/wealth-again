@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { postTransfer } from "@/lib/api/accounts";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { postTransfer } from "@/lib/api/accounts";
 
 export default function TransferPage() {
   const [form, setForm] = useState({
@@ -42,16 +42,43 @@ export default function TransferPage() {
       <h1 className="text-xl font-bold mb-4">Transfer</h1>
       <form onSubmit={handleSubmit} className="grid gap-2">
         <Label>From Account ID</Label>
-        <Input name="fromAccount" value={form.fromAccount} onChange={handleChange} placeholder="a1" />
+        <Input
+          name="fromAccount"
+          value={form.fromAccount}
+          onChange={handleChange}
+          placeholder="a1"
+        />
         <Label>To Account ID</Label>
-        <Input name="toAccount" value={form.toAccount} onChange={handleChange} placeholder="a2" />
+        <Input
+          name="toAccount"
+          value={form.toAccount}
+          onChange={handleChange}
+          placeholder="a2"
+        />
         <Label>Amount</Label>
-        <Input name="amount" type="number" value={form.amount} onChange={handleChange} />
+        <Input
+          name="amount"
+          type="number"
+          value={form.amount}
+          onChange={handleChange}
+        />
         <Label>Occurred At</Label>
-        <Input name="occurredAt" type="datetime-local" value={form.occurredAt} onChange={handleChange} />
+        <Input
+          name="occurredAt"
+          type="datetime-local"
+          value={form.occurredAt}
+          onChange={handleChange}
+        />
         <Label>Note</Label>
-        <Input name="note" value={form.note} onChange={handleChange} placeholder="可选" />
-        <Button type="submit" className="mt-2">提交</Button>
+        <Input
+          name="note"
+          value={form.note}
+          onChange={handleChange}
+          placeholder="可选"
+        />
+        <Button type="submit" className="mt-2">
+          提交
+        </Button>
       </form>
     </main>
   );

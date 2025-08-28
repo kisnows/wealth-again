@@ -1,20 +1,42 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { postValuation } from "@/lib/api/accounts";
-import { toast } from "sonner";
 
-export function ValuationFormDialog({ defaultAccountId }: { defaultAccountId?: string }) {
+export function ValuationFormDialog({
+  defaultAccountId,
+}: {
+  defaultAccountId?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ accountId: defaultAccountId ?? "", totalValue: "", asOf: "", currency: "" });
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
+  const [form, setForm] = useState({
+    accountId: defaultAccountId ?? "",
+    totalValue: "",
+    asOf: "",
+    currency: "",
+  });
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await postValuation({ accountId: form.accountId, asOf: new Date(form.asOf).toISOString(), totalValue: Number(form.totalValue), currency: form.currency || undefined });
+    await postValuation({
+      accountId: form.accountId,
+      asOf: new Date(form.asOf).toISOString(),
+      totalValue: Number(form.totalValue),
+      currency: form.currency || undefined,
+    });
     toast.success("估值记录成功");
     setOpen(false);
     setForm({ accountId: "", totalValue: "", asOf: "", currency: "" });
@@ -31,15 +53,29 @@ export function ValuationFormDialog({ defaultAccountId }: { defaultAccountId?: s
         <form onSubmit={onSubmit} className="grid gap-3">
           <div className="grid gap-1">
             <Label>Account ID</Label>
-            <Input name="accountId" value={form.accountId} onChange={onChange} />
+            <Input
+              name="accountId"
+              value={form.accountId}
+              onChange={onChange}
+            />
           </div>
           <div className="grid gap-1">
             <Label>Total Value</Label>
-            <Input name="totalValue" type="number" value={form.totalValue} onChange={onChange} />
+            <Input
+              name="totalValue"
+              type="number"
+              value={form.totalValue}
+              onChange={onChange}
+            />
           </div>
           <div className="grid gap-1">
             <Label>As Of</Label>
-            <Input name="asOf" type="datetime-local" value={form.asOf} onChange={onChange} />
+            <Input
+              name="asOf"
+              type="datetime-local"
+              value={form.asOf}
+              onChange={onChange}
+            />
           </div>
           <div className="grid gap-1">
             <Label>Currency (可选)</Label>

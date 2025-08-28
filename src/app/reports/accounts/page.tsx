@@ -1,9 +1,16 @@
 "use client";
 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useAccountsSummary } from "@/lib/api/reports";
-import { useUserPrefsStore } from "@/lib/state/user-prefs";
 import { formatMoney } from "@/lib/domain/money";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useUserPrefsStore } from "@/lib/state/user-prefs";
 
 export default function ReportsAccountsPage() {
   const { displayCurrency } = useUserPrefsStore();
@@ -30,10 +37,21 @@ export default function ReportsAccountsPage() {
               {items.map((it: any) => (
                 <TableRow key={it.id}>
                   <TableCell className="font-medium">{it.name}</TableCell>
-                  <TableCell>{formatMoney(it.principal, displayCurrency ?? it.currency)}</TableCell>
-                  <TableCell>{formatMoney(it.displayValue ?? it.valuation, displayCurrency ?? it.currency)}</TableCell>
-                  <TableCell>{formatMoney(it.profit, displayCurrency ?? it.currency)}</TableCell>
-                  <TableCell>{it.roi == null ? "-" : `${(it.roi * 100).toFixed(2)}%`}</TableCell>
+                  <TableCell>
+                    {formatMoney(it.principal, displayCurrency ?? it.currency)}
+                  </TableCell>
+                  <TableCell>
+                    {formatMoney(
+                      it.displayValue ?? it.valuation,
+                      displayCurrency ?? it.currency,
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {formatMoney(it.profit, displayCurrency ?? it.currency)}
+                  </TableCell>
+                  <TableCell>
+                    {it.roi == null ? "-" : `${(it.roi * 100).toFixed(2)}%`}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -43,4 +61,3 @@ export default function ReportsAccountsPage() {
     </main>
   );
 }
-

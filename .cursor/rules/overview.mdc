@@ -1,0 +1,89 @@
+---
+alwaysApply: true
+description: Cursor 规则总览和使用指南
+---
+
+# Cursor 规则总览
+
+本项目包含以下 Cursor 规则文件，用于指导 AI 助手理解和遵循项目约定：
+
+## 📁 项目结构规则
+
+**文件**: [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc)
+
+- 定义核心目录结构和文件组织方式
+- 路径别名使用规范
+- 关键配置文件说明
+
+## 🎨 编码风格规则
+
+**文件**: [coding-style.mdc](mdc:.cursor/rules/coding-style.mdc)
+
+- TypeScript 严格模式配置
+- 命名约定和格式化规则
+- 导入语句组织方式
+
+## 🧪 测试规范规则
+
+**文件**: [testing-standards.mdc](mdc:.cursor/rules/testing-standards.mdc)
+
+- Vitest 测试框架使用
+- 测试文件组织和命名
+- 测试覆盖要求
+
+## 🎯 UI 组件规则
+
+**文件**: [ui-components.mdc](mdc:.cursor/rules/ui-components.mdc)
+
+- shadcn/ui 组件库强制使用
+- Tailwind CSS 样式约束
+- 组件开发规范
+
+## 🔌 API 服务规则
+
+**文件**: [api-server.mdc](mdc:.cursor/rules/api-server.mdc)
+
+- API 路由结构和设计
+- 服务层架构原则
+- 身份验证和错误处理
+
+## 🗄️ 数据库规则
+
+**文件**: [database-prisma.mdc](mdc:.cursor/rules/database-prisma.mdc)
+
+- Prisma ORM 使用规范
+- 数据库迁移管理
+- 查询优化和安全
+
+## 🚀 开发流程规则
+
+**文件**: [development-workflow.mdc](mdc:.cursor/rules/development-workflow.mdc)
+
+- 开发环境配置
+- Git 提交规范
+- 部署流程
+
+## 规则应用范围
+
+### 自动应用规则 (alwaysApply: true)
+
+- `project-structure.mdc` - 项目结构指导
+- `development-workflow.mdc` - 开发流程规范
+- `overview.mdc` - 本总览文件
+
+### 文件类型特定规则 (globs)
+
+- `coding-style.mdc` - 应用于 `*.ts,*.tsx,*.js,*.jsx`
+- `testing-standards.mdc` - 应用于 `*.test.ts,*.test.tsx,*.spec.ts,*.spec.tsx`
+- `ui-components.mdc` - 应用于 `src/components/**/*.tsx,src/app/**/*.tsx`
+- `api-server.mdc` - 应用于 `src/app/api/**/*.ts,src/server/**/*.ts`
+- `database-prisma.mdc` - 应用于 `prisma/**/*,src/server/db.ts`
+
+## 使用建议
+
+1. **新功能开发**: 参考相应的规则文件了解项目约定
+2. **代码审查**: 使用规则作为检查清单
+3. **问题排查**: 查阅开发流程规则获取常见问题解决方案
+4. **架构决策**: 遵循 API 服务和数据库规则进行设计
+
+这些规则确保项目的一致性、可维护性和开发效率。

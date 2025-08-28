@@ -16,8 +16,14 @@ export function useAccountsSummary(displayCurrency?: string) {
   return useSWR<{ items: any[]; displayCurrency: string | null }>(key, getJson);
 }
 
-export function useIncomeTimeseries(userId: string | undefined, from: string, to: string) {
-  const key = from && to ? `/api/v1/reports/income/timeseries?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}` : null;
+export function useIncomeTimeseries(
+  userId: string | undefined,
+  from: string,
+  to: string,
+) {
+  const key =
+    from && to
+      ? `/api/v1/reports/income/timeseries?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}`
+      : null;
   return useSWR<any>(key, getJson);
 }
-

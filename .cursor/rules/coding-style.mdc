@@ -1,0 +1,67 @@
+---
+globs: *.ts,*.tsx,*.js,*.jsx
+description: TypeScript 和 JavaScript 编码风格规范
+---
+
+# 编码风格与命名规范
+
+## TypeScript 配置
+
+- 使用 TypeScript 严格模式（参见 [tsconfig.json](mdc:tsconfig.json)）
+- 启用所有严格类型检查选项
+- 优先使用类型推断，必要时显式声明类型
+
+## 格式化规则
+
+基于 [biome.json](mdc:biome.json) 配置：
+
+- **缩进**：2 空格缩进（不使用 Tab）
+- **自动整理导入**：Biome 自动按字母顺序整理导入语句
+- **行尾**：统一使用 LF（\n）
+- **末尾分号**：必须使用分号结尾
+
+## 命名约定
+
+### React 组件
+
+- 使用 PascalCase：`AccountTable`、`CreateAccountDialog`
+- 组件文件名与组件名保持一致：`AccountTable.tsx`
+- 组件目录放在 `src/components/modules/`
+
+### 函数和变量
+
+- 使用 camelCase：`getCurrentUser`、`accountBalance`
+- 常量使用 UPPER_SNAKE_CASE：`API_BASE_URL`
+
+### 文件和目录
+
+- 工具模块文件使用 camelCase：`fetcher.ts`、`idempotency.ts`
+- 页面文件使用 kebab-case 或保持 Next.js 约定：`page.tsx`、`layout.tsx`
+
+## 导入规则
+
+### 路径优先级
+
+1. 外部库导入
+2. `@/*` 别名导入
+3. 相对路径导入（尽量避免深层相对路径）
+
+### 示例
+
+```typescript
+// ✅ 推荐
+import { Button } from "@/components/ui/button";
+import { getCurrentUser } from "@/lib/auth";
+import { db } from "@/server/db";
+
+// ❌ 避免
+import { Button } from "../../../components/ui/button";
+```
+
+## 代码质量要求
+
+- 每个函数应有明确的单一职责
+- 避免嵌套超过 3 层的条件语句
+- 使用有意义的变量和函数名，避免缩写
+- 优先使用函数式编程范式，避免副作用
+- 必要时添加 JSDoc 注释说明复杂逻辑

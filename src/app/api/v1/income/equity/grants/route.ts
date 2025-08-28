@@ -1,8 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
-import { ensureIdempotent, markIdempotencyUsed } from "@/server/utils/idempotency";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
+import {
+  ensureIdempotent,
+  markIdempotencyUsed,
+} from "@/server/utils/idempotency";
 
 /**
  * GET /api/v1/income/equity/grants
@@ -14,23 +17,59 @@ import { getUserFromRequest } from "@/server/utils/auth";
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const items = await prisma.equityGrant.findMany({ where: { userId: (user as any).id }, orderBy: { startVestDate: "asc" } });
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const items = await prisma.equityGrant.findMany({
+    where: { userId: (user as any).id },
+    orderBy: { startVestDate: "asc" },
+  });
   return NextResponse.json({ items });
 }
 
 export async function POST(req: Request) {
   const user = await getUserFromRequest(req as any);
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const { totalUnits, currency = "CNY", startVestDate, vestPeriods, vestInterval } = await (req as any).json();
-  if (typeof totalUnits !== "number" || !startVestDate || !vestPeriods || !vestInterval) {
+  if (!user)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const {
+    totalUnits,
+    currency = "CNY",
+    startVestDate,
+    vestPeriods,
+    vestInterval,
+  } = await (req as any).json();
+  if (
+    typeof totalUnits !== "number" ||
+    !startVestDate ||
+    !vestPeriods ||
+    !vestInterval
+  ) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
   const userId = (user as any).id;
-  const { key, existed } = await ensureIdempotent(req as any, userId, `${userId}:${totalUnits}:${startVestDate}:${vestPeriods}:${vestInterval}`);
-  if (existed) return NextResponse.json({ error: "Idempotency key reused" }, { status: 409 });
-  const created = await prisma.equityGrant.create({ data: { userId, totalUnits, currency, startVestDate: new Date(startVestDate), vestPeriods, vestInterval } });
-  await logAudit("INCOME_EQUITY_GRANT_CREATE", { userId, meta: { id: created.id } });
+  const { key, existed } = await ensureIdempotent(
+    req as any,
+    userId,
+    `${userId}:${totalUnits}:${startVestDate}:${vestPeriods}:${vestInterval}`,
+  );
+  if (existed)
+    return NextResponse.json(
+      { error: "Idempotency key reused" },
+      { status: 409 },
+    );
+  const created = await prisma.equityGrant.create({
+    data: {
+      userId,
+      totalUnits,
+      currency,
+      startVestDate: new Date(startVestDate),
+      vestPeriods,
+      vestInterval,
+    },
+  });
+  await logAudit("INCOME_EQUITY_GRANT_CREATE", {
+    userId,
+    meta: { id: created.id },
+  });
   await markIdempotencyUsed(key);
   return NextResponse.json(created, { status: 201 });
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
 
 // 本文件针对“收入预测/回算”做金额级断言：
@@ -37,10 +37,17 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
     const recalc = await import("@/app/api/v1/income/recalc/route");
     // 用户（CN）
     mockPrisma.user.findMany.mockResolvedValueOnce([
-      { id: "u1", baseCurrency: "CNY", currentCityId: "c1", currentCity: { country: "CN" } },
+      {
+        id: "u1",
+        baseCurrency: "CNY",
+        currentCityId: "c1",
+        currentCity: { country: "CN" },
+      },
     ]);
     // 工资变更：10000/月
-    mockPrisma.incomeChange.findFirst.mockResolvedValue({ grossMonthly: 10000 });
+    mockPrisma.incomeChange.findFirst.mockResolvedValue({
+      grossMonthly: 10000,
+    });
     // 奖金：1 月 20000
     mockPrisma.bonusPlan.findMany.mockImplementation(({ where }: any) => {
       const gte = where.effectiveDate.gte as Date;
@@ -49,29 +56,56 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
       return Promise.resolve(isJan ? [{ amount: 20000 }] : []);
     });
     // 长期现金：4 月与 7 月各 3000
-    mockPrisma.longTermCashPayout.findMany.mockImplementation(({ where }: any) => {
-      const g = where.payDate.gte as Date;
-      const l = where.payDate.lt as Date;
-      const m = g.getUTCMonth();
-      if (m === 3) return Promise.resolve([{ amount: 3000 }]); // 4 月（0-based）
-      if (m === 6) return Promise.resolve([{ amount: 3000 }]); // 7 月
-      return Promise.resolve([]);
-    });
+    mockPrisma.longTermCashPayout.findMany.mockImplementation(
+      ({ where }: any) => {
+        const g = where.payDate.gte as Date;
+        const _l = where.payDate.lt as Date;
+        const m = g.getUTCMonth();
+        if (m === 3) return Promise.resolve([{ amount: 3000 }]); // 4 月（0-based）
+        if (m === 6) return Promise.resolve([{ amount: 3000 }]); // 7 月
+        return Promise.resolve([]);
+      },
+    );
     mockPrisma.equityVest.findMany.mockResolvedValue([]);
     // 社保/公积金规则（基数 clamp=工资本身）
-    mockPrisma.cityRuleSS.findFirst.mockResolvedValue({ baseMin: 0, baseMax: 100000, ratePension: 0.08, rateMedical: 0.02, rateUnemployment: 0.005 });
-    mockPrisma.cityRuleHF.findFirst.mockResolvedValue({ baseMin: 0, baseMax: 100000, rateEmployee: 0.12 });
+    mockPrisma.cityRuleSS.findFirst.mockResolvedValue({
+      baseMin: 0,
+      baseMax: 100000,
+      ratePension: 0.08,
+      rateMedical: 0.02,
+      rateUnemployment: 0.005,
+    });
+    mockPrisma.cityRuleHF.findFirst.mockResolvedValue({
+      baseMin: 0,
+      baseMax: 100000,
+      rateEmployee: 0.12,
+    });
     // 税制：标准扣除 5000；税表（简化）
-    mockPrisma.taxConfig.findUnique.mockResolvedValue({ country: "CN", taxYear: 2025, standardDeduction: 5000, brackets: undefined });
+    mockPrisma.taxConfig.findUnique.mockResolvedValue({
+      country: "CN",
+      taxYear: 2025,
+      standardDeduction: 5000,
+      brackets: undefined,
+    });
     mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
       { position: 2, threshold: 144000, taxRate: 0.1, quickDeduction: 2520 },
-      { position: 7, threshold: 1000000000, taxRate: 0.45, quickDeduction: 181920 },
+      {
+        position: 7,
+        threshold: 1000000000,
+        taxRate: 0.45,
+        quickDeduction: 181920,
+      },
     ]);
     mockPrisma.incomeRecord.upsert.mockResolvedValue({});
 
     // 回算到 8 月，便于截取 5-8 月
-    const resp = await recalc.POST(makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", { taxYear: 2025, endMonth: 8 }));
+    const resp = await recalc.POST(
+      makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {
+        taxYear: 2025,
+        endMonth: 8,
+      }),
+    );
     expect(resp.status).toBe(200);
 
     // 收集 upsert 调用，按 monthDate 映射断言
@@ -80,7 +114,8 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
     for (const c of calls) {
       const arg = c[0];
       const d: Date = arg.where.userId_monthDate.monthDate;
-      byMonth[d.getUTCMonth() + 1] = { // 1-based 月
+      byMonth[d.getUTCMonth() + 1] = {
+        // 1-based 月
         incomeTax: Number(arg.update?.incomeTax ?? arg.create?.incomeTax),
         ss: Number(arg.update?.socialInsurance ?? arg.create?.socialInsurance),
         hf: Number(arg.update?.housingFund ?? arg.create?.housingFund),
