@@ -23,6 +23,13 @@ export interface ForecastResult {
   netIncome: number; // 税后收入
   taxRate: number; // 实际税率
   currency: string; // 币种
+
+  // 累计字段
+  cumulativeGrossIncome: number; // 税前累计收入
+  cumulativeNetIncome: number; // 税后累计收入
+  cumulativeSocialInsurance: number; // 累计社保缴纳
+  cumulativeHousingFund: number; // 累计公积金缴纳
+  cumulativeIncomeTax: number; // 累计个税缴纳
 }
 
 // 概况统计类型
@@ -87,9 +94,10 @@ type IncomeState = {
 // 默认预测参数
 const getDefaultForecastParams = (): ForecastParams => {
   const currentYear = new Date().getFullYear();
+  const today = new Date().toISOString().substring(0, 10);
   return {
     startDate: `${currentYear}-01-01`,
-    endDate: `${currentYear}-12-31`,
+    endDate: today, // 默认到今天
   };
 };
 

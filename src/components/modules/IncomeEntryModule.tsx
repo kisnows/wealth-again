@@ -6,9 +6,11 @@ import {
   PlusIcon,
   TrendingUpIcon,
   WalletIcon,
+  TrashIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,12 +28,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useBonus } from "@/lib/api/income";
-import { useLTCPlans } from "@/lib/api/income";
-import { useSalaryChanges } from "@/lib/api/income";
+import { 
+  useBonus, 
+  useLTCPlans, 
+  useSalaryChanges,
+  deleteSalaryChange,
+  deleteBonus,
+  deleteLTCPlan,
+} from "@/lib/api/income";
 import { formatMoney } from "@/lib/domain/money";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
+import { mutate } from "swr";
 
 export default function IncomeEntryModule() {
   const { displayCurrency } = useUserPrefsStore();
@@ -48,34 +55,12 @@ export default function IncomeEntryModule() {
         </div>
       </div>
       
-      <Tabs defaultValue="salary" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="salary" className="flex items-center gap-2">
-            <WalletIcon className="w-4 h-4" />
-            工资变更
-          </TabsTrigger>
-          <TabsTrigger value="bonus" className="flex items-center gap-2">
-            <BanknoteIcon className="w-4 h-4" />
-            奖金记录
-          </TabsTrigger>
-          <TabsTrigger value="ltc" className="flex items-center gap-2">
-            <TrendingUpIcon className="w-4 h-4" />
-            长期现金
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="salary">
-          <SalaryChangesSection currency={currency} />
-        </TabsContent>
-        
-        <TabsContent value="bonus">
-          <BonusSection currency={currency} />
-        </TabsContent>
-        
-        <TabsContent value="ltc">
-          <LongTermCashSection currency={currency} />
-        </TabsContent>
-      </Tabs>
+      {/* 平铺显示所有收入信息录入表单 */}
+      <div className="space-y-6">
+        <SalaryChangesSection currency={currency} />
+        <BonusSection currency={currency} />
+        <LongTermCashSection currency={currency} />
+      </div>
     </div>
   );
 }
@@ -84,6 +69,25 @@ export default function IncomeEntryModule() {
 function SalaryChangesSection({ currency }: { currency: string }) {
   const { data, isLoading, error } = useSalaryChanges();
   const salaryChanges = data?.items ?? [];
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("确定要删除这条工资变更记录吗？删除后将影响收入计算结果。")) {
+      return;
+    }
+    
+    setDeletingId(id);
+    try {
+      await deleteSalaryChange(id);
+      toast.success("工资变更记录已删除");
+      // 重新获取数据
+      mutate("/api/v1/income/salary-changes");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除失败");
+    } finally {
+      setDeletingId(null);
+    }
+  };
   
   return (
     <Card>
@@ -150,9 +154,20 @@ function SalaryChangesSection({ currency }: { currency: string }) {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm">
-                      编辑
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm">
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(change.id)}
+                        disabled={deletingId === change.id}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -168,6 +183,25 @@ function SalaryChangesSection({ currency }: { currency: string }) {
 function BonusSection({ currency }: { currency: string }) {
   const { data, isLoading, error } = useBonus();
   const bonusPlans = data?.items ?? [];
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("确定要删除这条奖金记录吗？删除后将影响收入计算结果。")) {
+      return;
+    }
+    
+    setDeletingId(id);
+    try {
+      await deleteBonus(id);
+      toast.success("奖金记录已删除");
+      // 重新获取数据
+      mutate("/api/v1/income/bonus");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除失败");
+    } finally {
+      setDeletingId(null);
+    }
+  };
   
   return (
     <Card>
@@ -232,9 +266,20 @@ function BonusSection({ currency }: { currency: string }) {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm">
-                      编辑
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm">
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(bonus.id)}
+                        disabled={deletingId === bonus.id}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -250,6 +295,25 @@ function BonusSection({ currency }: { currency: string }) {
 function LongTermCashSection({ currency }: { currency: string }) {
   const { data, isLoading, error } = useLTCPlans();
   const ltcPlans = data?.items ?? [];
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("确定要删除这个长期现金计划吗？删除后将同时删除所有关联的支付记录。")) {
+      return;
+    }
+    
+    setDeletingId(id);
+    try {
+      await deleteLTCPlan(id);
+      toast.success("长期现金计划已删除");
+      // 重新获取数据
+      mutate("/api/v1/income/ltc/plans");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除失败");
+    } finally {
+      setDeletingId(null);
+    }
+  };
   
   return (
     <Card>
@@ -340,6 +404,15 @@ function LongTermCashSection({ currency }: { currency: string }) {
                         </Button>
                         <Button variant="ghost" size="sm">
                           编辑
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(plan.id)}
+                          disabled={deletingId === plan.id}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <TrashIcon className="w-4 h-4" />
                         </Button>
                       </div>
                     </TableCell>

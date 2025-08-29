@@ -48,17 +48,21 @@ export type EquityVest = {
 export function useIncomeRecords(
   userId: string | undefined,
   from: string,
-  to: string,
+  to: string
 ) {
   const key =
     from && to
-      ? `/api/v1/income/records?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}`
+      ? `/api/v1/income/records?from=${from}&to=${to}${
+          userId ? `&userId=${userId}` : ""
+        }`
       : null;
   return useSWR<{ items?: any; series?: any }>(key, getJson);
 }
 
 export function useSalaryChanges(userId?: string) {
-  const key = `/api/v1/income/salary-changes${userId ? `?userId=${userId}` : ""}`;
+  const key = `/api/v1/income/salary-changes${
+    userId ? `?userId=${userId}` : ""
+  }`;
   return useSWR<{ items: SalaryChange[] }>(key, getJson);
 }
 
@@ -70,7 +74,7 @@ export async function createSalaryChange(input: {
 }) {
   const res = await postJson<SalaryChange>(
     "/api/v1/income/salary-changes",
-    input,
+    input
   );
   await globalMutate(`/api/v1/income/salary-changes?userId=${input.userId}`);
   return res;
@@ -108,7 +112,7 @@ export async function createLTCPlan(input: {
 }) {
   const res = await postJson<LongTermCashPlan>(
     "/api/v1/income/ltc/plans",
-    input,
+    input
   );
   await globalMutate(`/api/v1/income/ltc/plans?userId=${input.userId}`);
   return res;
@@ -119,7 +123,9 @@ export async function generateLTCPayouts(id: string) {
 }
 
 export function useEquityGrants(userId?: string) {
-  const key = `/api/v1/income/equity/grants${userId ? `?userId=${userId}` : ""}`;
+  const key = `/api/v1/income/equity/grants${
+    userId ? `?userId=${userId}` : ""
+  }`;
   return useSWR<{ items: EquityGrant[] }>(key, getJson);
 }
 
@@ -133,7 +139,7 @@ export async function createEquityGrant(input: {
 }) {
   const res = await postJson<EquityGrant>(
     "/api/v1/income/equity/grants",
-    input,
+    input
   );
   await globalMutate(`/api/v1/income/equity/grants?userId=${input.userId}`);
   return res;
@@ -145,7 +151,7 @@ export async function generateEquityVests(id: string) {
 
 export async function updateEquityVest(
   id: string,
-  input: { fairValue: number; currency: string },
+  input: { fairValue: number; currency: string }
 ) {
   return patchJson(`/api/v1/income/equity/vests/${id}`, input);
 }
@@ -156,4 +162,37 @@ export async function postIncomeRecalc(input: {
   cityId?: string;
 }) {
   return postJson("/api/v1/income/recalc", input);
+}
+
+// 删除工资变更记录
+export async function deleteSalaryChange(id: string) {
+  const response = await fetch(`/api/v1/income/salary-changes/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`删除工资变更失败: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+// 删除奖金记录
+export async function deleteBonus(id: string) {
+  const response = await fetch(`/api/v1/income/bonus/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`删除奖金记录失败: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+// 删除长期现金计划
+export async function deleteLTCPlan(id: string) {
+  const response = await fetch(`/api/v1/income/ltc/plans/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`删除长期现金计划失败: ${response.statusText}`);
+  }
+  return response.json();
 }

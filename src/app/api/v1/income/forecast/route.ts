@@ -50,46 +50,424 @@ export async function GET(req: NextRequest) {
       orderBy: { effectiveFrom: "asc" },
     });
 
+    // 获取用户的城市变更记录
+    const cityChanges = await (prisma as any).cityChangeRecord.findMany({
+      where: { userId },
+      include: { toCity: true },
+      orderBy: { changeDate: "asc" },
+    });
+
+    // 获取奖金计划
+    const bonusPlans = await prisma.bonusPlan.findMany({
+      where: {
+        userId,
+        effectiveDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      },
+    });
+
+    // 获取长期现金计划和支付记录
+    const ltcPayouts = await prisma.longTermCashPayout.findMany({
+      where: {
+        plan: { userId },
+        payDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      },
+    });
+
+    // 获取股权归属记录
+    const equityVests = await prisma.equityVest.findMany({
+      where: {
+        grant: { userId },
+        vestDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+        fairValue: { not: null },
+      },
+    });
+
     // 计算每月预测数据
-    const forecastResults = months.map((month) => {
-      const monthDate = new Date(month);
+    const monthlyResults = await Promise.all(
+      months.map(async (month) => {
+        const monthDate = new Date(month);
+        const nextMonthStart = new Date(
+          monthDate.getFullYear(),
+          monthDate.getMonth() + 1,
+          1
+        );
 
-      // 获取当月工资
-      const salary = getCurrentSalary(salaryChanges, monthDate);
+        // 获取当月工资
+        const salary = getCurrentSalary(salaryChanges, monthDate);
 
-      // 简化计算
-      const bonus = 0; // 暂时设为0
-      const longTermCash = 0; // 暂时设为0
-      const equityIncome = 0; // 暂时设为0
-      const grossIncome = salary + bonus + longTermCash + equityIncome;
+        // 获取当月奖金
+        const bonus = bonusPlans
+          .filter((b) => {
+            const effectiveDate = new Date(b.effectiveDate);
+            return effectiveDate >= monthDate && effectiveDate < nextMonthStart;
+          })
+          .reduce((sum, b) => sum + toNumber(b.amount), 0);
 
-      // 简化的社保和公积金计算
-      const socialInsurance = salary * 0.08; // 8%
-      const housingFund = salary * 0.12; // 12%
+        // 获取当月长期现金
+        const longTermCash = ltcPayouts
+          .filter((p) => {
+            const payDate = new Date(p.payDate);
+            return payDate >= monthDate && payDate < nextMonthStart;
+          })
+          .reduce((sum, p) => sum + toNumber(p.amount), 0);
 
-      // 简化的个税计算
-      const incomeTax = calculateIncomeTax(
-        grossIncome,
-        socialInsurance,
-        housingFund
+        // 获取当月股权收入
+        const equityIncome = equityVests
+          .filter((v) => {
+            const vestDate = new Date(v.vestDate);
+            return vestDate >= monthDate && vestDate < nextMonthStart;
+          })
+          .reduce((sum, v) => sum + toNumber(v.fairValue), 0);
+
+        const grossIncome = salary + bonus + longTermCash + equityIncome;
+
+        // 根据城市变更记录确定当月城市
+        const monthCityId = getCityForMonth(
+          cityChanges,
+          monthDate,
+          userRecord.currentCityId
+        );
+
+        // 获取社保规则
+        const ssRule = await prisma.cityRuleSS.findFirst({
+          where: {
+            cityId: monthCityId,
+            startDate: { lte: monthDate },
+            OR: [{ endDate: null }, { endDate: { gt: monthDate } }],
+          },
+          orderBy: { startDate: "desc" },
+        });
+
+        // 获取公积金规则
+        const hfRule = await prisma.cityRuleHF.findFirst({
+          where: {
+            cityId: monthCityId,
+            startDate: { lte: monthDate },
+            OR: [{ endDate: null }, { endDate: { gt: monthDate } }],
+          },
+          orderBy: { startDate: "desc" },
+        });
+
+        // 计算社保和公积金
+        const clamp = (x: number, min: number, max: number) =>
+          Math.max(min, Math.min(max, x));
+
+        const ssBase = ssRule
+          ? clamp(salary, toNumber(ssRule.baseMin), toNumber(ssRule.baseMax))
+          : 0;
+        const hfBase = hfRule
+          ? clamp(salary, toNumber(hfRule.baseMin), toNumber(hfRule.baseMax))
+          : 0;
+
+        const pension = ssRule ? ssBase * toNumber(ssRule.ratePension) : 0;
+        const medical = ssRule
+          ? ssBase * toNumber(ssRule.rateMedical) +
+            toNumber(ssRule.fixedMedicalPersonal)
+          : 0;
+        const unemployment = ssRule
+          ? ssBase * toNumber(ssRule.rateUnemployment)
+          : 0;
+        const socialInsurance = pension + medical + unemployment;
+        const housingFund = hfRule ? hfBase * toNumber(hfRule.rateEmployee) : 0;
+
+        // 获取税制配置
+        const taxYear = monthDate.getFullYear();
+        const taxConfig = await prisma.taxConfig.findUnique({
+          where: {
+            country_taxYear: {
+              country: userRecord.currentCity.country,
+              taxYear,
+            },
+          },
+        });
+
+        const standardDeduction =
+          toNumber(taxConfig?.standardDeduction) || 5000;
+        const specialAdditionalDeduction = toNumber(
+          taxConfig?.specialAdditionalDeduction
+        );
+
+        // 计算当月应税收入
+        const monthlyTaxableIncome = Math.max(
+          0,
+          grossIncome -
+            socialInsurance -
+            housingFund -
+            standardDeduction -
+            specialAdditionalDeduction
+        );
+
+        return {
+          month,
+          salary,
+          bonus,
+          longTermCash,
+          equityIncome,
+          grossIncome,
+          socialInsurance,
+          housingFund,
+          monthlyTaxableIncome, // 临时字段，用于后续税收计算
+          currency,
+        };
+      })
+    );
+
+    // 首先需要计算年初到查询起始月之前的累计应税收入
+    const queryStartDate = new Date(startDate);
+    const yearStart = new Date(queryStartDate.getFullYear(), 0, 1);
+
+    let priorYearTaxableIncome = 0;
+    if (queryStartDate > yearStart) {
+      // 获取年初到查询开始前的月份
+      const priorMonths = getMonthsBetween(
+        yearStart.toISOString().slice(0, 10),
+        new Date(queryStartDate.getTime() - 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10)
       );
 
-      const netIncome = grossIncome - socialInsurance - housingFund - incomeTax;
-      const taxRate = grossIncome > 0 ? incomeTax / grossIncome : 0;
+      // 计算年初到查询开始前的累计应税收入
+      for (const priorMonth of priorMonths) {
+        const priorMonthDate = new Date(priorMonth);
+        const priorSalary = getCurrentSalary(salaryChanges, priorMonthDate);
+
+        const priorMonthCityId = getCityForMonth(
+          cityChanges,
+          priorMonthDate,
+          userRecord.currentCityId
+        );
+
+        // 获取历史社保规则
+        const priorSsRule = await prisma.cityRuleSS.findFirst({
+          where: {
+            cityId: priorMonthCityId,
+            startDate: { lte: priorMonthDate },
+            OR: [{ endDate: null }, { endDate: { gt: priorMonthDate } }],
+          },
+          orderBy: { startDate: "desc" },
+        });
+
+        // 获取历史公积金规则
+        const priorHfRule = await prisma.cityRuleHF.findFirst({
+          where: {
+            cityId: priorMonthCityId,
+            startDate: { lte: priorMonthDate },
+            OR: [{ endDate: null }, { endDate: { gt: priorMonthDate } }],
+          },
+          orderBy: { startDate: "desc" },
+        });
+
+        // 获取历史税制配置
+        const priorTaxYear = priorMonthDate.getFullYear();
+        const priorTaxConfig = await prisma.taxConfig.findUnique({
+          where: {
+            country_taxYear: {
+              country: userRecord.currentCity.country,
+              taxYear: priorTaxYear,
+            },
+          },
+        });
+
+        const priorStandardDeduction =
+          toNumber(priorTaxConfig?.standardDeduction) || 5000;
+        const priorSpecialAdditionalDeduction = toNumber(
+          priorTaxConfig?.specialAdditionalDeduction
+        );
+
+        // 计算历史社保和公积金
+        const clamp = (x: number, min: number, max: number) =>
+          Math.max(min, Math.min(max, x));
+
+        const priorSsBase = priorSsRule
+          ? clamp(
+              priorSalary,
+              toNumber(priorSsRule.baseMin),
+              toNumber(priorSsRule.baseMax)
+            )
+          : 0;
+        const priorHfBase = priorHfRule
+          ? clamp(
+              priorSalary,
+              toNumber(priorHfRule.baseMin),
+              toNumber(priorHfRule.baseMax)
+            )
+          : 0;
+
+        const priorPension = priorSsRule
+          ? priorSsBase * toNumber(priorSsRule.ratePension)
+          : 0;
+        const priorMedical = priorSsRule
+          ? priorSsBase * toNumber(priorSsRule.rateMedical) +
+            toNumber(priorSsRule.fixedMedicalPersonal)
+          : 0;
+        const priorUnemployment = priorSsRule
+          ? priorSsBase * toNumber(priorSsRule.rateUnemployment)
+          : 0;
+        const priorSocialInsurance =
+          priorPension + priorMedical + priorUnemployment;
+        const priorHousingFund = priorHfRule
+          ? priorHfBase * toNumber(priorHfRule.rateEmployee)
+          : 0;
+
+        // 计算历史应税收入
+        const priorMonthlyTaxableIncome = Math.max(
+          0,
+          priorSalary -
+            priorSocialInsurance -
+            priorHousingFund -
+            priorStandardDeduction -
+            priorSpecialAdditionalDeduction
+        );
+
+        priorYearTaxableIncome += priorMonthlyTaxableIncome;
+      }
+    }
+
+    // 计算累计字段和个税
+    const forecastResults = monthlyResults.map((result, index) => {
+      // 计算从第一个月到当前月的累计值（仅查询范围内）
+      const cumulativeGrossIncome = monthlyResults
+        .slice(0, index + 1)
+        .reduce((sum, r) => sum + r.grossIncome, 0);
+
+      const cumulativeSocialInsurance = monthlyResults
+        .slice(0, index + 1)
+        .reduce((sum, r) => sum + r.socialInsurance, 0);
+
+      const cumulativeHousingFund = monthlyResults
+        .slice(0, index + 1)
+        .reduce((sum, r) => sum + r.housingFund, 0);
+
+      // 计算年初至当前月的累计应税收入（包含年初到查询开始前的部分）
+      const queryRangeTaxableIncome = monthlyResults
+        .slice(0, index + 1)
+        .reduce((sum, r) => sum + (r as any).monthlyTaxableIncome, 0);
+
+      const yearToDateTaxableIncome =
+        priorYearTaxableIncome + queryRangeTaxableIncome;
+
+      // 基于年初至今累计应税收入计算累计个税
+      const yearToDateIncomeTax = calculateAnnualIncomeTax(
+        yearToDateTaxableIncome
+      );
+
+      // 计算年初到上月的累计个税
+      const priorYearToDateTaxableIncome =
+        index > 0
+          ? priorYearTaxableIncome +
+            monthlyResults
+              .slice(0, index)
+              .reduce((sum, r) => sum + (r as any).monthlyTaxableIncome, 0)
+          : priorYearTaxableIncome;
+
+      const previousYearToDateTax = calculateAnnualIncomeTax(
+        priorYearToDateTaxableIncome
+      );
+
+      // 当月个税 = 年初至今累计个税 - 年初至上月累计个税
+      const monthlyIncomeTax = yearToDateIncomeTax - previousYearToDateTax;
+
+      // 查询范围内的累计个税
+      const cumulativeIncomeTax = monthlyResults
+        .slice(0, index + 1)
+        .reduce((sum, _, i) => {
+          const iYearToDateTaxable =
+            priorYearTaxableIncome +
+            monthlyResults
+              .slice(0, i + 1)
+              .reduce((s, r) => s + (r as any).monthlyTaxableIncome, 0);
+          const iPrevYearToDateTaxable =
+            i > 0
+              ? priorYearTaxableIncome +
+                monthlyResults
+                  .slice(0, i)
+                  .reduce((s, r) => s + (r as any).monthlyTaxableIncome, 0)
+              : priorYearTaxableIncome;
+          return (
+            sum +
+            (calculateAnnualIncomeTax(iYearToDateTaxable) -
+              calculateAnnualIncomeTax(iPrevYearToDateTaxable))
+          );
+        }, 0);
+
+      // 计算当月税后收入
+      const netIncome =
+        result.grossIncome -
+        result.socialInsurance -
+        result.housingFund -
+        monthlyIncomeTax;
+
+      // 计算累计税后收入
+      const cumulativeNetIncome = monthlyResults
+        .slice(0, index + 1)
+        .reduce((sum, r, i) => {
+          const monthTax =
+            i === index
+              ? monthlyIncomeTax
+              : i > 0
+              ? calculateAnnualIncomeTax(
+                  monthlyResults
+                    .slice(0, i + 1)
+                    .reduce((s, mr) => s + (mr as any).monthlyTaxableIncome, 0)
+                ) -
+                calculateAnnualIncomeTax(
+                  monthlyResults
+                    .slice(0, i)
+                    .reduce((s, mr) => s + (mr as any).monthlyTaxableIncome, 0)
+                )
+              : calculateAnnualIncomeTax(
+                  (monthlyResults[0] as any).monthlyTaxableIncome
+                );
+          return (
+            sum + (r.grossIncome - r.socialInsurance - r.housingFund - monthTax)
+          );
+        }, 0);
+
+      // 计算边际税率（基于年初至今累计应税收入确定税率档位）
+      let marginalTaxRate = 0;
+      if (yearToDateTaxableIncome > 0) {
+        if (yearToDateTaxableIncome <= 36000) {
+          marginalTaxRate = 0.03;
+        } else if (yearToDateTaxableIncome <= 144000) {
+          marginalTaxRate = 0.1;
+        } else if (yearToDateTaxableIncome <= 300000) {
+          marginalTaxRate = 0.2;
+        } else if (yearToDateTaxableIncome <= 420000) {
+          marginalTaxRate = 0.25;
+        } else if (yearToDateTaxableIncome <= 660000) {
+          marginalTaxRate = 0.3;
+        } else if (yearToDateTaxableIncome <= 960000) {
+          marginalTaxRate = 0.35;
+        } else {
+          marginalTaxRate = 0.45;
+        }
+      }
+
+      // 使用边际税率
+      const taxRate = marginalTaxRate;
+
+      // 移除临时字段并添加计算字段
+      const { monthlyTaxableIncome, ...finalResult } = result as any;
 
       return {
-        month,
-        salary,
-        bonus,
-        longTermCash,
-        equityIncome,
-        grossIncome,
-        socialInsurance,
-        housingFund,
-        incomeTax,
+        ...finalResult,
+        incomeTax: monthlyIncomeTax,
         netIncome,
         taxRate,
-        currency,
+        cumulativeGrossIncome,
+        cumulativeNetIncome,
+        cumulativeSocialInsurance,
+        cumulativeHousingFund,
+        cumulativeIncomeTax,
       };
     });
 
@@ -101,6 +479,38 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// 辅助函数：安全转换 Prisma Decimal 到 number
+function toNumber(value: any): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return Number(value) || 0;
+  if (typeof value === "object" && value !== null) {
+    // Prisma Decimal 对象
+    return Number(value.toString()) || 0;
+  }
+  return Number(value) || 0;
+}
+
+// 辅助函数：根据城市变更记录获取指定月份的城市ID
+function getCityForMonth(
+  cityChanges: any[],
+  monthDate: Date,
+  defaultCityId: string
+): string {
+  // 找到在该月份之前或当月生效的最新城市变更
+  const applicableChanges = cityChanges.filter(
+    (change) => new Date(change.changeDate) <= monthDate
+  );
+
+  if (applicableChanges.length === 0) {
+    return defaultCityId; // 如果没有变更记录，使用默认城市
+  }
+
+  // 获取最新的城市变更
+  const latestChange = applicableChanges[applicableChanges.length - 1];
+  return latestChange.toCityId;
 }
 
 // 辅助函数：获取两个日期之间的月份列表
@@ -130,23 +540,27 @@ function getCurrentSalary(salaryChanges: any[], monthDate: Date): number {
 
   // 获取最新的工资变更
   const latestChange = applicableChanges[applicableChanges.length - 1];
-  return latestChange.grossMonthly || 0;
+  return toNumber(latestChange.grossMonthly);
 }
 
-// 辅助函数：计算个税（简化版）
-function calculateIncomeTax(
-  grossIncome: number,
-  socialInsurance: number,
-  housingFund: number
-): number {
-  const taxableIncome = grossIncome - socialInsurance - housingFund - 5000; // 5000为个税起征点
+// 辅助函数：根据年度累计应纳税所得额计算个税（使用中国税率表）
+function calculateAnnualIncomeTax(annualTaxableIncome: number): number {
+  if (annualTaxableIncome <= 0) return 0;
 
-  if (taxableIncome <= 0) return 0;
-
-  // 简化的个税计算（使用固定税率）
-  if (taxableIncome <= 3000) return taxableIncome * 0.03;
-  if (taxableIncome <= 12000) return taxableIncome * 0.1 - 210;
-  if (taxableIncome <= 25000) return taxableIncome * 0.2 - 1410;
-
-  return taxableIncome * 0.25 - 2660;
+  // 中国2025年个人所得税税率表（年度累计）
+  if (annualTaxableIncome <= 36000) {
+    return annualTaxableIncome * 0.03;
+  } else if (annualTaxableIncome <= 144000) {
+    return annualTaxableIncome * 0.1 - 2520;
+  } else if (annualTaxableIncome <= 300000) {
+    return annualTaxableIncome * 0.2 - 16920;
+  } else if (annualTaxableIncome <= 420000) {
+    return annualTaxableIncome * 0.25 - 31920;
+  } else if (annualTaxableIncome <= 660000) {
+    return annualTaxableIncome * 0.3 - 52920;
+  } else if (annualTaxableIncome <= 960000) {
+    return annualTaxableIncome * 0.35 - 85920;
+  } else {
+    return annualTaxableIncome * 0.45 - 181920;
+  }
 }

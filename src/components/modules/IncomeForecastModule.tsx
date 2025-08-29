@@ -10,6 +10,19 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  Legend,
+  ReferenceLine,
+} from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import CitySelect from "@/components/modules/CitySelect";
 import {
   fetchIncomeForecast,
@@ -71,7 +84,7 @@ export default function IncomeForecastModule() {
     setTimeseriesError,
   } = useIncomeStore();
   
-  const [viewMode, setViewMode] = useState<"table" | "bar" | "trend">("table");
+
   const [isRecalculating, setIsRecalculating] = useState(false);
   
   // 计算汇总统计
@@ -160,48 +173,127 @@ export default function IncomeForecastModule() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="space-y-4">
+            {/* 快捷时间区间按钮 */}
             <div>
-              <Label htmlFor="startDate">开始时间</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={forecastParams.startDate}
-                onChange={(e) => setForecastParams({ startDate: e.target.value })}
-              />
+              <Label className="text-sm font-medium text-gray-700">快捷选择</Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const currentYear = new Date().getFullYear();
+                    const today = new Date().toISOString().substring(0, 10);
+                    setForecastParams({
+                      startDate: `${currentYear}-01-01`,
+                      endDate: today,
+                    });
+                  }}
+                >
+                  今年至今
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const lastYear = new Date().getFullYear() - 1;
+                    setForecastParams({
+                      startDate: `${lastYear}-01-01`,
+                      endDate: `${lastYear}-12-31`,
+                    });
+                  }}
+                >
+                  去年
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const currentYear = new Date().getFullYear();
+                    const twoYearsAgo = currentYear - 2;
+                    const lastYear = currentYear - 1;
+                    setForecastParams({
+                      startDate: `${twoYearsAgo}-01-01`,
+                      endDate: `${lastYear}-12-31`,
+                    });
+                  }}
+                >
+                  过去两年
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const nextYear = new Date().getFullYear() + 1;
+                    setForecastParams({
+                      startDate: `${nextYear}-01-01`,
+                      endDate: `${nextYear}-12-31`,
+                    });
+                  }}
+                >
+                  明年
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const nextYear = new Date().getFullYear() + 1;
+                    const nextTwoYear = nextYear + 1;
+                    setForecastParams({
+                      startDate: `${nextYear}-01-01`,
+                      endDate: `${nextTwoYear}-12-31`,
+                    });
+                  }}
+                >
+                  接下来两年
+                </Button>
+              </div>
             </div>
-            <div>
-              <Label htmlFor="endDate">结束时间</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={forecastParams.endDate}
-                onChange={(e) => setForecastParams({ endDate: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="cityId">城市（可选）</Label>
-              <CitySelect
-                value={forecastParams.cityId || ""}
-                onValueChange={(value) => setForecastParams({ cityId: value || undefined })}
-                placeholder="留空使用当前城市"
-              />
-            </div>
-            <div className="flex items-end gap-2">
-              <Button 
-                onClick={handleForecast}
-                disabled={forecastLoading}
-                className="flex-1"
-              >
-                {forecastLoading ? "计算中..." : "计算预测"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleRecalc}
-                disabled={isRecalculating}
-              >
-                {isRecalculating ? "回算中..." : "年度回算"}
-              </Button>
+            
+            {/* 详细参数设置 */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label htmlFor="startDate">开始时间</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={forecastParams.startDate}
+                  onChange={(e) => setForecastParams({ startDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="endDate">结束时间</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={forecastParams.endDate}
+                  onChange={(e) => setForecastParams({ endDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="cityId">城市（可选）</Label>
+                <CitySelect
+                  value={forecastParams.cityId || ""}
+                  onValueChange={(value) => setForecastParams({ cityId: value || undefined })}
+                  placeholder="留空使用当前城市"
+                />
+              </div>
+              <div className="flex items-end gap-2">
+                <Button 
+                  onClick={handleForecast}
+                  disabled={forecastLoading}
+                  className="flex-1"
+                >
+                  {forecastLoading ? "计算中..." : "计算预测"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleRecalc}
+                  disabled={isRecalculating}
+                >
+                  {isRecalculating ? "回算中..." : "年度回算"}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -217,39 +309,39 @@ export default function IncomeForecastModule() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <div className="text-xl font-bold text-blue-600 mb-1">
                   {formatMoney(statistics.totalGrossIncome, currency)}
                 </div>
                 <div className="text-sm text-gray-600">总税前收入</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <div className="text-xl font-bold text-green-600 mb-1">
                   {formatMoney(statistics.totalNetIncome, currency)}
                 </div>
                 <div className="text-sm text-gray-600">总税后收入</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
+              <div className="text-center p-3 bg-orange-50 rounded-lg">
+                <div className="text-xl font-bold text-orange-600 mb-1">
                   {formatMoney(statistics.totalSocialInsurance, currency)}
                 </div>
                 <div className="text-sm text-gray-600">总社保</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
+              <div className="text-center p-3 bg-purple-50 rounded-lg">
+                <div className="text-xl font-bold text-purple-600 mb-1">
                   {formatMoney(statistics.totalHousingFund, currency)}
                 </div>
                 <div className="text-sm text-gray-600">总公积金</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <div className="text-xl font-bold text-red-600 mb-1">
                   {formatMoney(statistics.totalTax, currency)}
                 </div>
                 <div className="text-sm text-gray-600">总个税</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-600">
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-xl font-bold text-gray-600 mb-1">
                   {(statistics.averageTaxRate * 100).toFixed(1)}%
                 </div>
                 <div className="text-sm text-gray-600">平均税率</div>
@@ -272,32 +364,7 @@ export default function IncomeForecastModule() {
                 月度收入预测详情
               </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === "table" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("table")}
-              >
-                <TableIcon className="w-4 h-4 mr-1" />
-                表格
-              </Button>
-              <Button
-                variant={viewMode === "bar" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("bar")}
-              >
-                <BarChart3Icon className="w-4 h-4 mr-1" />
-                柱状图
-              </Button>
-              <Button
-                variant={viewMode === "trend" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("trend")}
-              >
-                <LineChartIcon className="w-4 h-4 mr-1" />
-                趋势图
-              </Button>
-            </div>
+
           </div>
         </CardHeader>
         
@@ -315,21 +382,34 @@ export default function IncomeForecastModule() {
               请点击"计算预测"开始预测
             </div>
           ) : (
-            <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as any)}>
-              <TabsContent value="table">
+            <div className="space-y-8">
+              {/* 预测结果表格 */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <TableIcon className="w-5 h-5" />
+                  预测结果详情
+                </h3>
                 <ForecastTable data={forecastData} currency={currency} />
-              </TabsContent>
-              <TabsContent value="bar">
-                <div className="text-center py-8 text-gray-500">
-                  柱状图组件开发中...
-                </div>
-              </TabsContent>
-              <TabsContent value="trend">
-                <div className="text-center py-8 text-gray-500">
-                  趋势图组件开发中...
-                </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+              
+              {/* 柱状图 */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <BarChart3Icon className="w-5 h-5" />
+                  收入构成分析
+                </h3>
+                <ForecastBarChart data={forecastData} currency={currency} />
+              </div>
+              
+              {/* 趋势图 */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <LineChartIcon className="w-5 h-5" />
+                  收入趋势分析
+                </h3>
+                <ForecastTrendChart data={forecastData} currency={currency} />
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -360,6 +440,11 @@ function ForecastTable({
             <TableHead>个税</TableHead>
             <TableHead>税率</TableHead>
             <TableHead>税后收入</TableHead>
+            <TableHead className="bg-blue-50">累计税前</TableHead>
+            <TableHead className="bg-green-50">累计税后</TableHead>
+            <TableHead className="bg-orange-50">累计社保</TableHead>
+            <TableHead className="bg-purple-50">累计公积金</TableHead>
+            <TableHead className="bg-red-50">累计个税</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -415,10 +500,271 @@ function ForecastTable({
               <TableCell className="font-bold text-green-600">
                 {formatMoney(item.netIncome, currency)}
               </TableCell>
+              <TableCell className="font-bold text-blue-600 bg-blue-50">
+                {formatMoney(item.cumulativeGrossIncome, currency)}
+              </TableCell>
+              <TableCell className="font-bold text-green-600 bg-green-50">
+                {formatMoney(item.cumulativeNetIncome, currency)}
+              </TableCell>
+              <TableCell className="font-bold text-orange-600 bg-orange-50">
+                {formatMoney(item.cumulativeSocialInsurance, currency)}
+              </TableCell>
+              <TableCell className="font-bold text-purple-600 bg-purple-50">
+                {formatMoney(item.cumulativeHousingFund, currency)}
+              </TableCell>
+              <TableCell className="font-bold text-red-600 bg-red-50">
+                {formatMoney(item.cumulativeIncomeTax, currency)}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+// 柱状图组件
+function ForecastBarChart({ 
+  data, 
+  currency 
+}: { 
+  data: any[]; 
+  currency: string; 
+}) {
+  // 格式化数据用于柱状图
+  const chartData = data.map((item) => ({
+    month: new Date(item.month).toLocaleDateString('zh-CN', { 
+      year: 'numeric', 
+      month: 'short' 
+    }),
+    工资: item.salary,
+    奖金: item.bonus,
+    长期现金: item.longTermCash,
+    股权收入: item.equityIncome,
+    社保: item.socialInsurance,
+    公积金: item.housingFund,
+    个税: item.incomeTax,
+    税后收入: item.netIncome,
+  }));
+
+  // 自定义 Tooltip
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-medium text-gray-900 mb-2">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.dataKey}: {formatMoney(entry.value, currency)}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis 
+              dataKey="month" 
+              tick={{ fontSize: 12 }}
+              stroke="#666"
+            />
+            <YAxis 
+              tick={{ fontSize: 12 }}
+              stroke="#666"
+              tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend />
+            <Bar dataKey="工资" stackId="income" fill="#3b82f6" />
+            <Bar dataKey="奖金" stackId="income" fill="#10b981" />
+            <Bar dataKey="长期现金" stackId="income" fill="#f59e0b" />
+            <Bar dataKey="股权收入" stackId="income" fill="#8b5cf6" />
+            <Bar dataKey="税后收入" fill="#ef4444" fillOpacity={0.8} />
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// 趋势图组件
+function ForecastTrendChart({ 
+  data, 
+  currency 
+}: { 
+  data: any[]; 
+  currency: string; 
+}) {
+  // 格式化数据用于趋势图
+  const chartData = data.map((item) => ({
+    month: new Date(item.month).toLocaleDateString('zh-CN', { 
+      year: 'numeric', 
+      month: 'short' 
+    }),
+    税前收入: item.grossIncome,
+    税后收入: item.netIncome,
+    累计税前: item.cumulativeGrossIncome,
+    累计税后: item.cumulativeNetIncome,
+    个税: item.incomeTax,
+    社保: item.socialInsurance,
+    公积金: item.housingFund,
+    税率: (item.taxRate * 100).toFixed(1),
+  }));
+
+  // 自定义 Tooltip
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-medium text-gray-900 mb-2">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.dataKey === '税率' 
+                ? `${entry.dataKey}: ${entry.value}%`
+                : `${entry.dataKey}: ${formatMoney(entry.value, currency)}`
+              }
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 月度收入趋势 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">月度收入趋势</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fontSize: 12 }}
+                stroke="#666"
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }}
+                stroke="#666"
+                tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="税前收入" 
+                stroke="#3b82f6" 
+                strokeWidth={2}
+                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="税后收入" 
+                stroke="#10b981" 
+                strokeWidth={2}
+                dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="个税" 
+                stroke="#ef4444" 
+                strokeWidth={2}
+                dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* 累计收入趋势 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">累计收入趋势</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fontSize: 12 }}
+                stroke="#666"
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }}
+                stroke="#666"
+                tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="累计税前" 
+                stroke="#8b5cf6" 
+                strokeWidth={2}
+                dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="累计税后" 
+                stroke="#f59e0b" 
+                strokeWidth={2}
+                dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* 税率趋势 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">税率变化趋势</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fontSize: 12 }}
+                stroke="#666"
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }}
+                stroke="#666"
+                tickFormatter={(value) => `${value}%`}
+              />
+              <Tooltip 
+                formatter={(value) => [`${value}%`, '边际税率']}
+                labelFormatter={(label) => `月份: ${label}`}
+              />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="税率" 
+                stroke="#dc2626" 
+                strokeWidth={3}
+                dot={{ fill: '#dc2626', strokeWidth: 2, r: 5 }}
+              />
+              <ReferenceLine y={3} stroke="#fbbf24" strokeDasharray="5 5" label="3%" />
+              <ReferenceLine y={10} stroke="#f97316" strokeDasharray="5 5" label="10%" />
+              <ReferenceLine y={20} stroke="#ef4444" strokeDasharray="5 5" label="20%" />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 }

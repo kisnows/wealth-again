@@ -3,7 +3,9 @@
 import {
   ArrowUpIcon,
   ArrowDownIcon,
+  BarChart3Icon,
   CalendarIcon,
+  LineChartIcon,
   TrendingUpIcon,
   DollarSignIcon,
   PieChartIcon,
@@ -165,7 +167,7 @@ export default function IncomeOverviewModule() {
         <div className="text-center py-8 text-red-500">
           {overviewError}
         </div>
-      ) : overviewStats ? (
+      ) : overviewStats && overviewStats.monthsCount > 0 ? (
         <>
           <Card>
             <CardHeader>
@@ -286,13 +288,17 @@ export default function IncomeOverviewModule() {
                   {timeseriesError}
                 </div>
               ) : timeseriesData ? (
-                <div className="space-y-4">
+                                  <div className="space-y-4">
                   {/* 简化的趋势展示 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <h4 className="font-medium text-gray-900 mb-2">税前收入趋势</h4>
+                      <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                        <TrendingUpIcon className="w-4 h-4 text-blue-600" />
+                        税前收入趋势
+                      </h4>
                       <div className="h-32 bg-gray-50 rounded-lg flex items-center justify-center">
-                        <div className="text-gray-500 text-sm">
+                        <div className="text-gray-500 text-sm text-center">
+                          <BarChart3Icon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                           图表组件开发中...
                           <br />
                           数据点数: {timeseriesData.gross?.length || 0}
@@ -300,9 +306,13 @@ export default function IncomeOverviewModule() {
                       </div>
                     </div>
                     <div>
-                      <h4 className="font-medium text-gray-900 mb-2">税后收入趋势</h4>
+                      <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                        <ArrowUpIcon className="w-4 h-4 text-green-600" />
+                        税后收入趋势
+                      </h4>
                       <div className="h-32 bg-gray-50 rounded-lg flex items-center justify-center">
-                        <div className="text-gray-500 text-sm">
+                        <div className="text-gray-500 text-sm text-center">
+                          <LineChartIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                           图表组件开发中...
                           <br />
                           数据点数: {timeseriesData.netIncome?.length || 0}
@@ -313,23 +323,38 @@ export default function IncomeOverviewModule() {
                   
                   {/* 数据概览 */}
                   <div className="pt-4 border-t">
-                    <h4 className="font-medium text-gray-900 mb-3">数据概览</h4>
+                    <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <PieChartIcon className="w-4 h-4 text-gray-600" />
+                      数据概览
+                    </h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <div className="text-gray-600">工资数据点</div>
-                        <div className="font-medium">{timeseriesData.gross?.length || 0} 个月</div>
+                      <div className="flex items-center gap-2">
+                        <DollarSignIcon className="w-4 h-4 text-blue-500" />
+                        <div>
+                          <div className="text-gray-600">工资数据点</div>
+                          <div className="font-medium">{timeseriesData.gross?.length || 0} 个月</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-gray-600">奖金数据点</div>
-                        <div className="font-medium">{timeseriesData.bonus?.length || 0} 个月</div>
+                      <div className="flex items-center gap-2">
+                        <TrendingUpIcon className="w-4 h-4 text-orange-500" />
+                        <div>
+                          <div className="text-gray-600">奖金数据点</div>
+                          <div className="font-medium">{timeseriesData.bonus?.length || 0} 个月</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-gray-600">长期现金数据点</div>
-                        <div className="font-medium">{timeseriesData.ltcIncome?.length || 0} 个月</div>
+                      <div className="flex items-center gap-2">
+                        <CalendarIcon className="w-4 h-4 text-purple-500" />
+                        <div>
+                          <div className="text-gray-600">长期现金数据点</div>
+                          <div className="font-medium">{timeseriesData.ltcIncome?.length || 0} 个月</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-gray-600">股权收入数据点</div>
-                        <div className="font-medium">{timeseriesData.equityIncome?.length || 0} 个月</div>
+                      <div className="flex items-center gap-2">
+                        <ArrowUpIcon className="w-4 h-4 text-green-500" />
+                        <div>
+                          <div className="text-gray-600">股权收入数据点</div>
+                          <div className="font-medium">{timeseriesData.equityIncome?.length || 0} 个月</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -343,9 +368,26 @@ export default function IncomeOverviewModule() {
           </Card>
         </>
       ) : (
-        <div className="text-center py-8 text-gray-500">
-          暂无概况数据
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSignIcon className="w-5 h-5" />
+              暂无收入数据
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <div className="text-gray-500 mb-4">
+                还没有收入记录数据。请先配置收入信息，然后执行回算生成收入记录。
+              </div>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p>1. 在下方"收入信息录入"中添加工资变更、奖金等信息</p>
+                <p>2. 在"收入预测与回算"中点击"年度回算"生成历史记录</p>
+                <p>3. 刷新页面查看收入概况统计</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
