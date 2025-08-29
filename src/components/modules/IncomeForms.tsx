@@ -35,6 +35,7 @@ import {
   generateEquityVests,
   generateLTCPayouts,
 } from "@/lib/api/income";
+import { useCurrentUserId } from "@/lib/api/auth";
 
 // 表单验证工具函数
 const validateRequired = (value: string, field: string) => {
@@ -97,8 +98,8 @@ function FormField({
 }
 
 export function SalaryChangeForm() {
+  const currentUserId = useCurrentUserId();
   const [form, setForm] = useState({
-    userId: "",
     grossMonthly: "",
     currency: "CNY",
     effectiveFrom: "",
@@ -109,7 +110,6 @@ export function SalaryChangeForm() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    newErrors.userId = validateRequired(form.userId, "用户ID");
     newErrors.grossMonthly = validateNumber(form.grossMonthly, "税前月薪", 0);
     newErrors.effectiveFrom = validateDate(form.effectiveFrom, "生效日期");
 
@@ -128,6 +128,11 @@ export function SalaryChangeForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentUserId) {
+      toast.error("用户未登录");
+      return;
+    }
+
     if (!validateForm()) {
       toast.error("请检查表单输入");
       return;
@@ -136,7 +141,7 @@ export function SalaryChangeForm() {
     setLoading(true);
     try {
       await createSalaryChange({
-        userId: form.userId,
+        userId: currentUserId,
         grossMonthly: Number(form.grossMonthly),
         currency: form.currency,
         effectiveFrom: new Date(form.effectiveFrom).toISOString(),
@@ -145,7 +150,6 @@ export function SalaryChangeForm() {
       toast.success("工资变更已创建");
       // 清空表单
       setForm({
-        userId: "",
         grossMonthly: "",
         currency: "CNY",
         effectiveFrom: "",
@@ -168,20 +172,6 @@ export function SalaryChangeForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
-          <FormField
-            label="用户ID"
-            required
-            error={errors.userId}
-            description="用户的唯一标识符"
-          >
-            <Input
-              value={form.userId}
-              onChange={(e) => onChange("userId", e.target.value)}
-              placeholder="输入用户ID"
-              disabled={loading}
-            />
-          </FormField>
-
           <FormField
             label="税前月薪"
             required
@@ -252,8 +242,8 @@ export function SalaryChangeForm() {
 }
 
 export function BonusForm() {
+  const currentUserId = useCurrentUserId();
   const [form, setForm] = useState({
-    userId: "",
     amount: "",
     currency: "CNY",
     effectiveDate: "",
@@ -265,7 +255,6 @@ export function BonusForm() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    newErrors.userId = validateRequired(form.userId, "用户ID");
     newErrors.amount = validateNumber(form.amount, "奖金金额", 0);
     newErrors.effectiveDate = validateDate(form.effectiveDate, "发放日期");
 
@@ -283,6 +272,11 @@ export function BonusForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentUserId) {
+      toast.error("用户未登录");
+      return;
+    }
+
     if (!validateForm()) {
       toast.error("请检查表单输入");
       return;
@@ -291,7 +285,7 @@ export function BonusForm() {
     setLoading(true);
     try {
       await createBonus({
-        userId: form.userId,
+        userId: currentUserId,
         amount: Number(form.amount),
         currency: form.currency,
         taxMethod: form.taxMethod,
@@ -300,7 +294,6 @@ export function BonusForm() {
 
       toast.success("一次性奖金已创建");
       setForm({
-        userId: "",
         amount: "",
         currency: "CNY",
         effectiveDate: "",
@@ -324,15 +317,6 @@ export function BonusForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
-          <FormField label="用户ID" required error={errors.userId}>
-            <Input
-              value={form.userId}
-              onChange={(e) => onChange("userId", e.target.value)}
-              placeholder="输入用户ID"
-              disabled={loading}
-            />
-          </FormField>
-
           <FormField
             label="奖金金额"
             required
@@ -418,8 +402,8 @@ export function BonusForm() {
 }
 
 export function LTCPlanForm() {
+  const currentUserId = useCurrentUserId();
   const [form, setForm] = useState({
-    userId: "",
     totalAmount: "",
     currency: "CNY",
     startDate: "",
@@ -432,7 +416,6 @@ export function LTCPlanForm() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    newErrors.userId = validateRequired(form.userId, "用户ID");
     newErrors.totalAmount = validateNumber(form.totalAmount, "总金额", 0);
     newErrors.startDate = validateDate(form.startDate, "开始日期");
     newErrors.periods = validateNumber(form.periods, "期数", 1, 100);
@@ -451,6 +434,11 @@ export function LTCPlanForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentUserId) {
+      toast.error("用户未登录");
+      return;
+    }
+
     if (!validateForm()) {
       toast.error("请检查表单输入");
       return;
@@ -459,7 +447,7 @@ export function LTCPlanForm() {
     setLoading(true);
     try {
       const created = await createLTCPlan({
-        userId: form.userId,
+        userId: currentUserId,
         totalAmount: Number(form.totalAmount),
         currency: form.currency,
         startDate: new Date(form.startDate).toISOString(),
@@ -470,7 +458,6 @@ export function LTCPlanForm() {
       await generateLTCPayouts((created as any).id);
       toast.success("长期现金计划已创建并生成发放日程");
       setForm({
-        userId: "",
         totalAmount: "",
         currency: "CNY",
         startDate: "",
@@ -500,15 +487,6 @@ export function LTCPlanForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
-          <FormField label="用户ID" required error={errors.userId}>
-            <Input
-              value={form.userId}
-              onChange={(e) => onChange("userId", e.target.value)}
-              placeholder="输入用户ID"
-              disabled={loading}
-            />
-          </FormField>
-
           <FormField
             label="总金额"
             required
@@ -622,8 +600,8 @@ export function LTCPlanForm() {
 }
 
 export function EquityGrantForm() {
+  const currentUserId = useCurrentUserId();
   const [form, setForm] = useState({
-    userId: "",
     totalUnits: "",
     currency: "CNY",
     startVestDate: "",
@@ -636,7 +614,6 @@ export function EquityGrantForm() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    newErrors.userId = validateRequired(form.userId, "用户ID");
     newErrors.totalUnits = validateNumber(form.totalUnits, "总份额", 0);
     newErrors.startVestDate = validateDate(form.startVestDate, "开始归属日");
     newErrors.vestPeriods = validateNumber(form.vestPeriods, "归属期数", 1, 20);
@@ -655,6 +632,11 @@ export function EquityGrantForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentUserId) {
+      toast.error("用户未登录");
+      return;
+    }
+
     if (!validateForm()) {
       toast.error("请检查表单输入");
       return;
@@ -663,7 +645,7 @@ export function EquityGrantForm() {
     setLoading(true);
     try {
       const created = await createEquityGrant({
-        userId: form.userId,
+        userId: currentUserId,
         totalUnits: Number(form.totalUnits),
         currency: form.currency,
         startVestDate: new Date(form.startVestDate).toISOString(),
@@ -674,7 +656,6 @@ export function EquityGrantForm() {
       await generateEquityVests((created as any).id);
       toast.success("股权授予已创建并生成归属日程");
       setForm({
-        userId: "",
         totalUnits: "",
         currency: "CNY",
         startVestDate: "",
@@ -704,15 +685,6 @@ export function EquityGrantForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
-          <FormField label="用户ID" required error={errors.userId}>
-            <Input
-              value={form.userId}
-              onChange={(e) => onChange("userId", e.target.value)}
-              placeholder="输入用户ID"
-              disabled={loading}
-            />
-          </FormField>
-
           <FormField
             label="总份额"
             required

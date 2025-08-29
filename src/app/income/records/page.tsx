@@ -35,11 +35,10 @@ export default function IncomeRecordsPage() {
   const [range, setRange] = useState({
     from: `${currentYear}-01-01`,
     to: `${currentYear}-12-01`,
-    userId: "",
   });
 
   const { data, isLoading, error } = useIncomeRecords(
-    range.userId || undefined,
+    undefined, // 不再需要userId参数，API会自动使用当前用户
     range.from,
     range.to,
   );
@@ -122,7 +121,7 @@ export default function IncomeRecordsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
                 开始日期
@@ -142,17 +141,6 @@ export default function IncomeRecordsPage() {
                 type="date"
                 value={range.to.slice(0, 10)}
                 onChange={(e) => setRange({ ...range, to: e.target.value })}
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                用户ID（可选）
-              </label>
-              <Input
-                placeholder="输入用户ID"
-                value={range.userId}
-                onChange={(e) => setRange({ ...range, userId: e.target.value })}
                 className="w-full"
               />
             </div>

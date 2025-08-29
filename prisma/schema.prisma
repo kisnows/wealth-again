@@ -35,6 +35,7 @@ model User {
   txnEntries    TxnEntry[]
   auditLogs     AuditLog[]
   equityGrants  EquityGrant[]
+  cityChanges   CityChangeRecord[]
 
   @@index([email])
   @@index([isActive])
@@ -52,6 +53,7 @@ model City {
   hfRules       CityRuleHF[]
   users         User[]
   incomeRecords IncomeRecord[]
+  cityChanges   CityChangeRecord[]
 }
 
 model CityRuleSS {
@@ -357,4 +359,19 @@ model IdempotencyKey {
   expiresAt DateTime?
 
   @@index([userId, createdAt])
+}
+
+// ==== 城市变更记录 ====
+model CityChangeRecord {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toCityId   String
+  toCity     City     @relation(fields: [toCityId], references: [id])
+  changeDate DateTime
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, changeDate])
+  @@index([toCityId])
 }
