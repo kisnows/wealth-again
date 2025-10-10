@@ -1,6 +1,12 @@
-export function formatMoney(value: number, currency = "CNY"): string {
+const DEFAULT_LOCALE = "zh-CN";
+
+export function formatMoney(
+  value: number,
+  currency = "CNY",
+  locale: string = DEFAULT_LOCALE,
+): string {
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
     }).format(value);

@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import type { IncomeRecordsSummary } from "@/lib/api/income";
 import { getJson } from "@/lib/utils/fetcher";
 
 export function useDashboard(asOf?: string, displayCurrency?: string) {
@@ -25,5 +26,8 @@ export function useIncomeTimeseries(
     from && to
       ? `/api/v1/reports/income/timeseries?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}`
       : null;
-  return useSWR<any>(key, getJson);
+  return useSWR<{
+    series: Record<string, Array<{ month: string; value: number }>>;
+    summary: IncomeRecordsSummary;
+  }>(key, getJson);
 }

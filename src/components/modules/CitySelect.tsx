@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import {
   Select,
   SelectContent,
@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAllCities } from "@/lib/api/user";
 
 interface City {
   id: string;
@@ -20,43 +21,30 @@ interface CitySelectProps {
   onValueChange?: (value: string) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 
-export default function CitySelect({ 
-  value, 
-  onValueChange, 
+export default function CitySelect({
+  value,
+  onValueChange,
   placeholder = "选择城市",
-  className 
+  className,
+  disabled,
 }: CitySelectProps) {
-  const [cities, setCities] = useState<City[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: cities, isLoading } = useAllCities();
 
-  useEffect(() => {
-    fetch("/api/v1/cities")
-      .then((res) => res.json())
-      .then((data) => setCities(data))
-      .catch((error) => console.error("Failed to fetch cities:", error))
-      .finally(() => setLoading(false));
-  }, []);
+  const citiesByCountry = useMemo(() => {
+    if (!cities || cities.length === 0) return {};
+    return cities.reduce((acc, city) => {
+      if (!acc[city.country]) {
+        acc[city.country] = [];
+      }
+      acc[city.country].push(city);
+      return acc;
+    }, {} as Record<string, City[]>);
+  }, [cities]);
 
-  if (loading) {
-    return (
-      <Select disabled>
-        <SelectTrigger className={className}>
-          <SelectValue placeholder="加载中..." />
-        </SelectTrigger>
-      </Select>
-    );
-  }
-
-  // Group cities by country
-  const citiesByCountry = cities.reduce((acc, city) => {
-    if (!acc[city.country]) {
-      acc[city.country] = [];
-    }
-    acc[city.country].push(city);
-    return acc;
-  }, {} as Record<string, City[]>);
+  const isDisabled = disabled || isLoading || !cities || cities.length === 0;
 
   const countryNames: Record<string, string> = {
     CN: "中国",
@@ -68,23 +56,35 @@ export default function CitySelect({
   };
 
   return (
-    <Select value={value} onValueChange={onValueChange}>
+    <Select
+      value={value}
+      onValueChange={onValueChange}
+      disabled={isDisabled}
+    >
       <SelectTrigger className={className}>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue
+          placeholder={isLoading ? "加载中..." : placeholder}
+        />
       </SelectTrigger>
       <SelectContent>
-        {Object.entries(citiesByCountry).map(([country, countryCities]) => (
-          <div key={country}>
-            <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-              {countryNames[country] || country}
-            </div>
-            {countryCities.map((city) => (
-              <SelectItem key={city.id} value={city.id}>
-                {city.name}
-              </SelectItem>
-            ))}
+        {Object.keys(citiesByCountry).length === 0 ? (
+          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+            暂无可用城市
           </div>
-        ))}
+        ) : (
+          Object.entries(citiesByCountry).map(([country, countryCities]) => (
+            <div key={country}>
+              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                {countryNames[country] || country}
+              </div>
+              {countryCities.map((city) => (
+                <SelectItem key={city.id} value={city.id}>
+                  {city.name}
+                </SelectItem>
+              ))}
+            </div>
+          ))
+        )}
       </SelectContent>
     </Select>
   );

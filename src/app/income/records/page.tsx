@@ -7,7 +7,7 @@ import {
   TrendingUpIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,50 +43,17 @@ export default function IncomeRecordsPage() {
     range.to,
   );
   const items = data?.items ?? [];
-
-  // 计算统计数据
-  const statistics = useMemo(() => {
-    if (!items.length) return null;
-
-    const totalGross = items.reduce(
-      (sum: number, r: any) => sum + Number(r.gross || 0),
-      0,
-    );
-    const totalBonus = items.reduce(
-      (sum: number, r: any) => sum + Number(r.bonus || 0),
-      0,
-    );
-    const totalTax = items.reduce(
-      (sum: number, r: any) => sum + Number(r.incomeTax || 0),
-      0,
-    );
-    const totalNet = items.reduce(
-      (sum: number, r: any) => sum + Number(r.netIncome || 0),
-      0,
-    );
-    const totalSS = items.reduce(
-      (sum: number, r: any) => sum + Number(r.socialInsurance || 0),
-      0,
-    );
-    const totalHF = items.reduce(
-      (sum: number, r: any) => sum + Number(r.housingFund || 0),
-      0,
-    );
-
-    const avgTaxRate = totalGross > 0 ? (totalTax / totalGross) * 100 : 0;
-
-    return {
-      totalGross,
-      totalBonus,
-      totalTax,
-      totalNet,
-      totalSS,
-      totalHF,
-      avgTaxRate,
-      months: items.length,
-      currency: items[0]?.currency || "CNY",
-    };
-  }, [items]);
+  const summary = data?.summary;
+  const statistics = summary
+    ? {
+        totalGross: summary.totalGross,
+        totalTax: summary.totalTax,
+        totalNet: summary.totalNet,
+        avgTaxRate: summary.avgTaxRate,
+        months: summary.months,
+        currency: summary.currency || items[0]?.currency || "CNY",
+      }
+    : null;
 
   return (
     <main className="p-6 space-y-6">
@@ -284,11 +251,6 @@ export default function IncomeRecordsPage() {
                     <TableBody>
                       {items.map((r: any, index: number) => {
                         const monthStr = String(r.monthDate).slice(0, 7);
-                        const _totalIncome =
-                          Number(r.gross || 0) +
-                          Number(r.bonus || 0) +
-                          Number(r.ltcIncome || 0) +
-                          Number(r.equityIncome || 0);
 
                         return (
                           <TableRow

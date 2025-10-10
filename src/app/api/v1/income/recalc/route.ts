@@ -14,22 +14,28 @@ import {
  */
 
 export async function POST(req: Request) {
-  const { taxYear, endMonth, cityId } = await req.json();
+  const { taxYear, endMonth, cityId, userId, startMonth } = await req.json();
   if (!taxYear || !endMonth)
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   const { key, existed } = await ensureIdempotent(
     req,
     undefined,
-    `${taxYear}:${endMonth}:${cityId ?? ""}`,
+    `${taxYear}:${endMonth}:${cityId ?? ""}:${userId ?? ""}:${startMonth ?? ""}`,
   );
   if (existed)
     return NextResponse.json(
       { error: "Idempotency key reused" },
       { status: 409 },
     );
-  const res = await recalcIncome({ taxYear, endMonth, cityId });
+  const res = await recalcIncome({
+    taxYear,
+    endMonth,
+    cityId,
+    userId,
+    startMonth,
+  });
   await logAudit("INCOME_RECALC", {
-    meta: { taxYear, endMonth, cityId, updated: res.updated },
+    meta: { taxYear, endMonth, cityId, userId, startMonth, updated: res.updated },
   });
   await markIdempotencyUsed(key);
   return NextResponse.json(res);

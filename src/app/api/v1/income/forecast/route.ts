@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     const cityChanges = await (prisma as any).cityChangeRecord.findMany({
       where: { userId },
       include: { toCity: true },
-      orderBy: { changeDate: "asc" },
+      orderBy: { effectiveMonth: "asc" },
     });
 
     // 获取奖金计划
@@ -499,18 +499,34 @@ function getCityForMonth(
   monthDate: Date,
   defaultCityId: string
 ): string {
-  // 找到在该月份之前或当月生效的最新城市变更
-  const applicableChanges = cityChanges.filter(
-    (change) => new Date(change.changeDate) <= monthDate
-  );
-
-  if (applicableChanges.length === 0) {
-    return defaultCityId; // 如果没有变更记录，使用默认城市
+  if (!cityChanges || cityChanges.length === 0) {
+    return defaultCityId;
   }
-
-  // 获取最新的城市变更
-  const latestChange = applicableChanges[applicableChanges.length - 1];
-  return latestChange.toCityId;
+  const sorted = [...cityChanges].sort(
+    (a, b) =>
+      new Date(a.effectiveMonth).getTime() -
+      new Date(b.effectiveMonth).getTime()
+  );
+  const monthStart = new Date(
+    Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth(), 1)
+  );
+  let currentCity = sorted[0]?.fromCityId || defaultCityId;
+  for (const change of sorted) {
+    const effectiveStart = new Date(change.effectiveMonth);
+    const effectiveMonthStart = new Date(
+      Date.UTC(
+        effectiveStart.getUTCFullYear(),
+        effectiveStart.getUTCMonth(),
+        1
+      )
+    );
+    if (monthStart >= effectiveMonthStart) {
+      currentCity = change.toCityId;
+    } else {
+      break;
+    }
+  }
+  return currentCity || defaultCityId;
 }
 
 // 辅助函数：获取两个日期之间的月份列表

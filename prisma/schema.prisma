@@ -36,6 +36,7 @@ model User {
   auditLogs     AuditLog[]
   equityGrants  EquityGrant[]
   cityChanges   CityChangeRecord[]
+  annualDeductions UserAnnualDeduction[]
 
   @@index([email])
   @@index([isActive])
@@ -53,7 +54,8 @@ model City {
   hfRules       CityRuleHF[]
   users         User[]
   incomeRecords IncomeRecord[]
-  cityChanges   CityChangeRecord[]
+  cityChangesTo   CityChangeRecord[] @relation("CityChangeToCity")
+  cityChangesFrom CityChangeRecord[] @relation("CityChangeFromCity")
 }
 
 model CityRuleSS {
@@ -202,6 +204,22 @@ model ValuationSnapshot {
   fxRate  FxRate? @relation(fields: [fxRateId], references: [id])
 
   @@unique([accountId, asOf])
+}
+
+model UserAnnualDeduction {
+  id             String   @id @default(uuid())
+  userId         String
+  taxYear        Int
+  annualAmount   Decimal  @default(0)
+  allocationRule String?
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taxYear])
+  @@index([userId, taxYear])
 }
 
 model AuditLog {
@@ -363,15 +381,18 @@ model IdempotencyKey {
 
 // ==== 城市变更记录 ====
 model CityChangeRecord {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  toCityId   String
-  toCity     City     @relation(fields: [toCityId], references: [id])
-  changeDate DateTime
-  reason     String?
-  createdAt  DateTime @default(now())
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromCityId     String?
+  fromCity       City?    @relation("CityChangeFromCity", fields: [fromCityId], references: [id])
+  toCityId       String
+  toCity         City     @relation("CityChangeToCity", fields: [toCityId], references: [id])
+  effectiveMonth DateTime
+  reason         String?
+  createdAt      DateTime @default(now())
 
-  @@index([userId, changeDate])
+  @@index([userId, effectiveMonth])
   @@index([toCityId])
+  @@index([fromCityId])
 }

@@ -15,13 +15,13 @@ const mockPrisma: any = {
   },
   incomeRecord: {
     findMany: vi.fn(),
-    findFirst: vi.fn(),
     update: vi.fn(),
     upsert: vi.fn(),
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
   },
-  user: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-  cityChangeRecord: { findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
+  user: { findMany: vi.fn() },
+  cityChangeRecord: { findMany: vi.fn(), findFirst: vi.fn() },
   city: { findMany: vi.fn(), findUnique: vi.fn() },
   cityRuleSS: { findFirst: vi.fn() },
   cityRuleHF: { findFirst: vi.fn() },
@@ -29,6 +29,7 @@ const mockPrisma: any = {
   taxBracket: { findMany: vi.fn() },
   idempotencyKey: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   auditLog: { create: vi.fn() },
+  userAnnualDeduction: { findUnique: vi.fn() },
 };
 
 vi.mock("@/server/db", () => ({ default: mockPrisma }));
@@ -39,11 +40,21 @@ vi.mock("@/server/utils/auth", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockPrisma.cityChangeRecord.findMany.mockResolvedValue([]);
-  mockPrisma.cityChangeRecord.findFirst.mockResolvedValue(null);
-  mockPrisma.city.findMany.mockResolvedValue([]);
-  mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
-  mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
+  mockPrisma.bonusPlan.findMany = vi.fn().mockResolvedValue([]);
+  mockPrisma.longTermCashPayout.findMany = vi.fn().mockResolvedValue([]);
+  mockPrisma.equityVest.findMany = vi.fn().mockResolvedValue([]);
+  mockPrisma.incomeRecord.findFirst = vi.fn().mockResolvedValue(null);
+  mockPrisma.incomeRecord.findMany = vi.fn().mockResolvedValue([]);
+  mockPrisma.userAnnualDeduction.findUnique = vi
+    .fn()
+    .mockResolvedValue(null);
+  mockPrisma.userAnnualDeduction.findMany = vi
+    .fn()
+    .mockResolvedValue([]);
+  mockPrisma.incomeChange.findFirst = vi.fn().mockResolvedValue(null);
+  mockPrisma.cityChangeRecord.findMany = vi.fn().mockResolvedValue([]);
+  mockPrisma.cityChangeRecord.findFirst = vi.fn().mockResolvedValue(null);
+  mockPrisma.city.findMany = vi.fn().mockResolvedValue([]);
 });
 
 // 本文件覆盖收入域路由：工资/奖金/长期现金/股权、月度快照与回算。
@@ -78,8 +89,8 @@ describe("Income basic endpoints", () => {
   });
 
   it("salary-changes POST idempotency reuse returns 409", async () => {
+    // 场景：重复使用幂等键提交工资变更时，应返回 409 并阻止重复插入。
     const sc = await import("@/app/api/v1/income/salary-changes/route");
-    // 重复幂等键
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce({ key: "k-sc" });
     const res = await sc.POST(
       makeJsonRequest(
@@ -259,7 +270,7 @@ describe("Income basic endpoints", () => {
   it("income records GET & PATCH, recalc paths", async () => {
     // 场景A：查询月度快照 + 覆盖基数
     const recs = await import("@/app/api/v1/income/records/route");
-    mockPrisma.incomeRecord.findMany.mockResolvedValueOnce([]);
+    mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
     expect(
       (
         await recs.GET(
@@ -331,6 +342,7 @@ describe("Income basic endpoints", () => {
       standardDeduction: 5000,
       brackets: undefined,
     });
+    mockPrisma.userAnnualDeduction.findUnique.mockResolvedValue(null);
     // 当 taxConfig.include 未返回 brackets 时，服务会回退到 taxBracket.findMany
     mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
@@ -356,8 +368,8 @@ describe("Income basic endpoints", () => {
   });
 
   it("income recalc idempotency reuse returns 409", async () => {
+    // 场景：回算接口重复提交相同幂等键时需返回 409，避免重复计算。
     const recalc = await import("@/app/api/v1/income/recalc/route");
-    // idempotency key 已存在
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce({
       key: "k-recalc",
     });
@@ -373,6 +385,7 @@ describe("Income basic endpoints", () => {
   });
 
   it("income recalc amount assertions with simplified rules", async () => {
+    // 场景：在极简税务配置下验证累计预扣逻辑，确保累计税额差分为当月个税。
     const recalc = await import("@/app/api/v1/income/recalc/route");
     // 用户
     mockPrisma.user.findMany.mockResolvedValueOnce([
@@ -426,5 +439,31 @@ describe("Income basic endpoints", () => {
       secondArg.create?.incomeTax) as number;
     expect(firstTax).toBeCloseTo(300);
     expect(secondTax).toBeCloseTo(300);
+  });
+
+  it("annual deductions endpoint returns list", async () => {
+    const route = await import(
+      "@/app/api/v1/user/annual-deductions/route"
+    );
+    const now = new Date("2025-01-01");
+    mockPrisma.userAnnualDeduction.findMany.mockResolvedValueOnce([
+      {
+        id: "ded-1",
+        userId: "u1",
+        taxYear: 2025,
+        annualAmount: 12000,
+        allocationRule: "AVERAGE",
+        note: "子女教育",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    const res = await route.GET(
+      makeGet("http://localhost/api/v1/user/annual-deductions"),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].annualAmount).toBe(12000);
   });
 });

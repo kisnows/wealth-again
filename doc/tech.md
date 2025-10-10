@@ -1,645 +1,178 @@
-# 技术设计文档
+# 技术设计文档（对齐 2025Q1 PRD）
 
-## 评审与改进方案（vNext）
+## 1. 系统总览
+- 技术栈：Next.js 15 App Router（TypeScript）、NextAuth、Prisma（SQLite dev → Postgres prod）、Tailwind CSS + shadcn/ui、SWR、Zustand、Vitest。
+- 架构分层：
+  - 前端：`src/app` 负责路由与页面，`src/components` 存放 UI 组件，`src/lib` 管理客户端 API、状态和领域工具。
+  - 服务端：`src/server` 提供 Prisma 单例、NextAuth 设置与领域服务（ledger、income、tax、fx、report、rule、audit）。
+  - API 层：使用 Next.js Route Handlers（`src/app/api/**`）对外提供 RESTful 接口。
+  - 数据层：Prisma schema covering accounts、transactions、income、rules、audit、impersonation。
+- 关键目标：支持 PRD 中的五大场景（总览、收入管理、账户、税务社保、用户设置）以及管理员模拟登录与人工调整。
 
-结论与评审
-- 总体方向与 prd 一致：账务分录、估值、汇率、工资/奖金/长期激励/股权、城市与税表规则、年度累计计税、报表与服务分层已覆盖。
-- 关键缺口：缺少股权激励表（EquityGrant/EquityVest）；LTC 计划的 recurrence 需用枚举；跨币种转账与估值未强制携带汇率快照；缺少幂等键；部分业务约束仅在文档中，未在接口层校验；规则需要“区间不重叠”校验；RBAC/审计与 API 写操作未闭环。
-- 风险点：年度累计回算的幂等与规则版本化、时区一致性、报表性能需工程化加强。
-
-表结构（ASCII 摘要）
 ```
-+---------+       1      M +---------+ 1     M +----------+   M    1 +---------+
-|  User   +---------------+| Account |+-------+| TxnLine  |--------->| TxnEntry|
-+----+----+                +----+----+        +-----+-----+         +----+----+
-|id  |... |                     |                   |                      |
-|base|city|                     |                   |currency               |fxRateId?
-+----+----+                     |                   |amount                 |occurredAt
-                                |                   +-----------------------+type/note
-                                |1     M +--------------------+
-                                +-------+| ValuationSnapshot  |----+
-                                        +---------+-----------+    |  ?   1
-                                                  |fxRateId?       +------+
-                                                  v                       |
-                                               +--+------+                |
-                                               | FxRate  |<---------------+
-                                               +---------+
-```
-
-收入与规则
-```
-User 1-M IncomeChange(grossMonthly,effectiveFrom)
-User 1-M BonusPlan(amount,effectiveDate,taxMethod)
-User 1-M LongTermCashPlan(totalAmount,startDate,periods,recurrence:ENUM)
-Plan 1-M LongTermCashPayout(payDate,amount,currency)
-
-User 1-M EquityGrant(totalUnits,startVestDate,vestPeriods,vestInterval:ENUM,currency)
-Grant 1-M EquityVest(vestDate,units,fairValue?,currency)
-
-User 1-M IncomeRecord(monthDate UNIQUE(user,month), cityId?, currency, fxRateId?)
-City 1-M CityRuleSS/CityRuleHF [start,end)
-TaxConfig 1-M TaxBracket (country,taxYear)
-AuditLog(*)    IdempotencyKey(key,userId,hash,expiresAt)
++---------------------------+         +-------------------------------+
+|        Next.js UI         | <-----> |     /app/api Route Handlers   |
+|  (Dashboard/Income/etc.)  |         |  Auth Guard + DTO Validation  |
++------------+--------------+         +---------------+---------------+
+             |                                            |
+             v                                            v
+     +-------+------------------+                +--------+---------+
+     |  Domain Services         |                | Prisma Repos     |
+     | (ledger/income/tax/...)  |                | (SQLite/Postgres)|
+     +-------+------------------+                +--------+---------+
+             |                                            |
+             v                                            v
+       外部依赖：FX 快照、配置导入等（目前均为内部管理，无第三方实时接口）
 ```
 
-API 设计总览（骨架）
+## 2. 前端架构
+- **路由结构**：
+  - `src/app/layout.tsx` 提供全局 Shell（导航、主题），`page.tsx` 为 Dashboard 重定向。
+  - 功能路由：`dashboard/`、`income/`、`accounts/`、`entries/`、`rules/`、`reports/`、`settings/` 等，与 PRD 功能块一一对应。
+  - API Route 在 `src/app/api/**`，与页面近距离存放，便于同域维护。
+- **状态管理**：
+  - `SWR` 用于服务端数据缓存（如 `useDashboard`、`useIncomeTimeseries`）。
+  - `Zustand` (`src/lib/state`) 管理本地偏好（展示币种、asOf 日期）与界面状态。
+- **UI 组件**：
+  - shadcn/ui 组件集中在 `src/components/ui`；模块组件按业务归档（`components/modules/Charts`、`IncomeOverviewModule` 等）。
+  - 样式统一使用 Tailwind，`globals.css` 定义基础样式。
+- **表单与校验**：
+  - 基于 `react-hook-form` + `zod` resolver；常见于收入录入、规则维护页面。
+- **图表**：Recharts 实现资产趋势、收入分布等可视化，数据格式化使用 `src/lib/domain/money`。
+- **管理员模拟登录**：前端检测到 `impersonatedUserId`（从 session 中获取）时，在头部展示提醒并允许切换回管理员身份。
+
+## 3. 身份认证与权限
+- 认证通过 NextAuth（`src/server/auth.*`）；数据库记录用户角色 `role: "USER" | "ADMIN"`。
+- 守卫逻辑：
+  - API Route Handler 通过 `getServerSession` 获取当前用户；若存在 `impersonatedUserId` 则切换上下文但保留 `actorId`。
+  - 客户端钩子 `useSessionUser` 仅返回当前视角用户 data，同时暴露 `actorId` 以标记管理员操作。
+- 管理员模拟登录流程：
+  1. 管理员在管理后台选中用户触发 `/api/admin/impersonate`。
+  2. 服务端生成 `ImpersonationSession` 记录（包含 `adminId`、`userId`、`expiresAt`）。
+  3. 会话 Cookie 更新，前端刷新后以目标用户身份运行；顶部展示“管理员模式”提示。
+  4. 退出模拟调用 `/api/admin/impersonate/end`，清理记录。
+- 审计：所有管理操作（模拟登录、规则修改、删除记录等）写入 `AuditLog`，字段包含 `actorId`、`asUserId`、`action`、`payload`。
+
+## 4. 服务端分层
+- `src/server/services`
+  - `ledger.ts`：账户、交易、估值、跨币种转账与收益计算。
+  - `fx.ts`：汇率快照 CRUD 与 USD 中间价逻辑。
+  - `income.ts`：收入回算、预测、人工调整写入。
+  - `tax.ts`：累计预扣税计算器（根据 TaxConfig & TaxBracket）。
+  - `rule.ts`：城市社保、公积金、税率表配置校验与持久化。
+  - `report.ts`：Dashboard、账户摘要、收入时序等聚合查询。
+  - `audit.ts`：记录敏感操作日志。
+- 设计要点：
+  - 服务函数返回纯数据对象；路由层负责 DTO 校验与错误处理。
+  - 重要计算（收入、税务）集中在服务层，保证前端只做展示。
+  - 幂等性通过 `IdempotencyKey` 表实现（转账、规则写入等场景）。
+
+## 5. 数据模型（Prisma 摘要）
 ```
-/api/v1
-  /accounts           GET, POST
-  /accounts/{id}      PATCH(name/subType/desc/status), POST /archive
-  /accounts/{id}/summary        GET
-  /accounts/{id}/timeseries     GET ?metric=valuation|principal&from&to
-  /valuations          POST {accountId, asOf, totalValue, fxRateId?}
-  /entries/deposit     POST {accountId, amount, occurredAt, note}
-  /entries/withdraw    POST {accountId, amount, occurredAt, note}
-  /entries/transfer    POST {from:{accountId,amount}, to:{accountId,amount?}, occurredAt, note, fxRateId?}
-  /fxrates             POST, GET ?base=USD&quote=CNY&on=2025-08-01
-  /income/salary-changes     POST, GET
-  /income/bonus              POST, GET
-  /income/ltc/plans          POST, GET ; /{id}/generate POST
-  /income/equity/grants      POST, GET ; /{id}/generate POST
-  /income/equity/vests/{id}  PATCH {fairValue, currency}
-  /income/records            GET ?from&to ; /records/{id} PATCH
-  /income/recalc             POST {taxYear, endMonth, cityId?}
-  /rules/cities              PUT
-  /rules/social-security     PUT ; GET ?city&on
-  /rules/housing-fund        PUT ; GET ?city&on
-  /rules/tax/config          PUT
-  /rules/tax/brackets        PUT ; GET ?country&taxYear
-  /reports/dashboard         GET ?asOf&displayCurrency
-  /reports/accounts/summary  GET ?displayCurrency
-  /reports/income/timeseries GET ?from&to
+User(id, role, baseCurrency, displayCurrency, currentCityId)
+UserPrefs(userId, displayCurrency, asOfDate)
+ImpersonationSession(id, adminId, userId, expiresAt)
+AuditLog(id, actorId, asUserId, action, payload, createdAt)
+
+Account(id, userId, name, type, currency, status)
+TransactionEntry(id, accountId, type, occurredAt, note)
+TransactionLine(id, entryId, currency, amount, fxRateId)
+ValuationSnapshot(id, accountId, totalValue, asOf, fxRateId)
+FxRate(id, base, quote, rate, onDate)
+
+IncomeChange(id, userId, effectiveFrom, grossMonthly, currency)
+BonusPlan(id, userId, effectiveDate, amount, currency)
+LongTermCashPlan(id, userId, totalAmount, currency, recurrence, periods)
+LongTermCashPayout(id, planId, payDate, amount, currency)
+EquityGrant(id, userId, totalUnits, startVestDate, vestPeriods, vestInterval)
+EquityVest(id, grantId, vestDate, units, fairValue, currency)
+IncomeRecord(id, userId, monthDate, ... 数值字段, manualOverrides, flags)
+UserAnnualDeduction(id, userId, taxYear, deductionAmount, allocationRule)
+
+City(id, name, country)
+CityRuleSS(id, cityId, startDate, endDate, baseMin, baseMax, ratePension,
+           rateMedical, fixedMedicalPersonal, rateUnemployment)
+CityRuleHF(id, cityId, startDate, endDate, baseMin, baseMax, rateEmployee)
+TaxConfig(country, taxYear, standardDeduction, defaultSpecialMonthly, ...)
+TaxBracket(id, taxConfigId, threshold, rate, quickDeduction)
 ```
-
-模块依赖架构（ASCII）
-```
-+----------- API Layer (REST/DTO) ------------+
-| Auth/RBAC | Validation | Idempotency | Audit|
-+-------------------+------------------------+
-                    v
-       +-----------------------------+
-       |        Domain Services      |
-       |  Ledger  Fx  Income  Tax    |
-       |  Rule   Report              |
-       +---+----+----+----+----+-----+
-           |    |    |    |    |
-           |    |    |    |    +--> uses Rule (SS/HF, TaxConfig/Bracket)
-           |    |    |    +-------> tax calc (年度累计)
-           |    |    +-------------> income aggregation (工资/奖金/LTC/股权)
-           |    +-------------------> FX snap & conversion
-           +------------------------> posting/valuation/principal ROI
-                    v
-             +-------------+
-             | Repositories|
-             |  (Prisma)   |
-             +------+------+ 
-                    |
-                 +--+-- Database (SQLite→Postgres)
-```
-
-一致性核对（与 prd）
-- 账户/估值/多币种：满足；需强制“跨币种转账带 fx 快照”，SAVINGS 不允许估值；净资产折算口径按 asOf 最近 Fx。
-- 收入与税务：工资/奖金/LTC/股权、规则与税表、年度累计回算与月度快照，设计满足；需补齐股权数据模型与 fairValue 回填流程。
-- 报表：Dashboard/账户汇总/收入时序具备；建议做物化或缓存优化。
-- 审计/权限/时区：需落地 RBAC 与 API 审计；统一“自然月首日 UTC 化”策略。
-
-改进与落地步骤
-- 数据层：新增 EquityGrant/EquityVest、IdempotencyKey；LTC.recurrence 改枚举；接口层强校验（账号币种不可改、TxnLine.currency=Account.baseCurrency、SAVINGS 禁估值）；规则区间不重叠检查。
-- API 层：补齐上述端点；写操作支持 Idempotency-Key；返回 requestId；为跨币种转账要求 fxRateId。
-- 服务层：实现 TaxService（年度累计）、IncomeService（聚合写回 IncomeRecord）、Ledger/Fx/Report 分工清晰。
-- 前端：按路由骨架搭建页面；统一金额/币种格式化；转账弹窗联动 /fxrates。
-- 非功能：NextAuth/JWT、审计落库、核心路径单测、性能优化。
-
-本文包含三部分：**数据模型（表设计）→ 后端 API 设计（精简且可扩展）→ 前端页面与交互设计**。方案基于 **Prisma + SQLite**，可平滑迁移到 Postgres，并涵盖年度累计个税、城市社保/公积金、长期激励与股权激励以及分录账本等数据结构。
-
-# 一、数据模型（表设计）
-
-## 1.1 设计准则与约束（关键取舍）
-
-- **单一事实来源**：账务采用“**分录头 + 分录行**”(`TxnEntry` + `TxnLine`)，同/跨币种转账原子化写入。
-- **币种不可变更**：`Account.baseCurrency` 创建后不允许更新（应用层校验；如迁到 Postgres 再加触发器）。
-- **政策随时间生效**：`CityRuleSS/HF`、`TaxConfig/TaxBracket` 以 **\[start, end)** 区间管理，历史可追溯。
-- **收入以月为单位**：`IncomeRecord` 用月份第一天 `monthDate` 作为唯一键（userId, monthDate）。
-- **跨币种收入**：入账保留 `sourceCurrency` 与 `fxRateId`，金额统一折算到 `currency`。
-- **长期激励“计划 → 日程”**：`LongTermCashPlan/LongTermCashPayout`、`EquityGrant/EquityVest` 生成落库，计算时直接汇总当月事件。
-- **精度**：SQLite 环境下用 `Decimal`；如迁移到 Postgres，可改为 `numeric(20,6)` 等。
-
-## 1.2 数据表（Prisma 模型总览）
-
-> 以下与上轮给你的 Prisma 方案一致，仅按“系统视角”分组说明字段要点。
-
-### 用户与系统
-
-- `User`：用户主档（`baseCurrency`, `currentCity` 用于默认汇率/城市规则）。
-- `AuditLog`：审计日志。
-
-### 账户与账务
-
-- `Account`：账户（`accountType`：`SAVINGS/INVESTMENT/LOAN`；`baseCurrency` 固定）。
-- `TxnEntry`：分录头（类型 `EntryTypeLike`：`DEPOSIT/WITHDRAW/TRANSFER/ADJUST/SYSTEM`；可携带 `fxRateId` 快照与 `meta`）。
-- `TxnLine`：分录行（按**账户币种**记账，出负入正；转账一条出、一条入）。
-- `ValuationSnapshot`：投资/负债估值快照（储蓄估值=本金）。
-- `FxRate`：汇率（**USD 为 base** 的中间价快照）。
-
-### 收入/税务/政策
-
-- `IncomeChange`：工资变更（`effectiveFrom`）。
-- `BonusPlan`：一次性奖金（`effectiveDate`）。
-- `LongTermCashPlan` + `LongTermCashPayout`：长期现金计划与发放日程（季度/期数）。
-- `EquityGrant` + `EquityVest`：股权激励授予与归属事件（年度/半年度；`fairValue` 可在归属日按行情回填）。
-- `IncomeRecord`：**月度收入快照**（工资、奖金、长期现金、股权激励、社保、公积金、月度应税基、当月个税、累计已缴、税后）。
-- `City`：城市词表。
-- `CityRuleSS`/`CityRuleHF`：城市社保/公积金规则（上下限与比例，时间区间）。
-- `TaxConfig`/`TaxBracket`：税制（国家 + 税年 + 速算扣除，阈值为**年化累计档**）。
-
-### 关键派生/约束（应用层保证）
-
-- `TxnLine.currency === Account.baseCurrency`
-- `Account.baseCurrency` 不可更新
-- 转账写入必须**同一 `TxnEntry`** 下生成两条 `TxnLine`（原子性）
-
-## 1.3 常用派生数据（服务层/SQL 视图等价查询）
-
-- **账户本金（账户币种）**
-  `principal = initialBalance + Σ(txnLine.amount)`（按账户聚合）。
-- **账户估值**
-  `SAVINGS → principal`；`INVESTMENT/LOAN → 最近一条 ValuationSnapshot.totalValue`。
-- **收益/收益率**
-  `profit = valuation - principal`；`roi = profit / principal`（principal≤0 → roi=null）。
-- **净资产（展示币种）**
-  用最新 USD 中间价将各账户估值折算到基准币种后聚合：资产合计 - 负债合计。
-
----
-
-# 二、后端 API 设计（精简、优雅、可扩展）
-
-## 2.1 统一规范
-
-- **Base Path**：`/api/v1`
-- **认证**：`Authorization: Bearer <JWT>`（或你公司统一 SSO）
-- **幂等写入**：支持 `Idempotency-Key` 头（服务端做请求指纹缓存）
-- **分页**：cursor 模式：`?limit=20&cursor=<opaque>`；返回 `nextCursor`
-- **时间/货币**：时间用 ISO8601；金额用数字（展示端格式化）；货币代码用 ISO 4217
-- **错误模型**：
-
-  ```json
-  { "error": { "code": "VALIDATION_ERROR", "message": "xxx", "details": {...} } }
-  ```
-
-## 2.2 资源与端点
-
-### 2.2.1 账户 & 账务
-
-#### 创建账户
-
-- `POST /accounts`
-- body
-
-  ```json
-  {
-    "name": "Broker USD",
-    "accountType": "INVESTMENT",
-    "baseCurrency": "USD",
-    "initialBalance": 0,
-    "subType": "Securities",
-    "description": "IBKR"
-  }
-  ```
-
-- resp：`{ id, ... }`
-
-#### 编辑/归档账户
-
-- `PATCH /accounts/:id`（允许：`name/subType/description/status`；禁止更改 `baseCurrency`）
-- `POST /accounts/:id/archive`
-
-#### 列表/详情/汇总
-
-- `GET /accounts?type=INVESTMENT&status=ACTIVE`
-- `GET /accounts/:id`
-- `GET /accounts/:id/summary` → 返回 `principal, valuation, profit, roi`（账户币种 + 折算到用户基准币种两套）
-
-#### 存取款
-
-- `POST /entries/deposit`
-
-  - 币种默认为账户的 `baseCurrency`，服务端会校验并拒绝不一致的币种。
-
-  ```json
-  {
-    "accountId": "acc-id",
-    "occurredAt": "2025-08-01T10:00:00+08:00",
-    "amount": 1000,
-    "note": "cash in"
-  }
-  ```
-
-- `POST /entries/withdraw`（同上，`amount` 正数；服务端写行时转成负号）
-
-#### 转账（同/跨币种）
-
-- `POST /entries/transfer`
-
-  - `from`/`to` 的 `currency`（如提供）必须分别等于对应账户的 `baseCurrency`，服务器会校验并拒绝不一致的币种。
-
-  ```json
-  {
-    "from": { "accountId": "acc-cny", "amount": 1000, "currency": "CNY" },
-    "to": { "accountId": "acc-usd", "currency": "USD" },
-    "occurredAt": "2025-08-01T10:00:00+08:00",
-    "fx": {
-      "fxRateId": "fx-id" // 推荐：以快照id固化
-      // 或者 "base": "USD", "quote": "CNY", "rate": 7.10
-    },
-    "note": "CNY -> USD"
-  }
-  ```
-
-- 行为：服务端根据 fx 计算 `to.amount`，一次 `TxnEntry` 落两条 `TxnLine`。
-
-#### 查询流水
-
-- `GET /accounts/:id/lines?from=2025-08-01&to=2025-08-31&limit=50&cursor=...`
-
-#### 估值
-
-- `POST /valuations`
-
-  - `currency` 必须等于账户的 `baseCurrency`，服务器会校验并拒绝不一致的币种。
-
-  ```json
-  {
-    "accountId": "...",
-    "asOf": "2025-08-01T00:00:00+08:00",
-    "totalValue": 123456.78,
-    "currency": "USD",
-    "fxRateId": "fx-id",
-    "note": "Q3"
-  }
-  ```
-
-#### 汇率（管理/查询）
-
-- `PUT /fxrates`（幂等 upsert 批量）
-
-  ```json
-  [
-    { "base": "USD", "quote": "CNY", "asOf": "2025-08-01", "rate": 7.1 },
-    { "base": "USD", "quote": "HKD", "asOf": "2025-08-01", "rate": 7.8 }
-  ]
-  ```
-
-- `GET /fxrates?base=USD&quotes=CNY,HKD&asOf=2025-08-01`
-
----
-
-### 2.2.2 收入 & 税务
-
-#### 工资变更
-
-- `POST /income/changes`
-
-  ```json
-  { "effectiveFrom": "2025-03-01", "grossMonthly": 12000, "currency": "CNY" }
-  ```
-
-- `GET /income/changes?from=2024-01-01&to=2026-01-01`
-
-#### 奖金计划（一次性）
-
-- `POST /income/bonus-plans`
-  - `taxMethod`: `MERGE`（并入工资综合计税）或 `SEPARATE`（单独计税），默认 `MERGE`
-
-  ```json
-  {
-    "effectiveDate": "2025-07-10",
-    "amount": 20000,
-    "currency": "CNY",
-    "taxMethod": "MERGE"
-  }
-  ```
-
-- `GET /income/bonus-plans?year=2025`
-
-#### 长期现金（计划 → 日程自动生成）
-
-- `POST /income/ltc/plans`
-
-  ```json
-  {
-    "totalAmount": 160000,
-    "currency": "CNY",
-    "startDate": "2025-01-01",
-    "periods": 16,
-    "recurrence": "QUARTERLY"
-  }
-  ```
-
-- `POST /income/ltc/plans/:id/generate`（如需按非平均金额传自定义拆分数组）
-- `GET /income/ltc/plans/:id/payouts?from=2025-01-01&to=2028-12-31`
-
-#### 股权激励（授予 → 归属日程）
-
-- `POST /income/equity/grants`
-
-  ```json
-  {
-    "type": "RSU",
-    "symbol": "AAPL",
-    "grantDate": "2025-01-01",
-    "totalUnits": 400,
-    "startVestDate": "2025-07-01",
-    "vestPeriods": 4,
-    "vestInterval": "YEARLY"
-  }
-  ```
-
-- `POST /income/equity/grants/:id/generate`
-- 归属日回填市值（用于计税）：
-
-  - `PATCH /income/equity/vests/:vestId`
-
-    ```json
-    { "fairValue": 12345.67, "currency": "CNY" }
-    ```
-
-#### 城市规则
-
-- `PUT /rules/cities`（创建/更新城市）
-- `PUT /rules/social-security`（`CityRuleSS` 批量 upsert）
-- `PUT /rules/housing-fund`（`CityRuleHF` 批量 upsert）
-- `GET /rules/social-security?city=Shanghai&on=2025-05-01`（返回当日有效规则）
-
-#### 税制与税表
-
-- `PUT /rules/tax/config`（`TaxConfig` upsert）
-- `PUT /rules/tax/brackets`（`TaxBracket` 批量 upsert）
-- `GET /rules/tax/brackets?country=CN&taxYear=2025`
-
-#### 月度收入快照（读/写/回算）
-
-- 读取区间：
-  `GET /income/records?from=2025-05-01&to=2025-08-01`
-- 写（人工修正）：
-  `PATCH /income/records/:id`（覆盖 `socialInsuranceBase/housingFundBase/specialDeductions/...`）
-- **年度累计回算**（核心）：
-  `POST /income/recalc`
-
-  ```json
-  { "taxYear": 2025, "endMonth": 8, "cityId": "city-id-or-empty" }
-  ```
-
-  - 行为：按**1–8 月累计**计算，逐月回填 `IncomeRecord` 的 `ss/hf/taxableIncome/incomeTax/taxPaid/netIncome`；前端随后只取 5–8 月展示。
-
----
-
-### 2.2.3 报表
-
-#### Dashboard 总览
-
-- `GET /reports/dashboard?asOf=2025-08-01&displayCurrency=CNY`
-
-  - 返回：总资产/总负债/净资产（展示币种）、资产占比（S/I/L）、近 12 个月净资产曲线。
-
-#### 资产与账户报表
-
-- `GET /reports/accounts/summary?displayCurrency=CNY`
-- `GET /reports/accounts/:id/timeseries?metric=valuation&from=2024-09-01&to=2025-08-01`
-
-#### 收入与税收报表
-
-- `GET /reports/income/timeseries?from=2025-01-01&to=2025-12-01`
-
-  - 返回：工资、奖金、长期现金、股权激励、社保、公积金、个税、税后收入各曲线。
-
----
-
-## 2.3 领域服务（后端内部）推荐拆分
-
-- `LedgerService`：入账/转账/估值/本金与汇总查询
-- `FxService`：汇率管理与折算
-- `IncomeService`：工资/奖金/长期现金/股权激励聚合
-- `TaxService`：规则读取、年度累计个税计算器
-- `RuleService`：城市规则、税制管理
-- `ReportService`：Dashboard 与各维度聚合
-
-> 这样每个模块职责单一，API 层只做 DTO ↔ domain 的编解码。
-
----
-
-# 三、前端页面与交互设计
-
-## 3.1 技术栈建议
-
-- **React + TypeScript + Tailwind + Shadcn/UI**（你已使用）
-- **Zustand** 做轻量状态；**React Query**（或 SWR）做数据缓存与请求态
-- **Route 结构**（建议）：
-
-  ```
-  /dashboard
-  /accounts
-    /:accountId
-    /:accountId/transfer
-    /:accountId/valuation
-  /income
-    /records
-    /salary-changes
-    /bonus
-    /long-term-cash
-    /equity
-  /rules
-    /cities
-    /social-security
-    /housing-fund
-    /tax
-  /settings
-  ```
-
-- **国际化/币种**：基准币种显示 +临时切换；金额格式化封装 `formatMoney(amount, currency)`。
-
-## 3.2 页面明细
-
-### A. Dashboard
-
-- **卡片**：总资产 / 总负债 / 净资产（展示币种）
-- **图表**：
-
-  - 净资产 12 个月趋势（折线）
-  - 资产占比（储蓄/投资/借贷）饼图，可点击跳转对应账户列表
-
-- **最近变动**：最新 10 条 `TxnEntry` 与最新估值
-
-### B. 账户列表 / 详情
-
-- 列表：按 `type/status/currency` 过滤；每行显示 `principal/valuation/profit/roi`
-- 详情：
-
-  - 顶部：账户摘要（账户币种 + 折算基准币种）
-  - Tab：
-
-    1. **流水**（server-side 分页，筛选存/取/转/调；支持导出 CSV）
-    2. **估值**（表格 + 折线）
-    3. **操作**（存取款/转账/新增估值）
-
-- **转账弹窗**：选择 from/to、金额、汇率快照（默认自动带入最近一次，支持手动覆盖）
-
-### C. 收入与税务
-
-- **收入快照表**（月维度）：列含工资、奖金、长期现金、股权激励、社保、公积金、当月应税基、当月个税、税后收入；顶部支持筛选区间（默认本年）
-- **工资变更**：表单（生效日期/金额）；侧栏展示变更时间线
-- **一次性奖金**：表单（生效月/金额/税法）
-- **长期现金**：
-
-  - 创建计划：总额、开始月、期数、频率（季度等）
-  - 计划详情：发放日程表（可手动编辑某期金额/延期）
-
-- **股权激励**：
-
-  - 创建授予：类型/总份额/开始归属日/期数/间隔
-  - 归属日程：按月分组；支持在归属日回填 `fairValue`
-
-- **一键回算**：选择年份、截止月，点击“重新计算”，刷新快照表（反映“1–M 累计后再截取 5–8 展示”的口径）
-
-### D. 规则管理（管理员）
-
-- 城市列表
-- 社保/公积金规则编辑（上下限、比例、生效时间）
-- 税制编辑（年度起征额、税表档、速算扣除数）
-
-### E. 设置
-
-- 基准币种、默认城市、数据导入/导出、API 密钥、审计日志
-
-## 3.3 关键交互流程
-
-**跨币种转账**
-
-1. 用户在“转账”弹窗填 from/to/金额
-2. 前端调用 `GET /fxrates` 拉最近快照；展示“预计入账金额”
-3. 提交 `POST /entries/transfer`（附 `fxRateId` 和 `Idempotency-Key`）
-4. 成功后刷新账户摘要与流水
-
-**年度累计回算**
-
-1. 用户在收入页选择年份=2025、截止月=8
-2. 调 `POST /income/recalc`
-3. 前端 `GET /income/records?from=2025-05-01&to=2025-08-01` 更新表格与图
-
-## 3.4 前端数据层（类型与 hooks 略例）
-
-```ts
-// types
-export type Money = { amount: number; currency: string };
-export type AccountSummary = {
-  id: string;
-  name: string;
-  type: "SAVINGS" | "INVESTMENT" | "LOAN";
-  currency: string;
-  principal: Money;
-  valuation: Money;
-  profit: Money;
-  roi: number | null;
-};
-
-// hooks
-export function useAccountSummary(id: string) {
-  return useQuery(["accountSummary", id], () =>
-    api.get(`/accounts/${id}/summary`).then((r) => r.data)
-  );
-}
-
-export function useRecalcIncome() {
-  const qc = useQueryClient();
-  return useMutation(
-    (p: { taxYear: number; endMonth: number; cityId?: string }) =>
-      api.post("/income/recalc", p),
-    {
-      onSuccess: () => qc.invalidateQueries(["incomeRecords"]),
-    }
-  );
-}
-```
-
-## 3.5 组件与样式
-
-- **表单**：Shadcn 表单控件（日期/数字/选择）、zod 校验
-- **表格**：虚拟化表格（百万级流水时也流畅），支持列选择导出
-- **图表**：Recharts 折线/饼图；统一数值格式化
-- **可访问性**：表单 `aria-describedby`、键盘操作、图表提供数据表格替代视图
-
----
-
-# 四、计算与一致性细节
-
-## 4.1 年度累计个税（中国综合所得）
-
-- 逐月：
-  `gross + bonus + ltcIncome + equityIncome + ltc + equityFairValue - ss - hf - standardDeduction - special - others - charity >= 0 → monthlyTaxable`
-- 累计到当月：`cumulativeTaxable = Σ monthlyTaxable(1..M)`
-- 映射 `TaxBracket(M 年)`：
-  `cumulativeTax = cumulativeTaxable * rate - quickDeduction`
-- 当月应缴：`monthTaxDue = cumulativeTax - lastCumulativePaid; if <0 → 0`
-- 累计已缴：`cumulativePaid += monthTaxDue`
-- 税后：`net = grossTotal - ss - hf - monthTaxDue`
-- 将 `ss/hf/monthlyTaxable/monthTaxDue/cumulativePaid/net` 回填 `IncomeRecord`
-
-## 4.2 账户与估值
-
-- `SAVINGS`：估值=本金；**不允许**录入估值快照（或忽略）
-- `INVESTMENT/LOAN`：取最近估值；若缺失 → 可提示“估值过期”
-
-## 4.3 汇率选择
-
-- 转账 **必须**使用当时快照（idempotent）；报表默认取**最近日期**的中间价（可在 UI 允许“截至日期”选择）
-
-## 4.4 收入记账汇率流程
-
-1. 收入源头可能是非用户基准币种，入账时记录 `sourceCurrency`。
-2. 以 `monthDate` 为基准查询对应 `FxRate`，保存 `fxRateId` 快照。
-3. 按该汇率将 `gross/bonus/otherIncome` 等折算到 `currency` 字段中，保持与用户基准币种一致。
-4. 若 `sourceCurrency === currency`，`fxRateId` 可为空，但仍保留 `sourceCurrency` 以示来源。
-
----
-
-# 五、测试与发布
-
-## 5.1 最小可用测试清单
-
-- **账务**：存取款/同币种转账/跨币种转账（含幂等重试）
-- **估值**：投资账户估值更新影响收益/ROI
-- **规则**：5 月前后社保上下限不同，月度计算结果两侧断点正确
-- **个税**：1–8 月累计后，5–8 月展示税率不会“从 3% 重新开始”
-- **长期现金**：16 期季度发放正确分布到 16 个不同月份
-- **RSU**：年度/半年度归属，归属月计入 `equityIncome`（或专列），回算正确
-- **报表**：净资产折算与趋势曲线端到端验证
-
-## 5.2 迁移与演进
-
-- SQLite → Postgres：
-
-  - Decimal 精度迁移到 `numeric(20,6)`；
-  - 增加触发器保障“账户币种不可变”“分录行币种=账户币种”；
-  - 可引入**物化视图**做汇总加速。
-
----
-
-# 六、落地顺序（建议 Sprints）
-
-1. **Sprint 1（账本 MVP）**
-
-   - 账户/分录/转账/估值/汇率
-   - Dashboard 基础（净资产/资产占比/最新流水）
-
-2. **Sprint 2（收入与规则）**
-
-   - IncomeChange/BonusPlan/IncomeRecord；TaxConfig/TaxBracket；City/SS/HF
-   - “年度累计回算”服务 + 收入页
-
-3. **Sprint 3（长期激励）**
-
-   - LongTermCashPlan/Payout、EquityGrant/Vest + 计划生成器
-   - 收入页整合长期现金/股权激励
-
-4. **Sprint 4（报表与打磨）**
-
-   - 收入/税收报表、估值时效提醒、审计日志完善
+- `IncomeRecord` 需新增列：
+  - `manualGross`, `manualNet`, `manualTaxable`, `manualIncomeTax`, `manualComment`（可空）。
+  - `taxableCumulative`, `taxCumulative`, `taxPaid` 已存在，用于对账。
+  - `isForecast` 标记预测数据；预测数据写入独立记录或临时视图。
+- `UserAnnualDeduction`：记录用户年度“专线扣除”额度；后端计算时将年度值按 12 个月平均或按规则分摊。
+- 主键与索引：
+  - `IncomeRecord` 使用 `(userId, monthDate)` 唯一索引。
+  - 规则表全部使用 `[cityId, startDate)` 唯一并要求 `endDate` 开区间不重叠。
+  - `ImpersonationSession` 通过 `expiresAt` 定期清理。
+
+## 6. 核心流程
+
+### 6.1 收入回算（年度累计预扣）
+1. 前端调用 `POST /api/income/recalc`，参数：`taxYear`, `endMonth`, `cityId?`, `useManualOverrides`。
+2. 服务 `income.recalcIncome`：
+   - 聚合工资变更（当月生效、同月取最后一次）。
+   - 汇总奖金、LTC payout、股权归属 fairValue。
+   - 读取城市规则计算社保、公积金（含医疗固定额）。
+   - 读取年度 TaxConfig（标准扣除、默认专项附加）与 `UserAnnualDeduction`（折算为月度专线扣除）。
+   - 若定义人工调整，直接使用覆盖字段并标记 `source = "MANUAL"`。
+   - 调用 `calculateTax` 计算累计应税额、累计税、当月税。
+   - 写回 `IncomeRecord`，填充 `taxableCumulative`、`taxCumulative`、`taxPaid`、`netIncome`、`manualApplied` 等字段。
+3. 触发报表缓存失效，前端刷新收入表、Dashboard。
+
+### 6.2 人工调整
+1. 用户或管理员在收入明细表点击“人工调整”。
+2. `PATCH /api/income/records/{id}` 写入 `manualGross/manualNet/...` 与备注。
+3. 后端设置 `manualApplied = true` 并在回算时优先读取。
+4. UI 标签提示“人工值”，预测视图也使用覆盖值。
+
+### 6.3 管理员模拟登录
+1. 管理员调用 `/api/admin/impersonate`，服务端验证权限、写 `ImpersonationSession`。
+2. 中间件在后续请求中将 session context 切换为目标用户，但 AuditLog 记录 `actorId`。
+3. 用户视角操作完成后调用 `/api/admin/impersonate/end` 恢复。
+
+### 6.4 账户跨币种转账
+1. 前端先通过 `/api/fxrates` 选择当日 FX snap（以 USD 为中间价）。
+2. 通过 `/api/entries/transfer` 提交，后端校验账户币种、FX snap 时效与幂等键。
+3. ledger 服务写两条 `TransactionLine` 并更新账户汇总缓存。
+
+## 7. 报表与聚合
+- `report.getDashboard`：
+  - 查询账户余额（资产/负债）、估值、净资产，使用汇率折算到展示币种。
+  - 调用 `income.getSummary` 获取年度累计收入、税、社保、公积金、本月收入。
+  - 返回图表数据（资产走势、资产分配、重点账户列表）。
+- `report.getIncomeTimeseries`：
+  - 从 `IncomeRecord` 查询指定区间，按 `isForecast` 区分实际/预测。
+  - 聚合 gross、bonus、tax、net、社保、公积金，并标注人工调整。
+- 管理员端可传 `userId` 获取任意用户报表；普通用户仅能查询自身。
+- 报表缓存：使用 SWR + ETag；高计算量聚合可在 Prisma 层使用 `GROUP BY` 或 `view`。
+
+## 8. 任务与集成
+- 当前无外部实时集成。未来若对接银行流水或薪资系统，可在服务层增加适配器。
+- 手工同步真实收入到账户：提供导出 CSV；管理员可创建提醒任务（非自动化）。
+- 定期作业：
+  - 每日清理过期 `ImpersonationSession` 与旧 `IdempotencyKey`。
+  - 每月初自动运行收入回算并通知用户确认。
+
+## 9. 测试策略
+- 单元测试（Vitest，位于 `src/tests`）：
+  - 税务计算：覆盖 PRD 示例月度结果、跨档位、社保上下限、医疗固定额。
+  - 工资变更：同月多次变更取最后一次。
+  - 手动覆盖：人工调整优先级。
+  - 汇率转换：USD 中间价计算正确。
+- 端到端/集成测试：计划使用 Playwright（后续），目前通过 Postman/Thunder Client 校验关键 API。
+- 回归清单：收入回算、管理员模拟、转账幂等、规则区间冲突。
+
+## 10. 部署与运维
+- 环境变量：`DATABASE_URL`、`NEXTAUTH_SECRET`、`NEXTAUTH_URL`、`ADMIN_EMAILS` 等。
+- 构建流程：`npm install` → `npm run lint` → `npm run test` → `npm run build` → `prisma migrate deploy`。
+- 数据迁移：
+  - 手动调整与年度扣除引入需要新增字段/表，执行 `npx prisma migrate dev`（本地）或 `migrate deploy`（生产）。
+  - 如需回滚，使用 Prisma migrate `resolve` + `down` 或备份恢复。
+- 监控：Next.js 提供基础日志；建议在生产接入 APM（如 Sentry）监测请求错误与慢查询。
+
+## 11. 演进路线
+1. 完成 PRD 要求的人工调整、年度扣除、管理员模拟登录（必要迁移与 API 扩展）。
+2. 引入报表缓存层（Redis 或 Prisma materialized view）以优化大数据量。
+3. 账户与收入的自动对账：预留 Webhook/任务接口。
+4. 权限细化（未来若需要审计角色可在现有架构上扩展）。

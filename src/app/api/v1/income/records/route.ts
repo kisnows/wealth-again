@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
+import {
+  ensureIncomeRecordsForUser,
+  summarizeIncomeRecords,
+} from "@/server/services/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
@@ -15,6 +19,7 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  await ensureIncomeRecordsForUser((user as any).id);
   const where: any = { userId: (user as any).id };
   if (from || to) {
     where.monthDate = {} as any;
@@ -25,5 +30,6 @@ export async function GET(req: NextRequest) {
     where,
     orderBy: { monthDate: "asc" },
   });
-  return NextResponse.json({ items });
+  const summary = summarizeIncomeRecords(items);
+  return NextResponse.json({ items, summary });
 }

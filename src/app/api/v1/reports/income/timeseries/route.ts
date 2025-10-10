@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
+import {
+  ensureIncomeRecordsForUser,
+  summarizeIncomeRecords,
+} from "@/server/services/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
@@ -17,6 +21,7 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  await ensureIncomeRecordsForUser((user as any).id);
   const items = await prisma.incomeRecord.findMany({
     where: {
       userId: (user as any).id,
@@ -39,5 +44,6 @@ export async function GET(req: NextRequest) {
     incomeTax: mapSeries("incomeTax"),
     netIncome: mapSeries("netIncome"),
   };
-  return NextResponse.json({ series });
+  const summary = summarizeIncomeRecords(items);
+  return NextResponse.json({ series, summary });
 }

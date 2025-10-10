@@ -72,69 +72,34 @@ export default function DashboardPage() {
     ),
   ).map(([name, value]) => ({ name, value }));
 
-  // 处理收入数据统计
   const incomeStatistics = useMemo(() => {
-    if (!incomeData?.series) return null;
-
+    if (!incomeData?.summary || !incomeData.series) return null;
+    const summary = incomeData.summary;
     const grossSeries = incomeData.series.gross ?? [];
-    const bonusSeries = incomeData.series.bonus ?? [];
-    const taxSeries = incomeData.series.incomeTax ?? [];
     const netSeries = incomeData.series.netIncome ?? [];
-    const socialInsuranceSeries = incomeData.series.socialInsurance ?? [];
-    const housingFundSeries = incomeData.series.housingFund ?? [];
 
-    const totalGross = grossSeries.reduce(
-      (sum: number, item: any) => sum + Number(item.value || 0),
-      0,
-    );
-    const totalBonus = bonusSeries.reduce(
-      (sum: number, item: any) => sum + Number(item.value || 0),
-      0,
-    );
-    const totalTax = taxSeries.reduce(
-      (sum: number, item: any) => sum + Number(item.value || 0),
-      0,
-    );
-    const totalNet = netSeries.reduce(
-      (sum: number, item: any) => sum + Number(item.value || 0),
-      0,
-    );
-    const totalSocialInsurance = socialInsuranceSeries.reduce(
-      (sum: number, item: any) => sum + Number(item.value || 0),
-      0,
-    );
-    const totalHousingFund = housingFundSeries.reduce(
-      (sum: number, item: any) => sum + Number(item.value || 0),
-      0,
-    );
-
-    const totalIncome = totalGross + totalBonus;
-    const effectiveTaxRate =
-      totalIncome > 0 ? (totalTax / totalIncome) * 100 : 0;
-    const avgMonthlyNet =
-      grossSeries.length > 0 ? totalNet / grossSeries.length : 0;
-
-    // 计算本月数据（最后一个月）
-    const lastMonth =
-      grossSeries.length > 0 ? grossSeries[grossSeries.length - 1] : null;
-    const currentMonthGross = lastMonth ? Number(lastMonth.value || 0) : 0;
-    const currentMonthNet =
-      netSeries.length > 0
-        ? Number(netSeries[netSeries.length - 1]?.value || 0)
-        : 0;
+    const currentMonthGross = grossSeries.length
+      ? Number(grossSeries[grossSeries.length - 1]?.value || 0)
+      : 0;
+    const currentMonthNet = netSeries.length
+      ? Number(netSeries[netSeries.length - 1]?.value || 0)
+      : 0;
+    const avgMonthlyNet = summary.months
+      ? summary.totalNet / summary.months
+      : 0;
 
     return {
-      totalIncome,
-      totalNet,
-      totalTax,
-      effectiveTaxRate,
+      totalIncome: summary.totalIncome,
+      totalNet: summary.totalNet,
+      totalTax: summary.totalTax,
+      effectiveTaxRate: summary.avgTaxRate,
       avgMonthlyNet,
       currentMonthGross,
       currentMonthNet,
-      totalSocialInsurance,
-      totalHousingFund,
-      months: grossSeries.length,
-      currency: displayCurrency ?? "CNY",
+      totalSocialInsurance: summary.totalSocialInsurance,
+      totalHousingFund: summary.totalHousingFund,
+      months: summary.months,
+      currency: displayCurrency ?? summary.currency ?? "CNY",
     };
   }, [incomeData, displayCurrency]);
 

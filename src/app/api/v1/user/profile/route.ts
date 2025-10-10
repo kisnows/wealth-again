@@ -33,14 +33,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (currentCityId) {
-      // 验证城市是否存在
-      const city = await prisma.city.findUnique({
-        where: { id: currentCityId },
-      });
-      if (!city) {
-        return NextResponse.json({ error: "City not found" }, { status: 404 });
-      }
-      updateData.currentCityId = currentCityId;
+      return NextResponse.json(
+        { error: "请通过城市迁移功能更新工作城市" },
+        { status: 400 }
+      );
     }
 
     if (name !== undefined) {

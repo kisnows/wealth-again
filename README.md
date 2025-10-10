@@ -39,7 +39,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 本项目使用 Prisma 管理数据库模型与客户端，开发环境默认使用本地 SQLite。
 
-1) 初始化与迁移
+1. 初始化与迁移
 
 ```bash
 # 生成 Prisma 客户端
@@ -49,7 +49,7 @@ npx prisma generate
 npx prisma migrate dev
 ```
 
-2) `.env` 示例（请勿提交到仓库）
+2. `.env` 示例（请勿提交到仓库）
 
 ```env
 # 本地 SQLite 示例
@@ -59,7 +59,7 @@ DATABASE_URL="file:./prisma/dev.db"
 # NEXTAUTH_SECRET=your-secret
 ```
 
-3) 运行测试
+3. 运行测试
 
 已添加 Vitest 脚本，可执行：
 
@@ -72,3 +72,6 @@ npm test
 ```bash
 npm install
 ```
+
+- 测试账号： demo@example.com
+- 测试密码： demo

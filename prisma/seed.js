@@ -169,6 +169,34 @@ async function seed() {
   // 税制
   for (const y of [2023, 2024, 2025]) await upsertTax("CN", y);
 
+  // 年度专项附加扣除（示例：每年 12000，均摊至每月 1000）
+  await prisma.userAnnualDeduction.createMany({
+    data: [
+      {
+        userId: user.id,
+        taxYear: 2023,
+        annualAmount: 12000,
+        allocationRule: "AVERAGE",
+        note: "示例专项附加扣除（平均分摊）",
+      },
+      {
+        userId: user.id,
+        taxYear: 2024,
+        annualAmount: 12000,
+        allocationRule: "AVERAGE",
+        note: "示例专项附加扣除（平均分摊）",
+      },
+      {
+        userId: user.id,
+        taxYear: 2025,
+        annualAmount: 12000,
+        allocationRule: "AVERAGE",
+        note: "示例专项附加扣除（平均分摊）",
+      },
+    ],
+    skipDuplicates: true,
+  });
+
   // 工资变更
   try {
     await prisma.incomeChange.createMany({

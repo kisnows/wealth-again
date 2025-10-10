@@ -45,6 +45,35 @@ export type EquityVest = {
   currency?: string | null;
 };
 
+export type IncomeRecordsSummary = {
+  months: number;
+  currency: string | null;
+  totalGross: number;
+  totalBonus: number;
+  totalLtc: number;
+  totalEquity: number;
+  totalSocialInsurance: number;
+  totalHousingFund: number;
+  totalSpecialDeductions: number;
+  totalTax: number;
+  totalNet: number;
+  totalIncome: number;
+  avgTaxRate: number;
+  latestTaxPaid?: number;
+  latestTaxCumulative?: number;
+};
+
+export type AnnualDeduction = {
+  id: string;
+  userId: string;
+  taxYear: number;
+  annualAmount: number;
+  allocationRule?: string | null;
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function useIncomeRecords(
   userId: string | undefined,
   from: string,
@@ -56,7 +85,10 @@ export function useIncomeRecords(
           userId ? `&userId=${userId}` : ""
         }`
       : null;
-  return useSWR<{ items?: any; series?: any }>(key, getJson);
+  return useSWR<{
+    items: any[];
+    summary: IncomeRecordsSummary;
+  }>(key, getJson);
 }
 
 export function useSalaryChanges(userId?: string) {
@@ -160,6 +192,8 @@ export async function postIncomeRecalc(input: {
   taxYear: number;
   endMonth: number;
   cityId?: string;
+  userId?: string;
+  startMonth?: number;
 }) {
   return postJson("/api/v1/income/recalc", input);
 }
@@ -195,4 +229,11 @@ export async function deleteLTCPlan(id: string) {
     throw new Error(`删除长期现金计划失败: ${response.statusText}`);
   }
   return response.json();
+}
+
+export function useAnnualDeductions(userId?: string) {
+  const key = userId
+    ? `/api/v1/user/annual-deductions?userId=${userId}`
+    : "/api/v1/user/annual-deductions";
+  return useSWR<{ items: AnnualDeduction[] }>(key, getJson);
 }
