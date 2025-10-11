@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import {
@@ -19,12 +20,13 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  await ensureIncomeRecordsForUser((user as any).id);
-  const where: any = { userId: (user as any).id };
+  const userId = user.id;
+  await ensureIncomeRecordsForUser(userId);
+  const where: Prisma.IncomeRecordWhereInput = { userId };
   if (from || to) {
-    where.monthDate = {} as any;
-    if (from) (where.monthDate as any).gte = new Date(from);
-    if (to) (where.monthDate as any).lte = new Date(to);
+    where.monthDate = {};
+    if (from) where.monthDate.gte = new Date(from);
+    if (to) where.monthDate.lte = new Date(to);
   }
   const items = await prisma.incomeRecord.findMany({
     where,

@@ -121,7 +121,7 @@ export default function SocialSecurityRulesPage() {
             管理城市社保缴费基数和比例配置
           </p>
         </div>
-        <Badge variant="outline" className="flex items-center gap-2">
+        <Badge className="flex items-center gap-2" variant="outline">
           <CalendarIcon className="w-4 h-4" />
           规则配置
         </Badge>
@@ -144,9 +144,9 @@ export default function SocialSecurityRulesPage() {
                   城市
                 </label>
                 <Input
+                  onChange={(e) => setQuery({ ...query, city: e.target.value })}
                   placeholder="输入城市名称"
                   value={query.city}
-                  onChange={(e) => setQuery({ ...query, city: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -154,18 +154,18 @@ export default function SocialSecurityRulesPage() {
                   查询日期
                 </label>
                 <Input
+                  onChange={(e) => setQuery({ ...query, on: e.target.value })}
                   type="date"
                   value={query.on}
-                  onChange={(e) => setQuery({ ...query, on: e.target.value })}
                 />
               </div>
             </div>
             <Button
               className="w-full"
+              disabled={isLoading}
               onClick={() => {
                 /* SWR 自动刷新 */
               }}
-              disabled={isLoading}
             >
               {isLoading ? "查询中..." : "查询规则"}
             </Button>
@@ -256,8 +256,9 @@ export default function SocialSecurityRulesPage() {
 
       {/* 批量配置 */}
       <RulesUpsertForm
-        title="批量配置社保规则"
         description="支持同时配置多个城市或多个时间段的社保规则"
+        examples={EXAMPLE_DATA}
+        onSubmit={(items) => upsertSocialSecurity(items as any)}
         placeholder={`示例格式：
 [
   {
@@ -271,8 +272,7 @@ export default function SocialSecurityRulesPage() {
     "fixedMedicalPersonal": 3
   }
 ]`}
-        examples={EXAMPLE_DATA}
-        onSubmit={(items) => upsertSocialSecurity(items as any)}
+        title="批量配置社保规则"
       />
 
       {/* 字段说明 */}

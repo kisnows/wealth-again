@@ -5,5 +5,5 @@ import { BonusDialog } from "@/components/modules/IncomeDialogs";
 
 export default function BonusPage() {
   const router = useRouter();
-  return <BonusDialog open onClose={() => router.push("/income")} />;
+  return <BonusDialog onClose={() => router.push("/income")} open />;
 }

@@ -31,21 +31,21 @@ export default function SignInPage() {
           <CardTitle>登录</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="grid gap-2">
+          <form className="grid gap-2" onSubmit={submit}>
             <Input
               name="email"
+              onChange={onChange}
               placeholder="邮箱"
               value={form.email}
-              onChange={onChange}
             />
             <Input
               name="password"
-              type="password"
-              placeholder="密码"
-              value={form.password}
               onChange={onChange}
+              placeholder="密码"
+              type="password"
+              value={form.password}
             />
-            <Button type="submit" className="mt-2">
+            <Button className="mt-2" type="submit">
               登录
             </Button>
           </form>

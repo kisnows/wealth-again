@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCurrentUserId } from "@/lib/api/auth";
 import {
   createBonus,
   createEquityGrant,
@@ -35,10 +36,9 @@ import {
   generateEquityVests,
   generateLTCPayouts,
 } from "@/lib/api/income";
-import { useCurrentUserId } from "@/lib/api/auth";
 
 // 表单验证工具函数
-const validateRequired = (value: string, field: string) => {
+const _validateRequired = (value: string, field: string) => {
   if (!value.trim()) return `${field}不能为空`;
   return "";
 };
@@ -171,23 +171,23 @@ export function SalaryChangeForm() {
         <CardDescription>记录工资调整，支持同月多次变更</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form className="space-y-4" onSubmit={onSubmit}>
           <FormField
+            description="新的月度税前工资金额"
+            error={errors.grossMonthly}
             label="税前月薪"
             required
-            error={errors.grossMonthly}
-            description="新的月度税前工资金额"
           >
             <div className="relative">
               <Input
-                type="number"
+                className="pr-12"
+                disabled={loading}
                 min="0"
-                step="0.01"
-                value={form.grossMonthly}
                 onChange={(e) => onChange("grossMonthly", e.target.value)}
                 placeholder="0.00"
-                disabled={loading}
-                className="pr-12"
+                step="0.01"
+                type="number"
+                value={form.grossMonthly}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                 {form.currency}
@@ -195,10 +195,10 @@ export function SalaryChangeForm() {
             </div>
           </FormField>
 
-          <FormField label="币种" description="工资发放的货币">
+          <FormField description="工资发放的货币" label="币种">
             <Select
-              value={form.currency}
               onValueChange={(value) => onChange("currency", value)}
+              value={form.currency}
             >
               <SelectTrigger disabled={loading}>
                 <SelectValue />
@@ -212,20 +212,20 @@ export function SalaryChangeForm() {
           </FormField>
 
           <FormField
+            description="工资变更的生效日期（当月生效）"
+            error={errors.effectiveFrom}
             label="生效日期"
             required
-            error={errors.effectiveFrom}
-            description="工资变更的生效日期（当月生效）"
           >
             <Input
+              disabled={loading}
+              onChange={(e) => onChange("effectiveFrom", e.target.value)}
               type="date"
               value={form.effectiveFrom}
-              onChange={(e) => onChange("effectiveFrom", e.target.value)}
-              disabled={loading}
             />
           </FormField>
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button className="w-full" disabled={loading} type="submit">
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -316,23 +316,23 @@ export function BonusForm() {
         <CardDescription>设置项目奖金、年终奖等一次性收入</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form className="space-y-4" onSubmit={onSubmit}>
           <FormField
+            description="一次性奖金的金额"
+            error={errors.amount}
             label="奖金金额"
             required
-            error={errors.amount}
-            description="一次性奖金的金额"
           >
             <div className="relative">
               <Input
-                type="number"
+                className="pr-12"
+                disabled={loading}
                 min="0"
-                step="0.01"
-                value={form.amount}
                 onChange={(e) => onChange("amount", e.target.value)}
                 placeholder="0.00"
-                disabled={loading}
-                className="pr-12"
+                step="0.01"
+                type="number"
+                value={form.amount}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                 {form.currency}
@@ -342,8 +342,8 @@ export function BonusForm() {
 
           <FormField label="币种">
             <Select
-              value={form.currency}
               onValueChange={(value) => onChange("currency", value)}
+              value={form.currency}
             >
               <SelectTrigger disabled={loading}>
                 <SelectValue />
@@ -356,10 +356,10 @@ export function BonusForm() {
             </Select>
           </FormField>
 
-          <FormField label="计税方式" description="选择奖金的个税计算方式">
+          <FormField description="选择奖金的个税计算方式" label="计税方式">
             <Select
-              value={form.taxMethod}
               onValueChange={(value) => onChange("taxMethod", value)}
+              value={form.taxMethod}
             >
               <SelectTrigger disabled={loading}>
                 <SelectValue />
@@ -372,20 +372,20 @@ export function BonusForm() {
           </FormField>
 
           <FormField
+            description="奖金发放日期，将在当月与工资合并发放"
+            error={errors.effectiveDate}
             label="发放日期"
             required
-            error={errors.effectiveDate}
-            description="奖金发放日期，将在当月与工资合并发放"
           >
             <Input
+              disabled={loading}
+              onChange={(e) => onChange("effectiveDate", e.target.value)}
               type="date"
               value={form.effectiveDate}
-              onChange={(e) => onChange("effectiveDate", e.target.value)}
-              disabled={loading}
             />
           </FormField>
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button className="w-full" disabled={loading} type="submit">
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -486,23 +486,23 @@ export function LTCPlanForm() {
         <CardDescription>设置分期发放的长期现金激励</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form className="space-y-4" onSubmit={onSubmit}>
           <FormField
+            description="长期现金激励的总金额"
+            error={errors.totalAmount}
             label="总金额"
             required
-            error={errors.totalAmount}
-            description="长期现金激励的总金额"
           >
             <div className="relative">
               <Input
-                type="number"
+                className="pr-12"
+                disabled={loading}
                 min="0"
-                step="0.01"
-                value={form.totalAmount}
                 onChange={(e) => onChange("totalAmount", e.target.value)}
                 placeholder="0.00"
-                disabled={loading}
-                className="pr-12"
+                step="0.01"
+                type="number"
+                value={form.totalAmount}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                 {form.currency}
@@ -512,25 +512,25 @@ export function LTCPlanForm() {
 
           <div className="grid grid-cols-2 gap-4">
             <FormField
+              description="分几期发放"
+              error={errors.periods}
               label="期数"
               required
-              error={errors.periods}
-              description="分几期发放"
             >
               <Input
-                type="number"
-                min="1"
-                max="100"
-                value={form.periods}
-                onChange={(e) => onChange("periods", e.target.value)}
                 disabled={loading}
+                max="100"
+                min="1"
+                onChange={(e) => onChange("periods", e.target.value)}
+                type="number"
+                value={form.periods}
               />
             </FormField>
 
-            <FormField label="频率" description="发放频率">
+            <FormField description="发放频率" label="频率">
               <Select
-                value={form.recurrence}
                 onValueChange={(value) => onChange("recurrence", value)}
+                value={form.recurrence}
               >
                 <SelectTrigger disabled={loading}>
                   <SelectValue />
@@ -546,8 +546,8 @@ export function LTCPlanForm() {
 
           <FormField label="币种">
             <Select
-              value={form.currency}
               onValueChange={(value) => onChange("currency", value)}
+              value={form.currency}
             >
               <SelectTrigger disabled={loading}>
                 <SelectValue />
@@ -561,16 +561,16 @@ export function LTCPlanForm() {
           </FormField>
 
           <FormField
+            description="第一期发放日期"
+            error={errors.startDate}
             label="开始日期"
             required
-            error={errors.startDate}
-            description="第一期发放日期"
           >
             <Input
+              disabled={loading}
+              onChange={(e) => onChange("startDate", e.target.value)}
               type="date"
               value={form.startDate}
-              onChange={(e) => onChange("startDate", e.target.value)}
-              disabled={loading}
             />
           </FormField>
 
@@ -583,7 +583,7 @@ export function LTCPlanForm() {
             </div>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button className="w-full" disabled={loading} type="submit">
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -684,45 +684,45 @@ export function EquityGrantForm() {
         <CardDescription>设置股权激励的授予与归属计划</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form className="space-y-4" onSubmit={onSubmit}>
           <FormField
+            description="股权激励的总份额数量"
+            error={errors.totalUnits}
             label="总份额"
             required
-            error={errors.totalUnits}
-            description="股权激励的总份额数量"
           >
             <Input
-              type="number"
+              disabled={loading}
               min="0"
-              step="1"
-              value={form.totalUnits}
               onChange={(e) => onChange("totalUnits", e.target.value)}
               placeholder="0"
-              disabled={loading}
+              step="1"
+              type="number"
+              value={form.totalUnits}
             />
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">
             <FormField
+              description="分几期归属"
+              error={errors.vestPeriods}
               label="归属期数"
               required
-              error={errors.vestPeriods}
-              description="分几期归属"
             >
               <Input
-                type="number"
-                min="1"
-                max="20"
-                value={form.vestPeriods}
-                onChange={(e) => onChange("vestPeriods", e.target.value)}
                 disabled={loading}
+                max="20"
+                min="1"
+                onChange={(e) => onChange("vestPeriods", e.target.value)}
+                type="number"
+                value={form.vestPeriods}
               />
             </FormField>
 
-            <FormField label="归属频率" description="归属频率">
+            <FormField description="归属频率" label="归属频率">
               <Select
-                value={form.vestInterval}
                 onValueChange={(value) => onChange("vestInterval", value)}
+                value={form.vestInterval}
               >
                 <SelectTrigger disabled={loading}>
                   <SelectValue />
@@ -735,10 +735,10 @@ export function EquityGrantForm() {
             </FormField>
           </div>
 
-          <FormField label="币种" description="用于税务计算">
+          <FormField description="用于税务计算" label="币种">
             <Select
-              value={form.currency}
               onValueChange={(value) => onChange("currency", value)}
+              value={form.currency}
             >
               <SelectTrigger disabled={loading}>
                 <SelectValue />
@@ -752,16 +752,16 @@ export function EquityGrantForm() {
           </FormField>
 
           <FormField
+            description="第一期归属日期"
+            error={errors.startVestDate}
             label="开始归属日"
             required
-            error={errors.startVestDate}
-            description="第一期归属日期"
           >
             <Input
+              disabled={loading}
+              onChange={(e) => onChange("startVestDate", e.target.value)}
               type="date"
               value={form.startVestDate}
-              onChange={(e) => onChange("startVestDate", e.target.value)}
-              disabled={loading}
             />
           </FormField>
 
@@ -774,7 +774,7 @@ export function EquityGrantForm() {
             </div>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button className="w-full" disabled={loading} type="submit">
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

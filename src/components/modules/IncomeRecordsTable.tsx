@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import {
   AlertCircleIcon,
   CalendarIcon,
@@ -8,10 +7,11 @@ import {
   TrendingDownIcon,
   TrendingUpIcon,
 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -20,8 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatMoney } from "@/lib/domain/money";
 import { useIncomeRecords } from "@/lib/api/income";
+import { formatMoney } from "@/lib/domain/money";
 
 function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -58,11 +58,11 @@ export default function IncomeRecordsTable() {
                 开始日期
               </label>
               <Input
-                type="date"
-                value={range.from}
                 onChange={(e) =>
                   setRange((prev) => ({ ...prev, from: e.target.value }))
                 }
+                type="date"
+                value={range.from}
               />
             </div>
             <div className="space-y-1">
@@ -70,12 +70,12 @@ export default function IncomeRecordsTable() {
                 结束日期
               </label>
               <Input
-                type="date"
-                value={range.to}
                 max={formatDateInput(now)}
                 onChange={(e) =>
                   setRange((prev) => ({ ...prev, to: e.target.value }))
                 }
+                type="date"
+                value={range.to}
               />
             </div>
             <div className="flex items-end gap-2">
@@ -206,7 +206,7 @@ export default function IncomeRecordsTable() {
                         <TableCell className="font-medium">
                           {monthLabel}
                           {item.manualNetIncome ? (
-                            <Badge variant="secondary" className="ml-2">
+                            <Badge className="ml-2" variant="secondary">
                               人工调整
                             </Badge>
                           ) : null}

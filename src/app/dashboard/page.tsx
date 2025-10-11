@@ -116,24 +116,24 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <Input
             className="w-32"
-            placeholder="币种 (CNY)"
-            value={displayCurrency ?? ""}
             onChange={(e) =>
               useUserPrefsStore
                 .getState()
                 .setDisplayCurrency(e.target.value || null)
             }
+            placeholder="币种 (CNY)"
+            value={displayCurrency ?? ""}
           />
           <Input
             className="w-40"
-            type="date"
-            placeholder="统计日期"
-            value={asOfDate ?? ""}
             onChange={(e) =>
               useUserPrefsStore.getState().setAsOfDate(e.target.value || null)
             }
+            placeholder="统计日期"
+            type="date"
+            value={asOfDate ?? ""}
           />
-          <Button variant="outline" size="sm">
+          <Button size="sm" variant="outline">
             <SettingsIcon className="w-4 h-4" />
           </Button>
         </div>
@@ -317,9 +317,9 @@ export default function DashboardPage() {
             <div className="flex justify-end mt-4">
               <Link href="/reports/income">
                 <Button
-                  variant="outline"
-                  size="sm"
                   className="flex items-center gap-2"
+                  size="sm"
+                  variant="outline"
                 >
                   查看详细报表
                   <ArrowRightIcon className="w-4 h-4" />
@@ -381,8 +381,8 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Link href="/entries/deposit">
               <Button
-                variant="outline"
                 className="w-full flex items-center gap-2"
+                variant="outline"
               >
                 <TrendingUpIcon className="w-4 h-4" />
                 存款
@@ -390,8 +390,8 @@ export default function DashboardPage() {
             </Link>
             <Link href="/entries/withdraw">
               <Button
-                variant="outline"
                 className="w-full flex items-center gap-2"
+                variant="outline"
               >
                 <TrendingDownIcon className="w-4 h-4" />
                 取款
@@ -399,8 +399,8 @@ export default function DashboardPage() {
             </Link>
             <Link href="/entries/transfer">
               <Button
-                variant="outline"
                 className="w-full flex items-center gap-2"
+                variant="outline"
               >
                 <ArrowRightIcon className="w-4 h-4" />
                 转账
@@ -408,8 +408,8 @@ export default function DashboardPage() {
             </Link>
             <Link href="/income?dialog=recalc">
               <Button
-                variant="outline"
                 className="w-full flex items-center gap-2"
+                variant="outline"
               >
                 <CalculatorIcon className="w-4 h-4" />
                 收入回算

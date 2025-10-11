@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { Building2, Calculator, Landmark, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -48,7 +48,7 @@ export default function RulesOverviewPage() {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {ruleEntries.map((entry) => (
-          <Link key={entry.href} href={entry.href}>
+          <Link href={entry.href} key={entry.href}>
             <Card className="transition hover:border-primary">
               <CardHeader>
                 <div className="flex items-center gap-2">

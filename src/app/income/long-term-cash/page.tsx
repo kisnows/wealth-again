@@ -5,5 +5,5 @@ import { LongTermCashDialog } from "@/components/modules/IncomeDialogs";
 
 export default function LongTermCashPage() {
   const router = useRouter();
-  return <LongTermCashDialog open onClose={() => router.push("/income")} />;
+  return <LongTermCashDialog onClose={() => router.push("/income")} open />;
 }

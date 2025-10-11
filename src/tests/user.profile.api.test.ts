@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
 
-const mockPrisma: any = {
+type MockedFn = ReturnType<typeof vi.fn>;
+
+const mockPrisma = {
   user: { update: vi.fn() },
-};
+} satisfies { user: { update: MockedFn } };
 
 vi.mock("@/server/db", () => ({ default: mockPrisma }));
 vi.mock("@/server/utils/auth", () => ({

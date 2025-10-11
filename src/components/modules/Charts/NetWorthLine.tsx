@@ -31,13 +31,13 @@ export default function NetWorthLine({
     .join(" ");
   return (
     <div className="border rounded p-3 overflow-auto">
-      <svg width={w} height={h} className="block">
+      <svg className="block" height={h} width={w}>
         <path
+          className="text-blue-600"
           d={path}
           fill="none"
-          strokeWidth={2}
-          className="text-blue-600"
           stroke="currentColor"
+          strokeWidth={2}
         />
       </svg>
     </div>

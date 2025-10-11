@@ -1,7 +1,10 @@
+import type { User } from "@prisma/client";
+
 import { type NextRequest, NextResponse } from "next/server";
+
 import prisma from "@/server/db";
-import { getUserFromRequest } from "@/server/utils/auth";
 import { logAudit } from "@/server/services/audit";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * PATCH /api/v1/user/profile
@@ -16,11 +19,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const data = await req.json();
+    const data = (await req.json()) as Partial<
+      Pick<User, "baseCurrency" | "currentCityId" | "name">
+    >;
     const { baseCurrency, currentCityId, name } = data;
+    const userId = user.id;
 
     // 验证输入
-    const updateData: any = {};
+    const updateData: Partial<Pick<User, "baseCurrency" | "name">> = {};
     if (baseCurrency) {
       // 验证币种格式
       if (!/^[A-Z]{3}$/.test(baseCurrency)) {
@@ -52,7 +58,7 @@ export async function PATCH(req: NextRequest) {
 
     // 更新用户信息
     const updatedUser = await prisma.user.update({
-      where: { id: (user as any).id },
+      where: { id: userId },
       data: updateData,
       select: {
         id: true,
@@ -65,7 +71,7 @@ export async function PATCH(req: NextRequest) {
 
     // 记录审计日志
     await logAudit("USER_PROFILE_UPDATE", {
-      userId: (user as any).id,
+      userId,
       meta: updateData,
     });
 

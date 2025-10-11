@@ -8,6 +8,24 @@ import {
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
 
+type TransferFromInput = {
+  accountId: string;
+  amount: number;
+};
+
+type TransferToInput = {
+  accountId: string;
+  amount?: number | null;
+};
+
+type TransferRequestBody = {
+  from: TransferFromInput;
+  to: TransferToInput;
+  occurredAt: string;
+  note?: string | null;
+  asOf?: string | null;
+};
+
 /**
  * POST /api/v1/entries/transfer
  * - 同币种账户间转账；不同币种转账不允许（请先通过汇兑/调账实现）。
@@ -15,10 +33,12 @@ import {
  * - 返回: TxnEntry（含两条 lines）
  */
 export async function POST(req: NextRequest) {
-  const { from, to, occurredAt, note, asOf } = await req.json();
+  const { from, to, occurredAt, note, asOf } =
+    (await req.json()) as TransferRequestBody;
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userId = user.id;
   const fromAccount = await prisma.account.findUnique({
     where: { id: from.accountId },
   });
@@ -28,10 +48,7 @@ export async function POST(req: NextRequest) {
   if (!fromAccount || !toAccount) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
-  if (
-    fromAccount.userId !== (user as any).id ||
-    toAccount.userId !== (user as any).id
-  ) {
+  if (fromAccount.userId !== userId || toAccount.userId !== userId) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   let toAmount = Math.abs(to.amount ?? from.amount);
@@ -61,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
   const { key, existed } = await ensureIdempotent(
     req,
-    (user as any).id,
+    userId,
     `${from.accountId}:${to.accountId}:${from.amount}:${to.amount ?? ""}:${occurredAt}`,
   );
   if (existed)
@@ -71,7 +88,7 @@ export async function POST(req: NextRequest) {
     );
   const entry = await prisma.txnEntry.create({
     data: {
-      userId: (user as any).id,
+      userId: userId,
       type: "TRANSFER",
       occurredAt: new Date(occurredAt),
       note,
@@ -95,7 +112,7 @@ export async function POST(req: NextRequest) {
     include: { lines: true },
   });
   await logAudit("ENTRY_TRANSFER", {
-    userId: (user as any).id,
+    userId,
     meta: { entryId: entry.id },
   });
   await markIdempotencyUsed(key);

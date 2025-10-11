@@ -105,7 +105,7 @@ const getDefaultForecastParams = (): ForecastParams => {
   };
 };
 
-export const useIncomeStore = create<IncomeState>((set, get) => ({
+export const useIncomeStore = create<IncomeState>((set, _get) => ({
   // 初始状态
   activeTab: "entry",
   forecastParams: getDefaultForecastParams(),

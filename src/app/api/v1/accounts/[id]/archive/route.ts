@@ -13,9 +13,9 @@ import { getUserFromRequest } from "@/server/utils/auth";
 // POST /api/v1/accounts/:id/archive 归档账户
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
-  const { id } = await params;
+  const { id } = params;
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

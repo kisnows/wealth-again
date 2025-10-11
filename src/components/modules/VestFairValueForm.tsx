@@ -29,27 +29,27 @@ export default function VestFairValueForm() {
         <CardTitle>回填归属 fairValue</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={submit} className="grid gap-2">
+        <form className="grid gap-2" onSubmit={submit}>
           <Input
             name="vestId"
+            onChange={onChange}
             placeholder="Vest ID"
             value={form.vestId}
-            onChange={onChange}
           />
           <Input
             name="fairValue"
-            type="number"
-            placeholder="Fair Value"
-            value={form.fairValue}
             onChange={onChange}
+            placeholder="Fair Value"
+            type="number"
+            value={form.fairValue}
           />
           <Input
             name="currency"
+            onChange={onChange}
             placeholder="CNY"
             value={form.currency}
-            onChange={onChange}
           />
-          <Button type="submit" className="mt-2">
+          <Button className="mt-2" type="submit">
             提交
           </Button>
         </form>

@@ -50,7 +50,7 @@ export default function EquityPage() {
   const items = data?.items ?? [];
 
   return (
-    <Dialog open onOpenChange={(open) => !open && router.push("/income")}>
+    <Dialog onOpenChange={(open) => !open && router.push("/income")} open>
       <DialogContent
         className="w-full max-w-[min(98vw,1200px)] sm:max-w-[min(98vw,1200px)] max-h-[88vh]"
         showCloseButton
@@ -75,8 +75,8 @@ export default function EquityPage() {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
                       className="text-sm text-muted-foreground"
+                      colSpan={5}
                     >
                       加载中…
                     </TableCell>
@@ -95,12 +95,12 @@ export default function EquityPage() {
                       <TableCell className="flex items-center gap-2">
                         <span>{formatVestInterval(it.vestInterval)}</span>
                         <Button
-                          size="sm"
-                          variant="outline"
                           onClick={async () => {
                             await generateEquityVests(it.id);
                             toast.success("已生成归属日程");
                           }}
+                          size="sm"
+                          variant="outline"
                         >
                           生成归属
                         </Button>
@@ -110,8 +110,8 @@ export default function EquityPage() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
                       className="text-sm text-muted-foreground"
+                      colSpan={5}
                     >
                       暂无数据
                     </TableCell>

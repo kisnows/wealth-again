@@ -1,8 +1,9 @@
 "use client";
 
-import { User, Settings, LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useEffect, useState } from "react";
 
 interface UserInfo {
   id: string;
@@ -48,7 +48,7 @@ export default function UserAvatar() {
   if (!user) {
     return (
       <Link href="/signin">
-        <Button variant="ghost" size="sm">
+        <Button size="sm" variant="ghost">
           登录
         </Button>
       </Link>
@@ -58,7 +58,7 @@ export default function UserAvatar() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full">
+        <Button className="rounded-full" size="icon" variant="ghost">
           <div className="size-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
             {user.name?.charAt(0)?.toUpperCase() ||
               user.email.charAt(0).toUpperCase()}
@@ -73,8 +73,8 @@ export default function UserAvatar() {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link
-            href="/settings"
             className="flex items-center gap-2 cursor-pointer"
+            href="/settings"
           >
             <Settings className="h-4 w-4" />
             设置
@@ -82,8 +82,8 @@ export default function UserAvatar() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={handleSignOut}
           className="flex items-center gap-2 cursor-pointer"
+          onClick={handleSignOut}
         >
           <LogOut className="h-4 w-4" />
           退出登录

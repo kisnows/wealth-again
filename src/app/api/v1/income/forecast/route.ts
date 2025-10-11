@@ -1,6 +1,20 @@
+import type { City, CityChangeRecord, IncomeChange } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { getUserFromRequest } from "@/server/utils/auth";
+
+type MonthlyResult = {
+  month: string;
+  salary: number;
+  bonus: number;
+  longTermCash: number;
+  equityIncome: number;
+  grossIncome: number;
+  socialInsurance: number;
+  housingFund: number;
+  monthlyTaxableIncome: number;
+  currency: string;
+};
 
 /**
  * GET /api/v1/income/forecast?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&cityId=optional
@@ -12,8 +26,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const cityId = searchParams.get("cityId");
-
   if (!startDate || !endDate) {
     return NextResponse.json(
       { error: "startDate and endDate are required" },
@@ -27,7 +39,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const userId = (user as any).id;
+    const userId = user.id;
     const userRecord = await prisma.user.findUnique({
       where: { id: userId },
       include: { currentCity: true },
@@ -38,7 +50,6 @@ export async function GET(req: NextRequest) {
     }
 
     // 使用指定城市或用户当前城市
-    const targetCityId = cityId || userRecord.currentCityId;
     const currency = userRecord.baseCurrency;
 
     // 获取时间范围内的月份列表
@@ -51,7 +62,7 @@ export async function GET(req: NextRequest) {
     });
 
     // 获取用户的城市变更记录
-    const cityChanges = await (prisma as any).cityChangeRecord.findMany({
+    const cityChanges = await prisma.cityChangeRecord.findMany({
       where: { userId },
       include: { toCity: true },
       orderBy: { effectiveMonth: "asc" },
@@ -92,7 +103,7 @@ export async function GET(req: NextRequest) {
     });
 
     // 计算每月预测数据
-    const monthlyResults = await Promise.all(
+    const monthlyResults: MonthlyResult[] = await Promise.all(
       months.map(async (month) => {
         const monthDate = new Date(month);
         const nextMonthStart = new Date(
@@ -350,7 +361,7 @@ export async function GET(req: NextRequest) {
       // 计算年初至当前月的累计应税收入（包含年初到查询开始前的部分）
       const queryRangeTaxableIncome = monthlyResults
         .slice(0, index + 1)
-        .reduce((sum, r) => sum + (r as any).monthlyTaxableIncome, 0);
+        .reduce((sum, r) => sum + r.monthlyTaxableIncome, 0);
 
       const yearToDateTaxableIncome =
         priorYearTaxableIncome + queryRangeTaxableIncome;
@@ -366,7 +377,7 @@ export async function GET(req: NextRequest) {
           ? priorYearTaxableIncome +
             monthlyResults
               .slice(0, index)
-              .reduce((sum, r) => sum + (r as any).monthlyTaxableIncome, 0)
+              .reduce((sum, r) => sum + r.monthlyTaxableIncome, 0)
           : priorYearTaxableIncome;
 
       const previousYearToDateTax = calculateAnnualIncomeTax(
@@ -384,13 +395,13 @@ export async function GET(req: NextRequest) {
             priorYearTaxableIncome +
             monthlyResults
               .slice(0, i + 1)
-              .reduce((s, r) => s + (r as any).monthlyTaxableIncome, 0);
+              .reduce((s, r) => s + r.monthlyTaxableIncome, 0);
           const iPrevYearToDateTaxable =
             i > 0
               ? priorYearTaxableIncome +
                 monthlyResults
                   .slice(0, i)
-                  .reduce((s, r) => s + (r as any).monthlyTaxableIncome, 0)
+                  .reduce((s, r) => s + r.monthlyTaxableIncome, 0)
               : priorYearTaxableIncome;
           return (
             sum +
@@ -410,29 +421,25 @@ export async function GET(req: NextRequest) {
       const cumulativeNetIncome = monthlyResults
         .slice(0, index + 1)
         .reduce((sum, r, i) => {
-          const monthTax =
-            i === index
-              ? monthlyIncomeTax
-              : i > 0
-                ? calculateAnnualIncomeTax(
-                    monthlyResults
-                      .slice(0, i + 1)
-                      .reduce(
-                        (s, mr) => s + (mr as any).monthlyTaxableIncome,
-                        0,
-                      ),
-                  ) -
-                  calculateAnnualIncomeTax(
-                    monthlyResults
-                      .slice(0, i)
-                      .reduce(
-                        (s, mr) => s + (mr as any).monthlyTaxableIncome,
-                        0,
-                      ),
-                  )
-                : calculateAnnualIncomeTax(
-                    (monthlyResults[0] as any).monthlyTaxableIncome,
-                  );
+          const monthTax = (() => {
+            if (i === index) return monthlyIncomeTax;
+            const taxableToCurrent =
+              priorYearTaxableIncome +
+              monthlyResults
+                .slice(0, i + 1)
+                .reduce((s, mr) => s + mr.monthlyTaxableIncome, 0);
+            const taxableToPrevious =
+              i > 0
+                ? priorYearTaxableIncome +
+                  monthlyResults
+                    .slice(0, i)
+                    .reduce((s, mr) => s + mr.monthlyTaxableIncome, 0)
+                : priorYearTaxableIncome;
+            return (
+              calculateAnnualIncomeTax(taxableToCurrent) -
+              calculateAnnualIncomeTax(taxableToPrevious)
+            );
+          })();
           return (
             sum + (r.grossIncome - r.socialInsurance - r.housingFund - monthTax)
           );
@@ -462,7 +469,8 @@ export async function GET(req: NextRequest) {
       const taxRate = marginalTaxRate;
 
       // 移除临时字段并添加计算字段
-      const { monthlyTaxableIncome, ...finalResult } = result as any;
+      const { monthlyTaxableIncome: _monthlyTaxableIncome, ...finalResult } =
+        result;
 
       return {
         ...finalResult,
@@ -488,7 +496,7 @@ export async function GET(req: NextRequest) {
 }
 
 // 辅助函数：安全转换 Prisma Decimal 到 number
-function toNumber(value: any): number {
+function toNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
   if (typeof value === "number") return value;
   if (typeof value === "string") return Number(value) || 0;
@@ -500,8 +508,10 @@ function toNumber(value: any): number {
 }
 
 // 辅助函数：根据城市变更记录获取指定月份的城市ID
+type CityChangeRecordWithCity = CityChangeRecord & { toCity: City };
+
 function getCityForMonth(
-  cityChanges: any[],
+  cityChanges: CityChangeRecordWithCity[],
   monthDate: Date,
   defaultCityId: string,
 ): string {
@@ -553,7 +563,10 @@ function getMonthsBetween(startDate: string, endDate: string): string[] {
 }
 
 // 辅助函数：获取指定月份的当前工资
-function getCurrentSalary(salaryChanges: any[], monthDate: Date): number {
+function getCurrentSalary(
+  salaryChanges: IncomeChange[],
+  monthDate: Date,
+): number {
   const applicableChanges = salaryChanges.filter(
     (change) => new Date(change.effectiveFrom) <= monthDate,
   );

@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
-import { getUserFromRequest } from "@/server/utils/auth";
 import { logAudit } from "@/server/services/audit";
 import { recalcIncome } from "@/server/services/income";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 function getNextUtcMonthStart(base = new Date()) {
   return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1));
@@ -26,17 +26,18 @@ export async function GET(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  const userId = user.id;
 
   try {
     const me = await prisma.user.findUnique({
-      where: { id: (user as any).id },
+      where: { id: userId },
       include: {
         currentCity: { select: { id: true, name: true, country: true } },
       },
     });
 
     const cityChanges = await prisma.cityChangeRecord.findMany({
-      where: { userId: (user as any).id },
+      where: { userId },
       include: {
         toCity: {
           select: { id: true, name: true, country: true },
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  const userId = user.id;
 
   try {
     const data = await req.json();
@@ -85,7 +87,7 @@ export async function POST(req: NextRequest) {
     }
 
     const me = await prisma.user.findUnique({
-      where: { id: (user as any).id },
+      where: { id: userId },
       include: {
         currentCity: { select: { id: true, name: true, country: true } },
       },
@@ -117,7 +119,7 @@ export async function POST(req: NextRequest) {
       } else {
         effectiveMonth = getNextUtcMonthStart();
       }
-    } catch (error) {
+    } catch (_error) {
       return NextResponse.json(
         { error: "effectiveMonth invalid" },
         { status: 400 },
@@ -133,7 +135,7 @@ export async function POST(req: NextRequest) {
     }
 
     const latestChange = await prisma.cityChangeRecord.findFirst({
-      where: { userId: (user as any).id },
+      where: { userId },
       orderBy: { effectiveMonth: "desc" },
     });
     if (latestChange && effectiveMonth <= latestChange.effectiveMonth) {
@@ -146,7 +148,7 @@ export async function POST(req: NextRequest) {
     // 创建城市变更记录
     const cityChange = await prisma.cityChangeRecord.create({
       data: {
-        userId: (user as any).id,
+        userId,
         toCityId,
         fromCityId: me.currentCityId ?? null,
         effectiveMonth,
@@ -163,14 +165,14 @@ export async function POST(req: NextRequest) {
     });
 
     await prisma.user.update({
-      where: { id: (user as any).id },
+      where: { id: userId },
       data: { currentCityId: toCityId },
     });
 
     const taxYear = effectiveMonth.getUTCFullYear();
     const monthIndex = effectiveMonth.getUTCMonth() + 1;
     await recalcIncome({
-      userId: (user as any).id,
+      userId,
       taxYear,
       startMonth: monthIndex,
       endMonth: 12,
@@ -178,7 +180,7 @@ export async function POST(req: NextRequest) {
 
     // 记录审计日志
     await logAudit("CITY_CHANGE_CREATE", {
-      userId: (user as any).id,
+      userId,
       meta: {
         cityChangeId: cityChange.id,
         toCityId,

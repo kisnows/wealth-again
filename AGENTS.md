@@ -83,11 +83,7 @@
 
 ## 文档索引
 
-- 产品需求：`doc/prd.md`、`doc/prd-income.md`
-- 技术设计：`doc/tech.md`
-- 前端约束与路由：`doc/frontend-constraints.md`、`doc/ui-routing.md`
-- 数据模型与种子：`doc/data.md`
-- 实施计划：`doc/plans/prd-income-implementation-plan.md`
+- 统一索引位于 `doc/README.md`，涵盖 PRD、技术设计、UI、测试与计划等全部文档的单一来源。
 
 ## 测试和验证
 

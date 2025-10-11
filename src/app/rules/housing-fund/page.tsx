@@ -18,14 +18,14 @@ export default function HousingFundRulesPage() {
         </CardHeader>
         <CardContent className="grid md:grid-cols-3 gap-2">
           <Input
+            onChange={(e) => setQ({ ...q, city: e.target.value })}
             placeholder="城市"
             value={q.city}
-            onChange={(e) => setQ({ ...q, city: e.target.value })}
           />
           <Input
+            onChange={(e) => setQ({ ...q, on: e.target.value })}
             type="date"
             value={q.on}
-            onChange={(e) => setQ({ ...q, on: e.target.value })}
           />
           <div className="col-span-3 text-sm text-muted-foreground">
             {data ? (
@@ -40,9 +40,9 @@ export default function HousingFundRulesPage() {
         </CardContent>
       </Card>
       <RulesUpsertForm
-        title="批量导入/更新 公积金规则 (JSON 数组)"
-        placeholder='[{"city":"Hangzhou","startDate":"2025-01-01","baseMin":5000,"baseMax":30000,"rateEmployee":0.12}]'
         onSubmit={(items) => upsertHousingFund(items as any)}
+        placeholder='[{"city":"Hangzhou","startDate":"2025-01-01","baseMin":5000,"baseMax":30000,"rateEmployee":0.12}]'
+        title="批量导入/更新 公积金规则 (JSON 数组)"
       />
     </main>
   );

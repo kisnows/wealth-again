@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { postValuation, useAccounts, type Account } from "@/lib/api/accounts";
+import { type Account, postValuation, useAccounts } from "@/lib/api/accounts";
 import { toInputDatetimeValue } from "@/lib/utils/datetime";
 
 export function ValuationFormDialog({
@@ -80,7 +80,7 @@ export function ValuationFormDialog({
   const disableSubmit =
     !form.accountId || !form.totalValue || Number(form.totalValue) === 0;
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger asChild>
         <Button variant="secondary">记录估值</Button>
       </DialogTrigger>
@@ -88,13 +88,13 @@ export function ValuationFormDialog({
         <DialogHeader>
           <DialogTitle>记录账户估值</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="grid gap-3">
+        <form className="grid gap-3" onSubmit={onSubmit}>
           <div className="grid gap-1">
             <Label>账户</Label>
             <Select
-              value={form.accountId}
-              onValueChange={(v) => setForm((s) => ({ ...s, accountId: v }))}
               disabled={isLoading || valuationCandidates.length === 0}
+              onValueChange={(v) => setForm((s) => ({ ...s, accountId: v }))}
+              value={form.accountId}
             >
               <SelectTrigger>
                 <SelectValue placeholder="选择账户" />
@@ -113,27 +113,27 @@ export function ValuationFormDialog({
             <Label>估值</Label>
             <Input
               name="totalValue"
+              onChange={onChange}
               type="number"
               value={form.totalValue}
-              onChange={onChange}
             />
           </div>
           <div className="grid gap-1">
             <Label>估值时间</Label>
             <Input
               name="asOf"
+              onChange={onChange}
               type="datetime-local"
               value={form.asOf}
-              onChange={onChange}
             />
           </div>
           <div className="grid gap-1">
             <Label>估值币种（可选）</Label>
-            <Input name="currency" value={form.currency} onChange={onChange} />
+            <Input name="currency" onChange={onChange} value={form.currency} />
           </div>
           <div className="grid gap-1">
             <Label>备注（可选）</Label>
-            <Input name="note" value={form.note} onChange={onChange} />
+            <Input name="note" onChange={onChange} value={form.note} />
           </div>
           {valuationCandidates.length === 0 && (
             <p className="text-xs text-muted-foreground">
@@ -141,7 +141,7 @@ export function ValuationFormDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="submit" disabled={disableSubmit}>
+            <Button disabled={disableSubmit} type="submit">
               提交
             </Button>
           </DialogFooter>

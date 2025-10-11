@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
 
-const mockPrisma: any = {
+const mockPrisma = {
   account: { findUnique: vi.fn() },
   valuationSnapshot: { create: vi.fn() },
   auditLog: { create: vi.fn() },
@@ -66,7 +66,7 @@ describe("Valuations routes", () => {
       valuations: [{ totalValue: { toNumber: () => 120 } }],
     };
     // 用 mockPrisma 覆盖 account.findUnique，返回估值数据
-    (mockPrisma.account.findUnique as any).mockResolvedValueOnce(acc);
+    mockPrisma.account.findUnique.mockResolvedValueOnce(acc);
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
       { params: { id: "a" } },

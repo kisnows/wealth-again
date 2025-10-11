@@ -44,7 +44,7 @@ export default function IncomeStackedBar({
   const y = (v: number) => h - pad - (v / maxSum) * (h - pad * 2);
   return (
     <div className="border rounded p-3 overflow-auto">
-      <svg width={w} height={h}>
+      <svg height={h} width={w}>
         {items.map((d, i) => {
           let acc = 0;
           return (
@@ -56,12 +56,12 @@ export default function IncomeStackedBar({
                 acc += v;
                 return (
                   <rect
-                    key={ki}
-                    x={0}
-                    width={bw}
-                    y={y1}
-                    height={Math.max(0, y0 - y1)}
                     fill={COLORS[ki % COLORS.length]}
+                    height={Math.max(0, y0 - y1)}
+                    key={ki}
+                    width={bw}
+                    x={0}
+                    y={y1}
                   />
                 );
               })}

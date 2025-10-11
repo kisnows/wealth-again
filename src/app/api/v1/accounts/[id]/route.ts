@@ -14,9 +14,9 @@ import { getUserFromRequest } from "@/server/utils/auth";
 // PATCH /api/v1/accounts/:id 仅允许 name/subType/description/status（禁止修改 baseCurrency）
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
-  const { id } = await params;
+  const { id } = params;
   const body = await req.json();
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string")
@@ -44,9 +44,9 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
-  const { id } = await params;
+  const { id } = params;
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

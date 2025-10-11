@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockPrisma: any = {
+type MockedFn = ReturnType<typeof vi.fn>;
+
+const mockPrisma = {
   taxConfig: { findUnique: vi.fn() },
-};
+} satisfies { taxConfig: { findUnique: MockedFn } };
 
 // 税务服务仅依赖 taxConfig（含 brackets），在此提供最小 mock
 vi.mock("@/server/db", () => ({ default: mockPrisma }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("TaxService.calculateTax", () => {
   it("computes increasing cumulative paid", async () => {

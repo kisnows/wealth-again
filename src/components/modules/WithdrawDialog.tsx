@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { postWithdraw, useAccounts, type Account } from "@/lib/api/accounts";
+import { type Account, postWithdraw, useAccounts } from "@/lib/api/accounts";
 import { toInputDatetimeValue } from "@/lib/utils/datetime";
 
 export default function WithdrawDialog({
@@ -75,7 +75,7 @@ export default function WithdrawDialog({
   const disableSubmit =
     !form.accountId || !form.amount || Number(form.amount) === 0;
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger asChild>
         <Button variant="outline">记录取出</Button>
       </DialogTrigger>
@@ -83,13 +83,13 @@ export default function WithdrawDialog({
         <DialogHeader>
           <DialogTitle>记录取出</DialogTitle>
         </DialogHeader>
-        <form onSubmit={submit} className="grid gap-2">
+        <form className="grid gap-2" onSubmit={submit}>
           <div className="grid gap-1">
             <Label>账户</Label>
             <Select
-              value={form.accountId}
-              onValueChange={(v) => setForm((s) => ({ ...s, accountId: v }))}
               disabled={isLoading || accountOptions.length === 0}
+              onValueChange={(v) => setForm((s) => ({ ...s, accountId: v }))}
+              value={form.accountId}
             >
               <SelectTrigger>
                 <SelectValue placeholder="选择账户" />
@@ -107,26 +107,26 @@ export default function WithdrawDialog({
             <Label>金额</Label>
             <Input
               name="amount"
+              onChange={onChange}
               type="number"
               value={form.amount}
-              onChange={onChange}
             />
           </div>
           <div className="grid gap-1">
             <Label>发生时间</Label>
             <Input
               name="occurredAt"
+              onChange={onChange}
               type="datetime-local"
               value={form.occurredAt}
-              onChange={onChange}
             />
           </div>
           <div className="grid gap-1">
             <Label>备注</Label>
-            <Input name="note" value={form.note} onChange={onChange} />
+            <Input name="note" onChange={onChange} value={form.note} />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={disableSubmit}>
+            <Button disabled={disableSubmit} type="submit">
               提交
             </Button>
           </DialogFooter>

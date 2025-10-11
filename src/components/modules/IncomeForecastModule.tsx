@@ -9,20 +9,21 @@ import {
   TrendingUpIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import {
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  Legend,
-  ReferenceLine,
 } from "recharts";
+import { toast } from "sonner";
+import CitySelect from "@/components/modules/CitySelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,8 +43,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-import CitySelect from "@/components/modules/CitySelect";
 import {
   fetchIncomeForecast,
   fetchIncomeTimeseries,
@@ -200,8 +199,6 @@ export default function IncomeForecastModule() {
               </Label>
               <div className="flex flex-wrap gap-2 mt-2">
                 <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => {
                     const currentYear = new Date().getFullYear();
                     const today = new Date().toISOString().substring(0, 10);
@@ -210,12 +207,12 @@ export default function IncomeForecastModule() {
                       endDate: today,
                     });
                   }}
+                  size="sm"
+                  variant="outline"
                 >
                   今年至今
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => {
                     const lastYear = new Date().getFullYear() - 1;
                     setForecastParams({
@@ -223,12 +220,12 @@ export default function IncomeForecastModule() {
                       endDate: `${lastYear}-12-31`,
                     });
                   }}
+                  size="sm"
+                  variant="outline"
                 >
                   去年
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => {
                     const currentYear = new Date().getFullYear();
                     const twoYearsAgo = currentYear - 2;
@@ -238,12 +235,12 @@ export default function IncomeForecastModule() {
                       endDate: `${lastYear}-12-31`,
                     });
                   }}
+                  size="sm"
+                  variant="outline"
                 >
                   过去两年
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => {
                     const nextYear = new Date().getFullYear() + 1;
                     setForecastParams({
@@ -251,12 +248,12 @@ export default function IncomeForecastModule() {
                       endDate: `${nextYear}-12-31`,
                     });
                   }}
+                  size="sm"
+                  variant="outline"
                 >
                   明年
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => {
                     const nextYear = new Date().getFullYear() + 1;
                     const nextTwoYear = nextYear + 1;
@@ -265,6 +262,8 @@ export default function IncomeForecastModule() {
                       endDate: `${nextTwoYear}-12-31`,
                     });
                   }}
+                  size="sm"
+                  variant="outline"
                 >
                   接下来两年
                 </Button>
@@ -277,46 +276,46 @@ export default function IncomeForecastModule() {
                 <Label htmlFor="startDate">开始时间</Label>
                 <Input
                   id="startDate"
-                  type="date"
-                  value={forecastParams.startDate}
                   onChange={(e) =>
                     setForecastParams({ startDate: e.target.value })
                   }
+                  type="date"
+                  value={forecastParams.startDate}
                 />
               </div>
               <div>
                 <Label htmlFor="endDate">结束时间</Label>
                 <Input
                   id="endDate"
-                  type="date"
-                  value={forecastParams.endDate}
                   onChange={(e) =>
                     setForecastParams({ endDate: e.target.value })
                   }
+                  type="date"
+                  value={forecastParams.endDate}
                 />
               </div>
               <div>
                 <Label htmlFor="cityId">城市（可选）</Label>
                 <CitySelect
-                  value={forecastParams.cityId || ""}
                   onValueChange={(value) =>
                     setForecastParams({ cityId: value || undefined })
                   }
                   placeholder="留空使用当前城市"
+                  value={forecastParams.cityId || ""}
                 />
               </div>
               <div className="flex items-end gap-2">
                 <Button
-                  onClick={handleForecast}
-                  disabled={forecastLoading}
                   className="flex-1"
+                  disabled={forecastLoading}
+                  onClick={handleForecast}
                 >
                   {forecastLoading ? "计算中..." : "计算预测"}
                 </Button>
                 <Button
-                  variant="outline"
-                  onClick={handleRecalc}
                   disabled={isRecalculating}
+                  onClick={handleRecalc}
+                  variant="outline"
                 >
                   {isRecalculating ? "回算中..." : "年度回算"}
                 </Button>
@@ -411,7 +410,7 @@ export default function IncomeForecastModule() {
                   <TableIcon className="w-5 h-5" />
                   预测结果详情
                 </h3>
-                <ForecastTable data={forecastData} currency={currency} />
+                <ForecastTable currency={currency} data={forecastData} />
               </div>
 
               {/* 柱状图 */}
@@ -420,7 +419,7 @@ export default function IncomeForecastModule() {
                   <BarChart3Icon className="w-5 h-5" />
                   收入构成分析
                 </h3>
-                <ForecastBarChart data={forecastData} currency={currency} />
+                <ForecastBarChart currency={currency} data={forecastData} />
               </div>
 
               {/* 趋势图 */}
@@ -429,7 +428,7 @@ export default function IncomeForecastModule() {
                   <LineChartIcon className="w-5 h-5" />
                   收入趋势分析
                 </h3>
-                <ForecastTrendChart data={forecastData} currency={currency} />
+                <ForecastTrendChart currency={currency} data={forecastData} />
               </div>
             </div>
           )}
@@ -568,7 +567,7 @@ function ForecastBarChart({
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-medium text-gray-900 mb-2">{label}</p>
           {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
+            <p className="text-sm" key={index} style={{ color: entry.color }}>
               {entry.dataKey}: {formatMoney(entry.value, currency)}
             </p>
           ))}
@@ -581,24 +580,24 @@ function ForecastBarChart({
   return (
     <Card>
       <CardContent className="pt-6">
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer height={400} width="100%">
           <BarChart
             data={chartData}
             margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#666" />
+            <CartesianGrid stroke="#f0f0f0" strokeDasharray="3 3" />
+            <XAxis dataKey="month" stroke="#666" tick={{ fontSize: 12 }} />
             <YAxis
-              tick={{ fontSize: 12 }}
               stroke="#666"
+              tick={{ fontSize: 12 }}
               tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
-            <Bar dataKey="工资" stackId="income" fill="#3b82f6" />
-            <Bar dataKey="奖金" stackId="income" fill="#10b981" />
-            <Bar dataKey="长期现金" stackId="income" fill="#f59e0b" />
-            <Bar dataKey="股权收入" stackId="income" fill="#8b5cf6" />
+            <Bar dataKey="工资" fill="#3b82f6" stackId="income" />
+            <Bar dataKey="奖金" fill="#10b981" stackId="income" />
+            <Bar dataKey="长期现金" fill="#f59e0b" stackId="income" />
+            <Bar dataKey="股权收入" fill="#8b5cf6" stackId="income" />
             <Bar dataKey="税后收入" fill="#ef4444" fillOpacity={0.8} />
           </BarChart>
         </ResponsiveContainer>
@@ -638,7 +637,7 @@ function ForecastTrendChart({
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-medium text-gray-900 mb-2">{label}</p>
           {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
+            <p className="text-sm" key={index} style={{ color: entry.color }}>
               {entry.dataKey === "税率"
                 ? `${entry.dataKey}: ${entry.value}%`
                 : `${entry.dataKey}: ${formatMoney(entry.value, currency)}`}
@@ -658,40 +657,40 @@ function ForecastTrendChart({
           <CardTitle className="text-base">月度收入趋势</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer height={300} width="100%">
             <LineChart
               data={chartData}
               margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#666" />
+              <CartesianGrid stroke="#f0f0f0" strokeDasharray="3 3" />
+              <XAxis dataKey="month" stroke="#666" tick={{ fontSize: 12 }} />
               <YAxis
-                tick={{ fontSize: 12 }}
                 stroke="#666"
+                tick={{ fontSize: 12 }}
                 tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Line
-                type="monotone"
                 dataKey="税前收入"
+                dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
                 stroke="#3b82f6"
                 strokeWidth={2}
-                dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
+                type="monotone"
               />
               <Line
-                type="monotone"
                 dataKey="税后收入"
+                dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
                 stroke="#10b981"
                 strokeWidth={2}
-                dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
+                type="monotone"
               />
               <Line
-                type="monotone"
                 dataKey="个税"
+                dot={{ fill: "#ef4444", strokeWidth: 2, r: 4 }}
                 stroke="#ef4444"
                 strokeWidth={2}
-                dot={{ fill: "#ef4444", strokeWidth: 2, r: 4 }}
+                type="monotone"
               />
             </LineChart>
           </ResponsiveContainer>
@@ -704,33 +703,33 @@ function ForecastTrendChart({
           <CardTitle className="text-base">累计收入趋势</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer height={300} width="100%">
             <LineChart
               data={chartData}
               margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#666" />
+              <CartesianGrid stroke="#f0f0f0" strokeDasharray="3 3" />
+              <XAxis dataKey="month" stroke="#666" tick={{ fontSize: 12 }} />
               <YAxis
-                tick={{ fontSize: 12 }}
                 stroke="#666"
+                tick={{ fontSize: 12 }}
                 tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Line
-                type="monotone"
                 dataKey="累计税前"
+                dot={{ fill: "#8b5cf6", strokeWidth: 2, r: 4 }}
                 stroke="#8b5cf6"
                 strokeWidth={2}
-                dot={{ fill: "#8b5cf6", strokeWidth: 2, r: 4 }}
+                type="monotone"
               />
               <Line
-                type="monotone"
                 dataKey="累计税后"
+                dot={{ fill: "#f59e0b", strokeWidth: 2, r: 4 }}
                 stroke="#f59e0b"
                 strokeWidth={2}
-                dot={{ fill: "#f59e0b", strokeWidth: 2, r: 4 }}
+                type="monotone"
               />
             </LineChart>
           </ResponsiveContainer>
@@ -743,16 +742,16 @@ function ForecastTrendChart({
           <CardTitle className="text-base">税率变化趋势</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer height={200} width="100%">
             <LineChart
               data={chartData}
               margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#666" />
+              <CartesianGrid stroke="#f0f0f0" strokeDasharray="3 3" />
+              <XAxis dataKey="month" stroke="#666" tick={{ fontSize: 12 }} />
               <YAxis
-                tick={{ fontSize: 12 }}
                 stroke="#666"
+                tick={{ fontSize: 12 }}
                 tickFormatter={(value) => `${value}%`}
               />
               <Tooltip
@@ -761,29 +760,29 @@ function ForecastTrendChart({
               />
               <Legend />
               <Line
-                type="monotone"
                 dataKey="税率"
+                dot={{ fill: "#dc2626", strokeWidth: 2, r: 5 }}
                 stroke="#dc2626"
                 strokeWidth={3}
-                dot={{ fill: "#dc2626", strokeWidth: 2, r: 5 }}
+                type="monotone"
               />
               <ReferenceLine
-                y={3}
+                label="3%"
                 stroke="#fbbf24"
                 strokeDasharray="5 5"
-                label="3%"
+                y={3}
               />
               <ReferenceLine
-                y={10}
+                label="10%"
                 stroke="#f97316"
                 strokeDasharray="5 5"
-                label="10%"
+                y={10}
               />
               <ReferenceLine
-                y={20}
+                label="20%"
                 stroke="#ef4444"
                 strokeDasharray="5 5"
-                label="20%"
+                y={20}
               />
             </LineChart>
           </ResponsiveContainer>

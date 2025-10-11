@@ -40,43 +40,43 @@ export default function TransferPage() {
   return (
     <main className="p-6 max-w-md">
       <h1 className="text-xl font-bold mb-4">Transfer</h1>
-      <form onSubmit={handleSubmit} className="grid gap-2">
+      <form className="grid gap-2" onSubmit={handleSubmit}>
         <Label>From Account ID</Label>
         <Input
           name="fromAccount"
-          value={form.fromAccount}
           onChange={handleChange}
           placeholder="a1"
+          value={form.fromAccount}
         />
         <Label>To Account ID</Label>
         <Input
           name="toAccount"
-          value={form.toAccount}
           onChange={handleChange}
           placeholder="a2"
+          value={form.toAccount}
         />
         <Label>Amount</Label>
         <Input
           name="amount"
+          onChange={handleChange}
           type="number"
           value={form.amount}
-          onChange={handleChange}
         />
         <Label>Occurred At</Label>
         <Input
           name="occurredAt"
+          onChange={handleChange}
           type="datetime-local"
           value={form.occurredAt}
-          onChange={handleChange}
         />
         <Label>Note</Label>
         <Input
           name="note"
-          value={form.note}
           onChange={handleChange}
           placeholder="可选"
+          value={form.note}
         />
-        <Button type="submit" className="mt-2">
+        <Button className="mt-2" type="submit">
           提交
         </Button>
       </form>

@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import CitySelect from "@/components/modules/CitySelect";
+import {
+  BonusForm,
+  LTCPlanForm,
+  SalaryChangeForm,
+} from "@/components/modules/IncomeForms";
+import IncomeRecordsTable from "@/components/modules/IncomeRecordsTable";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,6 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -18,21 +27,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import IncomeRecordsTable from "@/components/modules/IncomeRecordsTable";
 import {
-  BonusForm,
-  LTCPlanForm,
-  SalaryChangeForm,
-} from "@/components/modules/IncomeForms";
-import CitySelect from "@/components/modules/CitySelect";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
+  generateLTCPayouts,
   postIncomeRecalc,
   useBonus,
   useLTCPlans,
   useSalaryChanges,
-  generateLTCPayouts,
 } from "@/lib/api/income";
 import { formatMoney } from "@/lib/domain/money";
 import { useIncomeStore } from "@/lib/state/income";
@@ -48,10 +48,10 @@ const baseDialogClasses =
 export function IncomeRecordsDialog({ open, onClose }: DialogBaseProps) {
   return (
     <Dialog
-      open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
+      open={open}
     >
       <DialogContent
         className={`${baseDialogClasses} h-[90vh]`}
@@ -67,7 +67,7 @@ export function IncomeRecordsDialog({ open, onClose }: DialogBaseProps) {
           <IncomeRecordsTable />
         </div>
         <div className="flex justify-end pt-2">
-          <Button variant="ghost" onClick={onClose}>
+          <Button onClick={onClose} variant="ghost">
             返回
           </Button>
         </div>
@@ -85,10 +85,10 @@ export function SalaryChangesDialog({ open, onClose }: DialogBaseProps) {
 
   return (
     <Dialog
-      open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
+      open={open}
     >
       <DialogContent
         className={`${formDialogClasses} max-h-[88vh]`}
@@ -114,8 +114,8 @@ export function SalaryChangesDialog({ open, onClose }: DialogBaseProps) {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
                       className="text-sm text-muted-foreground"
+                      colSpan={3}
                     >
                       加载中…
                     </TableCell>
@@ -140,8 +140,8 @@ export function SalaryChangesDialog({ open, onClose }: DialogBaseProps) {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={3}
                       className="text-sm text-muted-foreground"
+                      colSpan={3}
                     >
                       暂无数据
                     </TableCell>
@@ -163,10 +163,10 @@ export function BonusDialog({ open, onClose }: DialogBaseProps) {
 
   return (
     <Dialog
-      open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
+      open={open}
     >
       <DialogContent
         className={`${formDialogClasses} max-h-[88vh]`}
@@ -191,8 +191,8 @@ export function BonusDialog({ open, onClose }: DialogBaseProps) {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
                       className="text-sm text-muted-foreground"
+                      colSpan={4}
                     >
                       加载中…
                     </TableCell>
@@ -217,8 +217,8 @@ export function BonusDialog({ open, onClose }: DialogBaseProps) {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
                       className="text-sm text-muted-foreground"
+                      colSpan={4}
                     >
                       暂无数据
                     </TableCell>
@@ -284,10 +284,10 @@ export function IncomeRecalcDialog({ open, onClose }: DialogBaseProps) {
 
   return (
     <Dialog
-      open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
+      open={open}
     >
       <DialogContent
         className={`${formDialogClasses} max-h-[88vh]`}
@@ -299,50 +299,50 @@ export function IncomeRecalcDialog({ open, onClose }: DialogBaseProps) {
             以累计预扣法重新计算 1 月至指定月份的工资、社保、公积金与个税记录
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="recalc-tax-year">税年</Label>
               <Input
                 id="recalc-tax-year"
-                type="number"
                 min="2000"
-                value={form.taxYear}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, taxYear: event.target.value }))
                 }
+                type="number"
+                value={form.taxYear}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="recalc-end-month">截止月份</Label>
               <Input
                 id="recalc-end-month"
-                type="number"
-                min="1"
                 max="12"
-                value={form.endMonth}
+                min="1"
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, endMonth: event.target.value }))
                 }
+                type="number"
+                value={form.endMonth}
               />
             </div>
             <div className="space-y-2">
               <Label>指定城市（可选）</Label>
               <div className="flex items-center gap-2">
                 <CitySelect
-                  value={form.cityId || undefined}
+                  className="w-full"
                   onValueChange={(value) =>
                     setForm((prev) => ({ ...prev, cityId: value }))
                   }
                   placeholder="默认使用当前城市"
-                  className="w-full"
+                  value={form.cityId || undefined}
                 />
                 {form.cityId ? (
                   <Button
+                    onClick={() => setForm((prev) => ({ ...prev, cityId: "" }))}
+                    size="sm"
                     type="button"
                     variant="ghost"
-                    size="sm"
-                    onClick={() => setForm((prev) => ({ ...prev, cityId: "" }))}
                   >
                     清除
                   </Button>
@@ -355,10 +355,10 @@ export function IncomeRecalcDialog({ open, onClose }: DialogBaseProps) {
             并回填对账字段。完成后，概览与预测数据会自动刷新。
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button onClick={onClose} type="button" variant="ghost">
               取消
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button disabled={submitting} type="submit">
               {submitting ? "回算中..." : "开始回算"}
             </Button>
           </div>
@@ -395,10 +395,10 @@ export function LongTermCashDialog({ open, onClose }: DialogBaseProps) {
   const items = data?.items ?? [];
   return (
     <Dialog
-      open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
+      open={open}
     >
       <DialogContent
         className={`${formDialogClasses} max-h-[88vh]`}
@@ -425,8 +425,8 @@ export function LongTermCashDialog({ open, onClose }: DialogBaseProps) {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
                       className="text-sm text-muted-foreground"
+                      colSpan={6}
                     >
                       加载中…
                     </TableCell>
@@ -448,12 +448,12 @@ export function LongTermCashDialog({ open, onClose }: DialogBaseProps) {
                       <TableCell>{formatRecurrence(it.recurrence)}</TableCell>
                       <TableCell>
                         <Button
-                          size="sm"
-                          variant="outline"
                           onClick={async () => {
                             await generateLTCPayouts(it.id);
                             toast.success("已生成发放日程");
                           }}
+                          size="sm"
+                          variant="outline"
                         >
                           生成日程
                         </Button>
@@ -463,8 +463,8 @@ export function LongTermCashDialog({ open, onClose }: DialogBaseProps) {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
                       className="text-sm text-muted-foreground"
+                      colSpan={6}
                     >
                       暂无数据
                     </TableCell>

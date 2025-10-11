@@ -1,5 +1,4 @@
 "use client";
-
 import {
   BarChart3,
   BookMarked,
@@ -10,6 +9,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import UserAvatar from "@/components/modules/UserAvatar";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
-import UserAvatar from "@/components/modules/UserAvatar";
 
 type Props = { children: ReactNode };
 
@@ -59,7 +58,7 @@ export default function AppShell({ children }: Props) {
       {/* Topbar */}
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto max-w-7xl px-4 py-3 flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
+          <Link className="flex items-center gap-2 font-semibold" href="/">
             <div className="size-6 rounded bg-primary" />
             <span className="hidden sm:inline">Wealth Again</span>
           </Link>
@@ -70,13 +69,13 @@ export default function AppShell({ children }: Props) {
               const active = pathname.startsWith(n.href);
               return (
                 <Link
-                  key={n.href}
-                  href={n.href}
                   className={`flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${
                     active
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent hover:text-accent-foreground"
                   }`}
+                  href={n.href}
+                  key={n.href}
                 >
                   {n.icon}
                   {n.label}
@@ -90,12 +89,12 @@ export default function AppShell({ children }: Props) {
           {/* Search and Controls */}
           <div className="flex items-center gap-2">
             <Input
-              placeholder="搜索账户/备注/交易…"
               className="w-full max-w-xs hidden lg:block"
+              placeholder="搜索账户/备注/交易…"
             />
             <Select
-              value={displayCurrency ?? ""}
               onValueChange={(v) => setDisplayCurrency(v || null)}
+              value={displayCurrency ?? ""}
             >
               <SelectTrigger className="w-[100px]">
                 <SelectValue placeholder="币种" />
@@ -108,10 +107,10 @@ export default function AppShell({ children }: Props) {
               </SelectContent>
             </Select>
             <Input
+              className="w-[140px] hidden sm:block"
+              onChange={(e) => setAsOfDate(e.target.value || null)}
               type="date"
               value={asOfDate ?? ""}
-              onChange={(e) => setAsOfDate(e.target.value || null)}
-              className="w-[140px] hidden sm:block"
             />
             <UserAvatar />
           </div>
@@ -127,13 +126,13 @@ export default function AppShell({ children }: Props) {
               const active = pathname.startsWith(n.href);
               return (
                 <Link
-                  key={n.href}
-                  href={n.href}
                   className={`flex items-center gap-2 rounded px-3 py-2 text-sm whitespace-nowrap transition-colors ${
                     active
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent hover:text-accent-foreground"
                   }`}
+                  href={n.href}
+                  key={n.href}
                 >
                   {n.icon}
                   {n.label}

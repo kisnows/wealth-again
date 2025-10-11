@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!.next", "!dist", "!build"]
+    "includes": ["src/**/*.*", "!src/app/globals.css"]
   },
   "formatter": {
     "enabled": true,
@@ -17,7 +17,8 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "a11y": "off"
     },
     "domains": {
       "next": "recommended",
@@ -27,7 +28,13 @@
   "assist": {
     "actions": {
       "source": {
-        "organizeImports": "on"
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": ["external", "internal", "parent", "sibling"]
+          }
+        },
+        "useSortedAttributes": "on"
       }
     }
   }

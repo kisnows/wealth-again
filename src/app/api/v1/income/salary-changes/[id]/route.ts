@@ -9,10 +9,10 @@ import { getUserFromRequest } from "@/server/utils/auth";
  */
 export async function DELETE(
   req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
-  const { id } = await params;
-  const user = await getUserFromRequest(req as any);
+  const { id } = params;
+  const user = await getUserFromRequest(req);
 
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -24,7 +24,7 @@ export async function DELETE(
       where: { id },
     });
 
-    if (!record || record.userId !== (user as any).id) {
+    if (!record || record.userId !== user.id) {
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
 
@@ -35,7 +35,7 @@ export async function DELETE(
 
     // 记录审计日志
     await logAudit("INCOME_SALARY_CHANGE_DELETE", {
-      userId: (user as any).id,
+      userId: user.id,
       meta: { id, deletedRecord: record },
     });
 

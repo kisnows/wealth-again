@@ -114,22 +114,18 @@ export default function RulesUpsertForm({
       </CardHeader>
       <CardContent className="space-y-4">
         {examples.length > 0 && (
-          <Tabs defaultValue="input" className="w-full">
+          <Tabs className="w-full" defaultValue="input">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="input">数据输入</TabsTrigger>
               <TabsTrigger value="examples">示例数据</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="input" className="space-y-4">
+            <TabsContent className="space-y-4" value="input">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">
                   JSON 数据 (数组格式)
                 </label>
                 <Textarea
-                  rows={12}
-                  value={text}
-                  onChange={(e) => handleTextChange(e.target.value)}
-                  placeholder={placeholder}
                   className={`font-mono text-sm ${
                     validationState.error
                       ? "border-red-300 focus:ring-red-500 focus:border-red-500"
@@ -137,6 +133,10 @@ export default function RulesUpsertForm({
                         ? "border-green-300 focus:ring-green-500 focus:border-green-500"
                         : ""
                   }`}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  placeholder={placeholder}
+                  rows={12}
+                  value={text}
                 />
 
                 {/* 验证状态显示 */}
@@ -163,9 +163,9 @@ export default function RulesUpsertForm({
               </div>
 
               <Button
-                onClick={submit}
-                disabled={loading || !validationState.isValid}
                 className="w-full"
+                disabled={loading || !validationState.isValid}
+                onClick={submit}
               >
                 {loading ? (
                   <>
@@ -178,19 +178,19 @@ export default function RulesUpsertForm({
               </Button>
             </TabsContent>
 
-            <TabsContent value="examples" className="space-y-4">
+            <TabsContent className="space-y-4" value="examples">
               <div className="text-sm text-gray-600 mb-4">
                 选择示例数据快速填入，你可以基于示例修改后提交：
               </div>
               <div className="grid gap-3">
                 {examples.map((example, index) => (
-                  <Card key={index} className="p-4">
+                  <Card className="p-4" key={index}>
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium">{example.name}</h4>
                       <Button
-                        variant="outline"
-                        size="sm"
                         onClick={() => loadExample(example)}
+                        size="sm"
+                        variant="outline"
                       >
                         使用此示例
                       </Button>
@@ -212,10 +212,6 @@ export default function RulesUpsertForm({
                 JSON 数据 (数组格式)
               </label>
               <Textarea
-                rows={12}
-                value={text}
-                onChange={(e) => handleTextChange(e.target.value)}
-                placeholder={placeholder}
                 className={`font-mono text-sm ${
                   validationState.error
                     ? "border-red-300 focus:ring-red-500 focus:border-red-500"
@@ -223,6 +219,10 @@ export default function RulesUpsertForm({
                       ? "border-green-300 focus:ring-green-500 focus:border-green-500"
                       : ""
                 }`}
+                onChange={(e) => handleTextChange(e.target.value)}
+                placeholder={placeholder}
+                rows={12}
+                value={text}
               />
 
               {/* 验证状态显示 */}
@@ -249,9 +249,9 @@ export default function RulesUpsertForm({
             </div>
 
             <Button
-              onClick={submit}
-              disabled={loading || !validationState.isValid}
               className="w-full"
+              disabled={loading || !validationState.isValid}
+              onClick={submit}
             >
               {loading ? (
                 <>

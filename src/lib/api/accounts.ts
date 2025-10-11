@@ -17,6 +17,8 @@ export type Account = {
 
 const ACCOUNTS_KEY = "/api/v1/accounts";
 const ACCOUNTS_SUMMARY_PREFIX = "/api/v1/reports/accounts/summary";
+const accountTransactionsKey = (id: string) =>
+  `/api/v1/accounts/${id}/transactions`;
 
 export function useAccounts() {
   const swr = useSWR<Account[]>(ACCOUNTS_KEY, getJson);
@@ -28,6 +30,13 @@ function revalidateAccountSummaries() {
     if (typeof key !== "string") return false;
     return key.startsWith(ACCOUNTS_SUMMARY_PREFIX);
   });
+}
+
+function revalidateAccountTransactions(ids: string | string[]) {
+  const list = Array.isArray(ids) ? ids : [ids];
+  return Promise.all(
+    list.map((id) => globalMutate(accountTransactionsKey(id))),
+  );
 }
 
 async function revalidateAccountsData(options?: { skipList?: boolean }) {
@@ -53,6 +62,30 @@ export type AccountSummary = {
 export function useAccountSummary(id: string) {
   const key = id ? `/api/v1/accounts/${id}/summary` : null;
   return useSWR<AccountSummary>(key, getJson);
+}
+
+export type AccountTransaction = {
+  id: string;
+  entryId: string;
+  type: string;
+  occurredAt: string;
+  createdAt: string;
+  amount: number;
+  currency: string;
+  note: string | null;
+  entryNote: string | null;
+  lineNote: string | null;
+  direction: "INFLOW" | "OUTFLOW";
+};
+
+export function useAccountTransactions(id: string | null | undefined) {
+  const key = id ? accountTransactionsKey(id) : null;
+  const swr = useSWR<{ items: AccountTransaction[] }>(key, getJson);
+  return {
+    ...swr,
+    data: swr.data?.items ?? [],
+    refresh: () => (key ? globalMutate(key) : Promise.resolve()),
+  };
 }
 
 export function useAccountTimeseries(
@@ -108,6 +141,7 @@ export async function postDeposit(input: {
 }) {
   const res = await postJson("/api/v1/entries/deposit", input);
   await revalidateAccountsData({ skipList: true });
+  await revalidateAccountTransactions(input.accountId);
   return res;
 }
 
@@ -119,6 +153,7 @@ export async function postWithdraw(input: {
 }) {
   const res = await postJson("/api/v1/entries/withdraw", input);
   await revalidateAccountsData({ skipList: true });
+  await revalidateAccountTransactions(input.accountId);
   return res;
 }
 
@@ -131,6 +166,10 @@ export async function postTransfer(input: {
 }) {
   const res = await postJson("/api/v1/entries/transfer", input);
   await revalidateAccountsData({ skipList: true });
+  await revalidateAccountTransactions([
+    input.from.accountId,
+    input.to.accountId,
+  ]);
   return res;
 }
 

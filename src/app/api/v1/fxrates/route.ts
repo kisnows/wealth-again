@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
   const on = searchParams.get("on");
   if (!quote)
     return NextResponse.json({ error: "quote is required" }, { status: 400 });
-  let where: any = { base, quote };
+  let where: Prisma.FxRateWhereInput = { base, quote };
   if (on) {
     const onDate = new Date(on);
     const rec = await prisma.fxRate.findFirst({
@@ -38,8 +39,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(rate);
 }
 
+type CreateFxRatePayload = {
+  base: string;
+  quote: string;
+  rate: number;
+  asOf: string;
+};
+
 export async function POST(req: NextRequest) {
-  const { base, quote, rate, asOf } = await req.json();
+  const { base, quote, rate, asOf } = (await req.json()) as CreateFxRatePayload;
   if (!base || !quote || typeof rate !== "number" || !asOf) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }

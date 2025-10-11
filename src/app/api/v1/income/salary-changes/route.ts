@@ -19,28 +19,33 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userId = user.id;
   const items = await prisma.incomeChange.findMany({
-    where: { userId: (user as any).id },
+    where: { userId },
     orderBy: { effectiveFrom: "asc" },
   });
   return NextResponse.json({ items });
 }
 
 export async function POST(req: Request) {
-  const user = await getUserFromRequest(req as any);
+  const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const {
     grossMonthly,
     currency = "CNY",
     effectiveFrom,
-  } = await (req as any).json();
+  } = (await req.json()) as {
+    grossMonthly: number;
+    currency?: string;
+    effectiveFrom: string;
+  };
   if (typeof grossMonthly !== "number" || !effectiveFrom) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
-  const userId = (user as any).id;
+  const userId = user.id;
   const { key, existed } = await ensureIdempotent(
-    req as any,
+    req,
     userId,
     `${userId}:${grossMonthly}:${effectiveFrom}`,
   );

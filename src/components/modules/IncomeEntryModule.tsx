@@ -4,13 +4,14 @@ import {
   BanknoteIcon,
   CalendarIcon,
   PlusIcon,
+  TrashIcon,
   TrendingUpIcon,
   WalletIcon,
-  TrashIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { mutate } from "swr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,16 +30,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  deleteBonus,
+  deleteLTCPlan,
+  deleteSalaryChange,
   useBonus,
   useLTCPlans,
   useSalaryChanges,
-  deleteSalaryChange,
-  deleteBonus,
-  deleteLTCPlan,
 } from "@/lib/api/income";
 import { formatMoney } from "@/lib/domain/money";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
-import { mutate } from "swr";
 
 export default function IncomeEntryModule() {
   const { displayCurrency } = useUserPrefsStore();
@@ -103,7 +103,7 @@ function SalaryChangesSection({ currency }: { currency: string }) {
             </CardDescription>
           </div>
           <Link href="/income/salary-changes">
-            <Button size="sm" className="flex items-center gap-2">
+            <Button className="flex items-center gap-2" size="sm">
               <PlusIcon className="w-4 h-4" />
               新增变更
             </Button>
@@ -155,15 +155,15 @@ function SalaryChangesSection({ currency }: { currency: string }) {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm">
+                      <Button size="sm" variant="ghost">
                         编辑
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(change.id)}
-                        disabled={deletingId === change.id}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={deletingId === change.id}
+                        onClick={() => handleDelete(change.id)}
+                        size="sm"
+                        variant="ghost"
                       >
                         <TrashIcon className="w-4 h-4" />
                       </Button>
@@ -215,7 +215,7 @@ function BonusSection({ currency }: { currency: string }) {
             <CardDescription>一次性奖金，与当月工资合并发放</CardDescription>
           </div>
           <Link href="/income/bonus">
-            <Button size="sm" className="flex items-center gap-2">
+            <Button className="flex items-center gap-2" size="sm">
               <PlusIcon className="w-4 h-4" />
               新增奖金
             </Button>
@@ -267,15 +267,15 @@ function BonusSection({ currency }: { currency: string }) {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm">
+                      <Button size="sm" variant="ghost">
                         编辑
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(bonus.id)}
-                        disabled={deletingId === bonus.id}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={deletingId === bonus.id}
+                        onClick={() => handleDelete(bonus.id)}
+                        size="sm"
+                        variant="ghost"
                       >
                         <TrashIcon className="w-4 h-4" />
                       </Button>
@@ -346,7 +346,7 @@ function LongTermCashSection({ currency }: { currency: string }) {
             <CardDescription>按季度分期发放的长期现金激励</CardDescription>
           </div>
           <Link href="/income/long-term-cash">
-            <Button size="sm" className="flex items-center gap-2">
+            <Button className="flex items-center gap-2" size="sm">
               <PlusIcon className="w-4 h-4" />
               新增计划
             </Button>
@@ -418,18 +418,18 @@ function LongTermCashSection({ currency }: { currency: string }) {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm">
+                        <Button size="sm" variant="ghost">
                           查看详情
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button size="sm" variant="ghost">
                           编辑
                         </Button>
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(plan.id)}
-                          disabled={deletingId === plan.id}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          disabled={deletingId === plan.id}
+                          onClick={() => handleDelete(plan.id)}
+                          size="sm"
+                          variant="ghost"
                         >
                           <TrashIcon className="w-4 h-4" />
                         </Button>

@@ -5,5 +5,5 @@ import { IncomeRecordsDialog } from "@/components/modules/IncomeDialogs";
 
 export default function IncomeRecordsPage() {
   const router = useRouter();
-  return <IncomeRecordsDialog open onClose={() => router.push("/income")} />;
+  return <IncomeRecordsDialog onClose={() => router.push("/income")} open />;
 }

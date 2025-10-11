@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Calendar, Calculator, MapPin } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Calculator, Calendar, MapPin } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import CitySelect from "@/components/modules/CitySelect";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,14 +42,13 @@ import {
 } from "@/components/ui/table";
 import { useAnnualDeductions } from "@/lib/api/income";
 import {
+  type CityChangeItem,
   createCityChange,
   updateBaseCurrency,
   useCityChanges,
   useCurrentUser,
-  type CityChangeItem,
 } from "@/lib/api/user";
 import { formatMoney } from "@/lib/domain/money";
-import { toast } from "sonner";
 
 const countryLabels: Record<string, string> = {
   CN: "中国",
@@ -231,9 +231,9 @@ export default function SettingsPage() {
             <Label>基础币种</Label>
             {user ? (
               <Select
-                value={user.baseCurrency}
-                onValueChange={handleBaseCurrencyUpdate}
                 disabled={currencySaving}
+                onValueChange={handleBaseCurrencyUpdate}
+                value={user.baseCurrency}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="选择基础币种" />
@@ -273,8 +273,6 @@ export default function SettingsPage() {
                 {user?.id ?? "未获取到用户信息"}
               </code>
               <Button
-                variant="outline"
-                size="sm"
                 disabled={!user?.id}
                 onClick={async () => {
                   if (!user?.id) return;
@@ -285,6 +283,8 @@ export default function SettingsPage() {
                     toast.error("复制失败，请手动选择复制");
                   }
                 }}
+                size="sm"
+                variant="outline"
               >
                 复制
               </Button>
@@ -306,8 +306,8 @@ export default function SettingsPage() {
         <CardContent className="space-y-6">
           <Form {...changeForm}>
             <form
-              onSubmit={changeForm.handleSubmit(onSubmitCityChange)}
               className="grid gap-4 md:grid-cols-3"
+              onSubmit={changeForm.handleSubmit(onSubmitCityChange)}
             >
               <FormField
                 control={changeForm.control}
@@ -317,10 +317,10 @@ export default function SettingsPage() {
                     <FormLabel>目标城市</FormLabel>
                     <FormControl>
                       <CitySelect
-                        value={field.value}
+                        disabled={citySubmitting}
                         onValueChange={field.onChange}
                         placeholder="选择迁移城市"
-                        disabled={citySubmitting}
+                        value={field.value}
                       />
                     </FormControl>
                     <FormMessage />
@@ -335,8 +335,8 @@ export default function SettingsPage() {
                     <FormLabel>生效月份</FormLabel>
                     <FormControl>
                       <Input
-                        type="month"
                         min={defaultEffectiveMonth}
+                        type="month"
                         {...field}
                         disabled={citySubmitting}
                       />
@@ -364,9 +364,9 @@ export default function SettingsPage() {
               />
               <div className="md:col-span-3">
                 <Button
-                  type="submit"
                   className="w-full md:w-auto"
                   disabled={citySubmitting}
+                  type="submit"
                 >
                   {citySubmitting ? "提交中..." : "提交迁移"}
                 </Button>

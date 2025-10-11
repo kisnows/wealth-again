@@ -1,8 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, MapPin, Settings } from "lucide-react";
+import { MapPin, Plus, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -20,15 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
 
 interface Country {
   code: string;
@@ -165,9 +165,9 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="flex items-center gap-2">
+        <Button className="flex items-center gap-2" variant="outline">
           <Plus className="h-4 w-4" />
           新增城市
         </Button>
@@ -183,7 +183,7 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form className="space-y-6" onSubmit={handleSubmit}>
           {/* 基本信息 */}
           <Card>
             <CardHeader>
@@ -195,22 +195,22 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                   <Label htmlFor="cityName">城市名称 *</Label>
                   <Input
                     id="cityName"
-                    value={form.name}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, name: e.target.value }))
                     }
                     placeholder="如：Seattle, Tokyo"
                     required
+                    value={form.name}
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="country">所属国家 *</Label>
                   <Select
-                    value={form.country}
                     onValueChange={(value) =>
                       setForm((prev) => ({ ...prev, country: value }))
                     }
+                    value={form.country}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="选择国家" />
@@ -258,31 +258,29 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Tabs defaultValue="social" className="w-full">
+                  <Tabs className="w-full" defaultValue="social">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger
-                        value="social"
                         disabled={!selectedCountry.hasSocialSecurity}
+                        value="social"
                       >
                         社保规则
                       </TabsTrigger>
                       <TabsTrigger
-                        value="housing"
                         disabled={!selectedCountry.hasHousingFund}
+                        value="housing"
                       >
                         公积金规则
                       </TabsTrigger>
                     </TabsList>
 
                     {selectedCountry.hasSocialSecurity && (
-                      <TabsContent value="social" className="space-y-4">
+                      <TabsContent className="space-y-4" value="social">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="ssBaseMin">缴费基数下限</Label>
                             <Input
                               id="ssBaseMin"
-                              type="number"
-                              value={form.socialSecurity.baseMin}
                               onChange={(e) =>
                                 setForm((prev) => ({
                                   ...prev,
@@ -293,6 +291,8 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                                 }))
                               }
                               placeholder="如：4812"
+                              type="number"
+                              value={form.socialSecurity.baseMin}
                             />
                           </div>
 
@@ -300,8 +300,6 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                             <Label htmlFor="ssBaseMax">缴费基数上限</Label>
                             <Input
                               id="ssBaseMax"
-                              type="number"
-                              value={form.socialSecurity.baseMax}
                               onChange={(e) =>
                                 setForm((prev) => ({
                                   ...prev,
@@ -312,6 +310,8 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                                 }))
                               }
                               placeholder="如：24930"
+                              type="number"
+                              value={form.socialSecurity.baseMax}
                             />
                           </div>
                         </div>
@@ -321,9 +321,6 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                             <Label htmlFor="ratePension">养老保险比例</Label>
                             <Input
                               id="ratePension"
-                              type="number"
-                              step="0.001"
-                              value={form.socialSecurity.ratePension}
                               onChange={(e) =>
                                 setForm((prev) => ({
                                   ...prev,
@@ -333,6 +330,9 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                                   },
                                 }))
                               }
+                              step="0.001"
+                              type="number"
+                              value={form.socialSecurity.ratePension}
                             />
                           </div>
 
@@ -340,9 +340,6 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                             <Label htmlFor="rateMedical">医疗保险比例</Label>
                             <Input
                               id="rateMedical"
-                              type="number"
-                              step="0.001"
-                              value={form.socialSecurity.rateMedical}
                               onChange={(e) =>
                                 setForm((prev) => ({
                                   ...prev,
@@ -352,6 +349,9 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                                   },
                                 }))
                               }
+                              step="0.001"
+                              type="number"
+                              value={form.socialSecurity.rateMedical}
                             />
                           </div>
 
@@ -361,9 +361,6 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                             </Label>
                             <Input
                               id="rateUnemployment"
-                              type="number"
-                              step="0.001"
-                              value={form.socialSecurity.rateUnemployment}
                               onChange={(e) =>
                                 setForm((prev) => ({
                                   ...prev,
@@ -373,6 +370,9 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                                   },
                                 }))
                               }
+                              step="0.001"
+                              type="number"
+                              value={form.socialSecurity.rateUnemployment}
                             />
                           </div>
                         </div>
@@ -383,8 +383,6 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                           </Label>
                           <Input
                             id="fixedMedical"
-                            type="number"
-                            value={form.socialSecurity.fixedMedicalPersonal}
                             onChange={(e) =>
                               setForm((prev) => ({
                                 ...prev,
@@ -395,20 +393,20 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                               }))
                             }
                             placeholder="如：3"
+                            type="number"
+                            value={form.socialSecurity.fixedMedicalPersonal}
                           />
                         </div>
                       </TabsContent>
                     )}
 
                     {selectedCountry.hasHousingFund && (
-                      <TabsContent value="housing" className="space-y-4">
+                      <TabsContent className="space-y-4" value="housing">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="hfBaseMin">缴费基数下限</Label>
                             <Input
                               id="hfBaseMin"
-                              type="number"
-                              value={form.housingFund.baseMin}
                               onChange={(e) =>
                                 setForm((prev) => ({
                                   ...prev,
@@ -419,6 +417,8 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                                 }))
                               }
                               placeholder="如：2490"
+                              type="number"
+                              value={form.housingFund.baseMin}
                             />
                           </div>
 
@@ -426,8 +426,6 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                             <Label htmlFor="hfBaseMax">缴费基数上限</Label>
                             <Input
                               id="hfBaseMax"
-                              type="number"
-                              value={form.housingFund.baseMax}
                               onChange={(e) =>
                                 setForm((prev) => ({
                                   ...prev,
@@ -438,6 +436,8 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                                 }))
                               }
                               placeholder="如：40694"
+                              type="number"
+                              value={form.housingFund.baseMax}
                             />
                           </div>
                         </div>
@@ -446,9 +446,6 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                           <Label htmlFor="rateEmployee">个人缴费比例</Label>
                           <Input
                             id="rateEmployee"
-                            type="number"
-                            step="0.001"
-                            value={form.housingFund.rateEmployee}
                             onChange={(e) =>
                               setForm((prev) => ({
                                 ...prev,
@@ -458,6 +455,9 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                                 },
                               }))
                             }
+                            step="0.001"
+                            type="number"
+                            value={form.housingFund.rateEmployee}
                           />
                         </div>
                       </TabsContent>
@@ -469,14 +469,14 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
 
           <div className="flex justify-end gap-2">
             <Button
+              disabled={loading}
+              onClick={() => setOpen(false)}
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={loading}
             >
               取消
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button disabled={loading} type="submit">
               {loading ? "创建中..." : "创建城市"}
             </Button>
           </div>

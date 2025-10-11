@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const requestedUserId = searchParams.get("userId");
-  const userId = requestedUserId ?? (viewer as any).id;
+  const userId = requestedUserId ?? viewer.id;
 
   const items = await prisma.userAnnualDeduction.findMany({
     where: { userId },

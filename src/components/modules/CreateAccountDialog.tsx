@@ -60,7 +60,7 @@ export default function CreateAccountDialog() {
     setOpen(false);
   };
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger asChild>
         <Button>新建账户</Button>
       </DialogTrigger>
@@ -68,16 +68,16 @@ export default function CreateAccountDialog() {
         <DialogHeader>
           <DialogTitle>新建账户</DialogTitle>
         </DialogHeader>
-        <form onSubmit={submit} className="grid gap-2">
+        <form className="grid gap-2" onSubmit={submit}>
           <div className="grid gap-1">
             <Label>名称</Label>
-            <Input name="name" value={form.name} onChange={onChange} />
+            <Input name="name" onChange={onChange} value={form.name} />
           </div>
           <div className="grid gap-1">
             <Label>类型</Label>
             <Select
-              value={form.accountType}
               onValueChange={(v) => setForm((s) => ({ ...s, accountType: v }))}
+              value={form.accountType}
             >
               <SelectTrigger>
                 <SelectValue placeholder="选择类型" />
@@ -92,8 +92,8 @@ export default function CreateAccountDialog() {
           <div className="grid gap-1">
             <Label>子类(可选)</Label>
             <Select
-              value={form.subType}
               onValueChange={(v) => setForm((s) => ({ ...s, subType: v }))}
+              value={form.subType}
             >
               <SelectTrigger>
                 <SelectValue placeholder="选择子类或自定义" />
@@ -111,17 +111,17 @@ export default function CreateAccountDialog() {
               <Input
                 className="mt-1"
                 name="customSubType"
-                value={form.customSubType}
                 onChange={onChange}
                 placeholder="输入新的子类"
+                value={form.customSubType}
               />
             )}
           </div>
           <div className="grid gap-1">
             <Label>币种</Label>
             <Select
-              value={form.baseCurrency}
               onValueChange={(v) => setForm((s) => ({ ...s, baseCurrency: v }))}
+              value={form.baseCurrency}
             >
               <SelectTrigger>
                 <SelectValue placeholder="选择币种" />
@@ -139,17 +139,17 @@ export default function CreateAccountDialog() {
             <Label>初始余额(可选)</Label>
             <Input
               name="initialBalance"
+              onChange={onChange}
               type="number"
               value={form.initialBalance}
-              onChange={onChange}
             />
           </div>
           <div className="grid gap-1">
             <Label>描述(可选)</Label>
             <Input
               name="description"
-              value={form.description}
               onChange={onChange}
+              value={form.description}
             />
           </div>
           <DialogFooter>

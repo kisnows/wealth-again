@@ -59,7 +59,7 @@ export default function CitySelect({
   };
 
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={isDisabled}>
+    <Select disabled={isDisabled} onValueChange={onValueChange} value={value}>
       <SelectTrigger className={className}>
         <SelectValue placeholder={isLoading ? "加载中..." : placeholder} />
       </SelectTrigger>

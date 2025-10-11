@@ -52,15 +52,12 @@
   - `Charts/NetWorthLine`、`Charts/AllocPie`、`Charts/IncomeStackedBar`（基于 SVG/Canvas 封装，样式用 Tailwind）。
 - 表单：`react-hook-form + zod`；提交统一走 `lib/api/*`，写操作自动附带 `Idempotency-Key`。
 
-## 页面设计落地（对齐 API）
-- `/dashboard`：用 `useSWR` 拉取 `reports.dashboard`；展示 KPI 卡、曲线与占比；支持 `displayCurrency/asOf` 切换（Zustand 绑定）。
-- `/accounts` 与 `/accounts/[id]`：列表 + 行内操作；详情页展示 `summary` 与快捷动作（存/取/转/估）。
-- `/income/*`：各子页为“列表 + 新建对话框 + 生成/回填动作”；`/recalc` 为参数表单 + 执行结果反馈。
-- `/rules/*`：配置表单/表格与区间校验提示；提交走 upsert 接口。
-- `/reports/*`：账户汇总、收入时序图表与导出入口。
+## 页面落地协作
+- 各路由的模块划分、字段说明、交互细节以 `doc/ui-routing.md` 为唯一来源；页面在实现前应先对齐该文档的结构图与数据依赖。
+- UI 组件负责消费 `src/lib/api/*` 暴露的读写函数，提交后通过显式 `mutate` 触发刷新；写操作必须附带 `Idempotency-Key`。
+- 当需要新增页面或模块时，先在 `doc/ui-routing.md` 补充路由与交互说明，再在此文档登记相应的约束与代码组织策略，保持两份文档内容互补而不重复。
 
 ## 性能与可维护性
 - Server Component 负责布局与首屏骨架，数据区块用 Client Component + SWR；提交后用 `mutate` 做增量刷新。
 - 文件上限 500 行，超出即拆分；跨页复用组件沉淀至 `components/modules`。
 - 严格类型：API 方法与 hooks 全部显式返回类型；公共 DTO 放 `src/lib/models/*`。
-

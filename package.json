@@ -6,8 +6,8 @@
     "dev": "next dev --turbopack -p 4000",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "biome check",
-    "format": "biome format --write",
+    "lint": "biome lint",
+    "format": "biome ci --formatter-enabled=true --linter-enabled=true --assist-enabled=true --enforce-assist=true",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage "

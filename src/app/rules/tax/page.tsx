@@ -140,7 +140,7 @@ export default function TaxRulesPage() {
             管理个人所得税税率表和扣除标准
           </p>
         </div>
-        <Badge variant="outline" className="flex items-center gap-2">
+        <Badge className="flex items-center gap-2" variant="outline">
           <SettingsIcon className="w-4 h-4" />
           税务配置
         </Badge>
@@ -160,18 +160,18 @@ export default function TaxRulesPage() {
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">国家</label>
               <Input
+                onChange={(e) => onChange("country", e.target.value)}
                 placeholder="CN"
                 value={configForm.country}
-                onChange={(e) => onChange("country", e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">税年</label>
               <Input
-                type="number"
-                placeholder="2025"
-                value={configForm.taxYear}
                 onChange={(e) => onChange("taxYear", e.target.value)}
+                placeholder="2025"
+                type="number"
+                value={configForm.taxYear}
               />
             </div>
             <div className="space-y-2">
@@ -180,13 +180,13 @@ export default function TaxRulesPage() {
               </label>
               <div className="relative">
                 <Input
-                  type="number"
-                  placeholder="5000"
-                  value={configForm.standardDeduction}
+                  className="pr-10"
                   onChange={(e) =>
                     onChange("standardDeduction", e.target.value)
                   }
-                  className="pr-10"
+                  placeholder="5000"
+                  type="number"
+                  value={configForm.standardDeduction}
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                   元
@@ -199,13 +199,13 @@ export default function TaxRulesPage() {
               </label>
               <div className="relative">
                 <Input
-                  type="number"
-                  placeholder="0"
-                  value={configForm.specialAdditionalDeduction}
+                  className="pr-10"
                   onChange={(e) =>
                     onChange("specialAdditionalDeduction", e.target.value)
                   }
-                  className="pr-10"
+                  placeholder="0"
+                  type="number"
+                  value={configForm.specialAdditionalDeduction}
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                   元
@@ -214,10 +214,10 @@ export default function TaxRulesPage() {
             </div>
             <div className="flex items-end">
               <Button
-                type="button"
-                onClick={handleConfigSubmit}
-                disabled={configLoading}
                 className="w-full"
+                disabled={configLoading}
+                onClick={handleConfigSubmit}
+                type="button"
               >
                 {configLoading ? (
                   <>
@@ -263,8 +263,8 @@ export default function TaxRulesPage() {
                 <TableBody>
                   {(data as any).items.map((bracket: any, index: number) => (
                     <TableRow
-                      key={index}
                       className={index % 2 === 0 ? "bg-gray-50/50" : ""}
+                      key={index}
                     >
                       <TableCell className="text-center font-medium">
                         {bracket.position}
@@ -277,7 +277,7 @@ export default function TaxRulesPage() {
                             : `${formatMoney(Number((data as any).items[index - 1].threshold), "CNY")} - ${formatMoney(Number(bracket.threshold), "CNY")}`}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant="outline" className="font-mono">
+                        <Badge className="font-mono" variant="outline">
                           {(Number(bracket.taxRate) * 100).toFixed(1)}%
                         </Badge>
                       </TableCell>
@@ -301,8 +301,9 @@ export default function TaxRulesPage() {
 
       {/* 批量配置税率表 */}
       <RulesUpsertForm
-        title="批量配置税率表"
         description="配置个人所得税的累进税率表，支持多档税率"
+        examples={TAX_BRACKETS_EXAMPLE}
+        onSubmit={(items) => upsertTaxBrackets(items as any)}
         placeholder={`示例格式：
 [
   {
@@ -314,8 +315,7 @@ export default function TaxRulesPage() {
     "quickDeduction": 0
   }
 ]`}
-        examples={TAX_BRACKETS_EXAMPLE}
-        onSubmit={(items) => upsertTaxBrackets(items as any)}
+        title="批量配置税率表"
       />
 
       {/* 字段说明 */}

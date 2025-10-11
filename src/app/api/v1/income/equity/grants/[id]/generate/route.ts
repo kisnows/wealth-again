@@ -10,16 +10,16 @@ import { getUserFromRequest } from "@/server/utils/auth";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
-  const { id } = await params;
-  const user = await getUserFromRequest(req as any);
+  const { id } = params;
+  const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const grant = await prisma.equityGrant.findUnique({
     where: { id },
   });
-  if (!grant || grant.userId !== (user as any).id)
+  if (!grant || grant.userId !== user.id)
     return NextResponse.json({ error: "Grant not found" }, { status: 404 });
   const start = new Date(grant.startVestDate);
   let monthsStep = 12;

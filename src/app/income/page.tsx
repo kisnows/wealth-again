@@ -1,13 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRightIcon,
   DatabaseIcon,
   HistoryIcon,
-  LayoutPanelLeftIcon,
   LayersIcon,
+  LayoutPanelLeftIcon,
   MedalIcon,
   PiggyBankIcon,
   RefreshCcwIcon,
@@ -15,17 +13,19 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import IncomeEntryModule from "@/components/modules/IncomeEntryModule";
-import IncomeForecastModule from "@/components/modules/IncomeForecastModule";
-import IncomeOverviewModule from "@/components/modules/IncomeOverviewModule";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import {
   BonusDialog,
-  IncomeRecordsDialog,
   IncomeRecalcDialog,
+  IncomeRecordsDialog,
   LongTermCashDialog,
   SalaryChangesDialog,
 } from "@/components/modules/IncomeDialogs";
+import IncomeEntryModule from "@/components/modules/IncomeEntryModule";
+import IncomeForecastModule from "@/components/modules/IncomeForecastModule";
+import IncomeOverviewModule from "@/components/modules/IncomeOverviewModule";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,8 +141,8 @@ export default function IncomePage() {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-2">
           <Badge
-            variant="outline"
             className="w-fit border-blue-200 text-blue-600"
+            variant="outline"
           >
             Income
           </Badge>
@@ -158,7 +158,7 @@ export default function IncomePage() {
             <ScrollTextIcon className="mr-2 h-4 w-4" />
             查看收入记录
           </Button>
-          <Button variant="outline" onClick={() => openModal("recalc")}>
+          <Button onClick={() => openModal("recalc")} variant="outline">
             <HistoryIcon className="mr-2 h-4 w-4" />
             年度回算
           </Button>
@@ -171,14 +171,14 @@ export default function IncomePage() {
         </div>
       </header>
 
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs className="space-y-6" defaultValue="overview">
         <TabsList className="grid w-full grid-cols-3 gap-2 lg:w-[480px]">
           <TabsTrigger value="overview">概览</TabsTrigger>
           <TabsTrigger value="entry">配置与录入</TabsTrigger>
           <TabsTrigger value="forecast">预测与回算</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent className="space-y-6" value="overview">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,2.5fr)_minmax(0,1.2fr)] xl:grid-cols-[minmax(0,3fr)_minmax(0,1.3fr)]">
             <section className="space-y-6">
               <IncomeOverviewModule />
@@ -200,19 +200,19 @@ export default function IncomePage() {
       </Tabs>
 
       {activeModal === "records" ? (
-        <IncomeRecordsDialog open onClose={closeModal} />
+        <IncomeRecordsDialog onClose={closeModal} open />
       ) : null}
       {activeModal === "salary" ? (
-        <SalaryChangesDialog open onClose={closeModal} />
+        <SalaryChangesDialog onClose={closeModal} open />
       ) : null}
       {activeModal === "bonus" ? (
-        <BonusDialog open onClose={closeModal} />
+        <BonusDialog onClose={closeModal} open />
       ) : null}
       {activeModal === "ltc" ? (
-        <LongTermCashDialog open onClose={closeModal} />
+        <LongTermCashDialog onClose={closeModal} open />
       ) : null}
       {activeModal === "recalc" ? (
-        <IncomeRecalcDialog open onClose={closeModal} />
+        <IncomeRecalcDialog onClose={closeModal} open />
       ) : null}
     </main>
   );
@@ -263,18 +263,18 @@ function QuickActionsPanel({
         {quickActions.map((action) =>
           action.mode === "route" ? (
             <Link
-              key={action.id}
-              href={action.href}
               className="group flex items-start justify-between gap-3 rounded-lg border border-gray-200 px-3 py-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+              href={action.href}
+              key={action.id}
             >
               <ActionContent action={action} />
             </Link>
           ) : (
             <button
-              key={action.id}
-              type="button"
-              onClick={() => onOpenModal(action.id)}
               className="group flex w-full items-start justify-between gap-3 rounded-lg border border-gray-200 px-3 py-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+              key={action.id}
+              onClick={() => onOpenModal(action.id)}
+              type="button"
             >
               <ActionContent action={action} />
             </button>

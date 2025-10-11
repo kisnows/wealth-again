@@ -33,36 +33,36 @@ export default function WithdrawPage() {
   return (
     <main className="p-6 max-w-md">
       <h1 className="text-xl font-bold mb-4">Withdraw</h1>
-      <form onSubmit={handleSubmit} className="grid gap-2">
+      <form className="grid gap-2" onSubmit={handleSubmit}>
         <Label>Account ID</Label>
         <Input
           name="accountId"
-          value={form.accountId}
           onChange={handleChange}
           placeholder="a1"
+          value={form.accountId}
         />
         <Label>Amount</Label>
         <Input
           name="amount"
+          onChange={handleChange}
           type="number"
           value={form.amount}
-          onChange={handleChange}
         />
         <Label>Occurred At</Label>
         <Input
           name="occurredAt"
+          onChange={handleChange}
           type="datetime-local"
           value={form.occurredAt}
-          onChange={handleChange}
         />
         <Label>Note</Label>
         <Input
           name="note"
-          value={form.note}
           onChange={handleChange}
           placeholder="可选"
+          value={form.note}
         />
-        <Button type="submit" className="mt-2">
+        <Button className="mt-2" type="submit">
           提交
         </Button>
       </form>

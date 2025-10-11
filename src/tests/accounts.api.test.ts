@@ -9,7 +9,7 @@ const mockPrisma: any = {
     update: vi.fn(),
   },
   txnEntry: { create: vi.fn() },
-  txnLine: { aggregate: vi.fn() },
+  txnLine: { aggregate: vi.fn(), findMany: vi.fn() },
   valuationSnapshot: {
     findMany: vi.fn(),
     create: vi.fn(),
@@ -196,6 +196,58 @@ describe("Accounts & Entries routes", () => {
       }),
     );
     expect(res.status).toBe(404);
+  });
+
+  it("GET /accounts/:id/transactions returns normalized list", async () => {
+    // 用例：交易列表接口应返回归一化后的流水信息，并保留条目数量。
+    const module = await import(
+      "@/app/api/v1/accounts/[id]/transactions/route"
+    );
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "a1",
+      userId: "u1",
+    });
+    mockPrisma.txnLine.findMany.mockResolvedValueOnce([
+      {
+        id: "l1",
+        entryId: "e1",
+        amount: 100,
+        currency: "CNY",
+        note: "line",
+        createdAt: new Date("2024-01-03T10:00:00Z"),
+        entry: {
+          id: "e1",
+          type: "DEPOSIT",
+          occurredAt: new Date("2024-01-03T09:00:00Z"),
+          note: "entry note",
+          createdAt: new Date("2024-01-03T09:01:00Z"),
+        },
+      },
+      {
+        id: "l2",
+        entryId: "e2",
+        amount: -50,
+        currency: "CNY",
+        note: null,
+        createdAt: new Date("2024-01-04T10:00:00Z"),
+        entry: {
+          id: "e2",
+          type: "WITHDRAW",
+          occurredAt: new Date("2024-01-04T09:00:00Z"),
+          note: null,
+          createdAt: new Date("2024-01-04T09:01:00Z"),
+        },
+      },
+    ]);
+    const res = await module.GET(
+      makeGet("http://localhost/api/v1/accounts/a1/transactions"),
+      { params: { id: "a1" } },
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.items).toHaveLength(2);
+    expect(body.items[0].direction).toBe("INFLOW");
+    expect(body.items[1].direction).toBe("OUTFLOW");
   });
 
   it("POST /entries/deposit writes idempotency & audit", async () => {

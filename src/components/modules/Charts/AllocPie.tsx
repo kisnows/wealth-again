@@ -30,14 +30,14 @@ export default function AllocPie({ data = [] as Slice[] }: { data?: Slice[] }) {
   });
   return (
     <div className="flex gap-4 items-center border rounded p-3">
-      <svg width={180} height={180}>
+      <svg height={180} width={180}>
         {slices.map((s, i) => (
-          <path key={i} d={s.path} fill={s.color} className="opacity-90" />
+          <path className="opacity-90" d={s.path} fill={s.color} key={i} />
         ))}
       </svg>
       <ul className="text-sm">
         {slices.map((s, i) => (
-          <li key={i} className="flex items-center gap-2">
+          <li className="flex items-center gap-2" key={i}>
             <span
               className="inline-block w-3 h-3 rounded"
               style={{ background: s.color }}

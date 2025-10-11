@@ -13,14 +13,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import {
+  type Account,
   archiveAccount,
   deleteAccount,
-  type Account,
   updateAccount,
+  useAccountTransactions,
 } from "@/lib/api/accounts";
 import type { AccountSummaryItem } from "@/lib/api/reports";
+import { cn } from "@/lib/utils";
 import DepositDialog from "./DepositDialog";
 import TransferDialog from "./TransferDialog";
 import ValuationFormDialog from "./ValuationFormDialog";
@@ -72,6 +73,14 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
   { value: "ARCHIVED", label: "已归档" },
   { value: "ALL", label: "全部状态" },
 ];
+
+const ENTRY_TYPE_LABELS: Record<string, string> = {
+  DEPOSIT: "存入",
+  WITHDRAW: "取出",
+  TRANSFER: "转账",
+  ADJUST: "调整",
+  SYSTEM: "系统",
+};
 
 function formatAmount(value: number, currency: string | null | undefined) {
   if (!Number.isFinite(value)) return "-";
@@ -353,9 +362,9 @@ export function AccountTable({
     const profitDisplayCurrency = displayCurrency ?? metrics.currency;
     return (
       <Card
-        key={account.id}
         className="transition-all"
         data-testid={`accounts-ui-card-${account.id}`}
+        key={account.id}
       >
         <CardHeader className="border-b pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -374,8 +383,8 @@ export function AccountTable({
               </CardDescription>
             </div>
             <Badge
-              variant={isArchived ? "outline" : "secondary"}
               className="text-xs"
+              variant={isArchived ? "outline" : "secondary"}
             >
               {STATUS_LABELS[status] ?? status}
             </Badge>
@@ -424,46 +433,46 @@ export function AccountTable({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 asChild
-                variant="ghost"
-                size="sm"
                 data-testid={`accounts-ui-action-detail-${account.id}`}
+                size="sm"
+                variant="ghost"
               >
                 <Link href={`/accounts/${account.id}`}>查看详情</Link>
               </Button>
               {isArchived ? (
                 <Button
-                  variant="outline"
-                  size="sm"
+                  data-testid={`accounts-ui-action-restore-${account.id}`}
+                  disabled={isPending("restore", account.id)}
                   onClick={() => {
                     void handleRestore(account.id);
                   }}
-                  disabled={isPending("restore", account.id)}
-                  data-testid={`accounts-ui-action-restore-${account.id}`}
+                  size="sm"
+                  variant="outline"
                 >
                   恢复
                 </Button>
               ) : (
                 <Button
-                  variant="outline"
-                  size="sm"
+                  data-testid={`accounts-ui-action-archive-${account.id}`}
+                  disabled={isPending("archive", account.id)}
                   onClick={() => {
                     void handleArchive(account.id);
                   }}
-                  disabled={isPending("archive", account.id)}
-                  data-testid={`accounts-ui-action-archive-${account.id}`}
+                  size="sm"
+                  variant="outline"
                 >
                   归档
                 </Button>
               )}
               <Button
-                variant="outline"
-                size="sm"
                 className="border-destructive/60 text-destructive hover:bg-destructive/10"
+                data-testid={`accounts-ui-action-delete-${account.id}`}
+                disabled={isPending("delete", account.id)}
                 onClick={() => {
                   void handleDelete(account.id);
                 }}
-                disabled={isPending("delete", account.id)}
-                data-testid={`accounts-ui-action-delete-${account.id}`}
+                size="sm"
+                variant="outline"
               >
                 删除
               </Button>
@@ -474,22 +483,22 @@ export function AccountTable({
               最新估值时间：{formatDatetime(metrics.latestValuationAt)}
             </span>
             <Button
-              variant="ghost"
-              size="sm"
               className="h-7 px-2"
+              data-testid={`accounts-ui-card-toggle-${account.id}`}
               onClick={() =>
                 setExpandedId((prev) =>
                   prev === account.id ? null : account.id,
                 )
               }
-              data-testid={`accounts-ui-card-toggle-${account.id}`}
+              size="sm"
+              variant="ghost"
             >
               {expandedId === account.id ? "收起明细" : "展开明细"}
             </Button>
           </div>
           {expandedId === account.id && (
             <div
-              className="rounded-lg border bg-muted/40 p-4 text-xs text-muted-foreground"
+              className="rounded-lg border bg-muted/40 p-4 text-xs text-muted-foreground space-y-4"
               data-testid={`accounts-ui-card-detail-${account.id}`}
             >
               <div className="grid gap-2 md:grid-cols-2">
@@ -507,6 +516,7 @@ export function AccountTable({
                 />
                 <DetailRow label="账户 ID" value={account.id} />
               </div>
+              <AccountTransactionsList accountId={account.id} />
             </div>
           )}
         </CardContent>
@@ -523,11 +533,11 @@ export function AccountTable({
         <div className="flex flex-wrap gap-2">
           {TYPE_FILTERS.map((filter) => (
             <Button
+              data-testid={`accounts-ui-filter-type-${filter.value.toLowerCase()}`}
               key={filter.value}
+              onClick={() => setTypeFilter(filter.value)}
               size="sm"
               variant={typeFilter === filter.value ? "default" : "outline"}
-              onClick={() => setTypeFilter(filter.value)}
-              data-testid={`accounts-ui-filter-type-${filter.value.toLowerCase()}`}
             >
               {filter.label}
             </Button>
@@ -536,11 +546,11 @@ export function AccountTable({
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((filter) => (
             <Button
+              data-testid={`accounts-ui-filter-status-${filter.value.toLowerCase()}`}
               key={filter.value}
+              onClick={() => setStatusFilter(filter.value)}
               size="sm"
               variant={statusFilter === filter.value ? "default" : "outline"}
-              onClick={() => setStatusFilter(filter.value)}
-              data-testid={`accounts-ui-filter-status-${filter.value.toLowerCase()}`}
             >
               {filter.label}
             </Button>
@@ -548,21 +558,21 @@ export function AccountTable({
         </div>
         <Input
           className="ms-auto w-full max-w-xs"
+          data-testid="accounts-ui-search"
+          onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="搜索名称、币种或说明"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          data-testid="accounts-ui-search"
         />
         {hasActiveFilter && (
           <Button
-            variant="ghost"
-            size="sm"
+            data-testid="accounts-ui-filter-reset"
             onClick={() => {
               setTypeFilter("ALL");
               setStatusFilter("ACTIVE");
               setSearchTerm("");
             }}
-            data-testid="accounts-ui-filter-reset"
+            size="sm"
+            variant="ghost"
           >
             重置筛选
           </Button>
@@ -602,6 +612,85 @@ function StatBlock({
     <div className="flex flex-col gap-1 rounded-lg border bg-muted/50 p-3">
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className={cn("text-sm font-medium", valueClassName)}>{value}</span>
+    </div>
+  );
+}
+
+function AccountTransactionsList({ accountId }: { accountId: string }) {
+  const {
+    data: transactions,
+    isLoading,
+    error,
+  } = useAccountTransactions(accountId);
+  if (isLoading) {
+    return (
+      <div
+        className="rounded border border-dashed bg-background/60 p-3 text-xs text-muted-foreground"
+        data-testid={`accounts-ui-transactions-loading-${accountId}`}
+      >
+        交易明细加载中…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div
+        className="rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
+        data-testid={`accounts-ui-transactions-error-${accountId}`}
+      >
+        加载交易记录失败，请稍后重试。
+      </div>
+    );
+  }
+  if (!transactions || transactions.length === 0) {
+    return (
+      <div
+        className="rounded border border-dashed bg-background/60 p-3 text-xs text-muted-foreground"
+        data-testid={`accounts-ui-transactions-empty-${accountId}`}
+      >
+        暂无交易记录。
+      </div>
+    );
+  }
+  return (
+    <div
+      className="space-y-2 text-foreground"
+      data-testid={`accounts-ui-transactions-${accountId}`}
+    >
+      <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
+        <span>交易记录</span>
+        <span>共 {transactions.length} 条</span>
+      </div>
+      <div className="space-y-2">
+        {transactions.map((txn) => (
+          <div
+            className="grid gap-2 rounded border border-border/60 bg-background/70 p-3 text-xs md:grid-cols-[170px,80px,1fr]"
+            data-testid={`accounts-ui-transaction-row-${txn.id}`}
+            key={txn.id}
+          >
+            <span className="font-medium">
+              {formatDatetime(txn.occurredAt)}
+            </span>
+            <span className="text-muted-foreground">
+              {ENTRY_TYPE_LABELS[txn.type] ?? txn.type}
+            </span>
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <span
+                className={cn(
+                  "text-sm font-semibold",
+                  txn.direction === "INFLOW" && "text-emerald-600",
+                  txn.direction === "OUTFLOW" && "text-red-500",
+                )}
+              >
+                {formatAmount(txn.amount, txn.currency)}
+              </span>
+              {txn.note && (
+                <span className="text-muted-foreground">{txn.note}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

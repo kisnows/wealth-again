@@ -1,18 +1,17 @@
 "use client";
 
 import {
-  ArrowUpIcon,
   ArrowDownIcon,
+  ArrowUpIcon,
   BarChart3Icon,
   CalendarIcon,
-  LineChartIcon,
-  TrendingUpIcon,
   DollarSignIcon,
+  LineChartIcon,
   PieChartIcon,
+  TrendingUpIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -96,7 +95,6 @@ export default function IncomeOverviewModule() {
   useEffect(() => {
     loadOverviewData();
   }, [dateRange, recalcToken]);
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -122,25 +120,25 @@ export default function IncomeOverviewModule() {
               <Label htmlFor="overviewStartDate">开始日期</Label>
               <Input
                 id="overviewStartDate"
-                type="date"
-                value={dateRange.startDate}
                 onChange={(e) =>
                   setDateRange((prev) => ({
                     ...prev,
                     startDate: e.target.value,
                   }))
                 }
+                type="date"
+                value={dateRange.startDate}
               />
             </div>
             <div>
               <Label htmlFor="overviewEndDate">结束日期</Label>
               <Input
                 id="overviewEndDate"
-                type="date"
-                value={dateRange.endDate}
                 onChange={(e) =>
                   setDateRange((prev) => ({ ...prev, endDate: e.target.value }))
                 }
+                type="date"
+                value={dateRange.endDate}
               />
             </div>
             <div className="flex items-end">

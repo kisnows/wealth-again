@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -12,8 +13,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const cityId = searchParams.get("cityId");
-
   if (!startDate || !endDate) {
     return NextResponse.json(
       { error: "startDate and endDate are required" },
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const userId = (user as any).id;
+    const userId = user.id;
     const userRecord = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -65,19 +64,20 @@ export async function GET(req: NextRequest) {
     }
 
     // 计算汇总统计
+    const toNumber = (value: Prisma.Decimal | number | null | undefined) =>
+      Number(value ?? 0);
     const totals = incomeRecords.reduce(
       (acc, record) => ({
         grossIncome:
           acc.grossIncome +
-          Number(record.gross || 0) +
-          Number(record.bonus || 0) +
-          Number(record.ltcIncome || 0) +
-          Number(record.equityIncome || 0),
-        netIncome: acc.netIncome + Number(record.netIncome || 0),
-        socialInsurance:
-          acc.socialInsurance + Number(record.socialInsurance || 0),
-        housingFund: acc.housingFund + Number(record.housingFund || 0),
-        tax: acc.tax + Number(record.incomeTax || 0),
+          toNumber(record.gross) +
+          toNumber(record.bonus) +
+          toNumber(record.ltcIncome) +
+          toNumber(record.equityIncome),
+        netIncome: acc.netIncome + toNumber(record.netIncome),
+        socialInsurance: acc.socialInsurance + toNumber(record.socialInsurance),
+        housingFund: acc.housingFund + toNumber(record.housingFund),
+        tax: acc.tax + toNumber(record.incomeTax),
       }),
       {
         grossIncome: 0,
@@ -100,13 +100,11 @@ export async function GET(req: NextRequest) {
       const secondHalf = incomeRecords.slice(Math.floor(monthsCount / 2));
 
       const firstHalfAvg =
-        firstHalf.reduce(
-          (sum, record) => sum + Number(record.netIncome || 0),
-          0,
-        ) / firstHalf.length;
+        firstHalf.reduce((sum, record) => sum + toNumber(record.netIncome), 0) /
+        firstHalf.length;
       const secondHalfAvg =
         secondHalf.reduce(
-          (sum, record) => sum + Number(record.netIncome || 0),
+          (sum, record) => sum + toNumber(record.netIncome),
           0,
         ) / secondHalf.length;
 

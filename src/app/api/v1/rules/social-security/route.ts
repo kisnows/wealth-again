@@ -1,3 +1,4 @@
+import type { City, CityRuleSS } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
@@ -51,28 +52,30 @@ export async function PUT(req: Request) {
       { status: 409 },
     );
   for (const it of items) {
-    const city =
-      typeof it.city === "string" && it.city.length !== 36
-        ? await prisma.city.upsert({
-            where: { name: it.city },
-            update: {},
-            create: { name: it.city, country: it.country || "CN" },
-          })
-        : { id: it.city };
+    if (typeof it.city !== "string" || it.city.length === 0) {
+      return NextResponse.json(
+        { error: "city must be string" },
+        { status: 400 },
+      );
+    }
+
+    const city = await resolveCity(it.city, it.country);
+    if (!city)
+      return NextResponse.json(
+        { error: "city not found", city: it.city },
+        { status: 404 },
+      );
+
     // overlap check (JS 级别)
     const existing = await prisma.cityRuleSS.findMany({
-      where: { cityId: (city as any).id },
+      where: { cityId: city.id },
     });
     const ns = new Date(it.startDate);
     const ne: Date | null = it.endDate ? new Date(it.endDate) : null;
-    const overlap = existing.some((r) => {
-      const rs = new Date(r.startDate as any);
-      const re: Date | null = r.endDate ? new Date(r.endDate as any) : null;
-      return (ne === null || rs < ne) && (re === null || ns < re);
-    });
+    const overlap = existing.some((r) => isOverlap(r, ns, ne));
     if (overlap)
       return NextResponse.json(
-        { error: "interval overlaps existing rule", city: (city as any).id },
+        { error: "interval overlaps existing rule", city: city.id },
         { status: 409 },
       );
     await prisma.cityRuleSS.upsert({
@@ -107,4 +110,32 @@ export async function PUT(req: Request) {
   await logAudit("RULE_SS_UPSERT", { meta: { count: items.length } });
   await markIdempotencyUsed(key);
   return NextResponse.json({ upserted: items.length });
+}
+
+function isOverlap(
+  rule: CityRuleSS,
+  nextStart: Date,
+  nextEnd: Date | null,
+): boolean {
+  const existingStart = new Date(rule.startDate);
+  const existingEnd = rule.endDate ? new Date(rule.endDate) : null;
+  return (
+    (nextEnd === null || existingStart < nextEnd) &&
+    (existingEnd === null || nextStart < existingEnd)
+  );
+}
+
+async function resolveCity(
+  cityInput: string,
+  country?: string,
+): Promise<City | null> {
+  const normalizedCountry = country ?? "CN";
+  if (cityInput.length === 36) {
+    return prisma.city.findUnique({ where: { id: cityInput } });
+  }
+  return prisma.city.upsert({
+    where: { name: cityInput },
+    update: {},
+    create: { name: cityInput, country: normalizedCountry },
+  });
 }

@@ -20,14 +20,21 @@ export async function GET(req: NextRequest) {
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const items = await prisma.bonusPlan.findMany({
-    where: { userId: (user as any).id },
+    where: { userId: user.id },
     orderBy: { effectiveDate: "asc" },
   });
   return NextResponse.json({ items });
 }
 
+type CreateBonusPayload = {
+  amount: number;
+  currency?: string;
+  taxMethod?: "MERGE" | "SEPARATE";
+  effectiveDate: string;
+};
+
 export async function POST(req: Request) {
-  const user = await getUserFromRequest(req as any);
+  const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const {
@@ -35,13 +42,13 @@ export async function POST(req: Request) {
     currency = "CNY",
     taxMethod = "MERGE",
     effectiveDate,
-  } = await (req as any).json();
+  } = (await req.json()) as CreateBonusPayload;
   if (typeof amount !== "number" || !effectiveDate) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
-  const userId = (user as any).id;
+  const userId = user.id;
   const { key, existed } = await ensureIdempotent(
-    req as any,
+    req,
     userId,
     `${userId}:${amount}:${effectiveDate}`,
   );

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAccountsSummary, type AccountSummaryItem } from "@/lib/api/reports";
+import { type AccountSummaryItem, useAccountsSummary } from "@/lib/api/reports";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
 import DepositDialog from "./DepositDialog";
 import TransferDialog from "./TransferDialog";
@@ -61,9 +61,9 @@ export default function TopAccounts() {
                 <TableCell className="text-right">
                   <div className="flex gap-2 justify-end">
                     <Button
+                      onClick={() => setActive(it.id)}
                       size="sm"
                       variant="outline"
-                      onClick={() => setActive(it.id)}
                     >
                       快捷
                     </Button>

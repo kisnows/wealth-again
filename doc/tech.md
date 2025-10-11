@@ -25,21 +25,13 @@
        外部依赖：FX 快照、配置导入等（目前均为内部管理，无第三方实时接口）
 ```
 
-## 2. 前端架构
-- **路由结构**：
-  - `src/app/layout.tsx` 提供全局 Shell（导航、主题），`page.tsx` 为 Dashboard 重定向。
-  - 功能路由：`dashboard/`、`income/`、`accounts/`、`entries/`、`rules/`、`reports/`、`settings/` 等，与 PRD 功能块一一对应。
-  - API Route 在 `src/app/api/**`，与页面近距离存放，便于同域维护。
-- **状态管理**：
-  - `SWR` 用于服务端数据缓存（如 `useDashboard`、`useIncomeTimeseries`）。
-  - `Zustand` (`src/lib/state`) 管理本地偏好（展示币种、asOf 日期）与界面状态。
-- **UI 组件**：
-  - shadcn/ui 组件集中在 `src/components/ui`；模块组件按业务归档（`components/modules/Charts`、`IncomeOverviewModule` 等）。
-  - 样式统一使用 Tailwind，`globals.css` 定义基础样式。
-- **表单与校验**：
-  - 基于 `react-hook-form` + `zod` resolver；常见于收入录入、规则维护页面。
-- **图表**：Recharts 实现资产趋势、收入分布等可视化，数据格式化使用 `src/lib/domain/money`。
-- **管理员模拟登录**：前端检测到 `impersonatedUserId`（从 session 中获取）时，在头部展示提醒并允许切换回管理员身份。
+## 2. 前端架构总览
+- App Router 负责页面与布局装配，Server Component 承担骨架渲染，Client Component 结合 SWR 提供实时数据刷新。
+- 数据访问统一通过 `src/lib/api/*` 暴露的 fetch/SWR 封装，跨模块状态由 `src/lib/state/*` 中的 Zustand store 管理。
+- UI 层依赖 shadcn/ui 与 Tailwind；跨页面复用组件沉淀在 `components/modules/*`，页面级结构与交互详见 `doc/ui-routing.md`。
+- 表单、校验、图表等前端实现规范集中在 `doc/frontend-constraints.md`，该文档是前端实现的单一事实来源。
+
+> 本章节提供架构脉络，具体约束（文件划分、表单规范、SWR key 策略等）请以 `doc/frontend-constraints.md` 为准。
 
 ## 3. 身份认证与权限
 - 认证通过 NextAuth（`src/server/auth.*`）；数据库记录用户角色 `role: "USER" | "ADMIN"`。
@@ -155,13 +147,23 @@ TaxBracket(id, taxConfigId, threshold, rate, quickDeduction)
   - 每月初自动运行收入回算并通知用户确认。
 
 ## 9. 测试策略
-- 单元测试（Vitest，位于 `src/tests`）：
-  - 税务计算：覆盖 PRD 示例月度结果、跨档位、社保上下限、医疗固定额。
-  - 工资变更：同月多次变更取最后一次。
-  - 手动覆盖：人工调整优先级。
-  - 汇率转换：USD 中间价计算正确。
-- 端到端/集成测试：计划使用 Playwright（后续），目前通过 Postman/Thunder Client 校验关键 API。
-- 回归清单：收入回算、管理员模拟、转账幂等、规则区间冲突。
+- **测试分层**：统一使用 Vitest，所有用例放置在 `src/tests` 并遵循 `领域.层级.test.ts` 命名，例如 `income.service.test.ts`、`accounts.api.test.ts`。
+  - 工具/纯函数：`src/lib/domain/*`、`src/lib/utils/*`，验证金额格式化、时间区间、汇率换算等。
+  - 服务层：`src/server/services/*`，结合 Prisma Test Client 校验数据库交互、事务、一致性与幂等。
+  - API Route：通过 `createNextHandler` + Supertest 模拟请求，重点覆盖权限校验、参数校验与响应码。
+  - 前端模块（可选）：React Testing Library + Vitest 验证 `components/modules/*` 的交互逻辑。
+  - 端到端冒烟：后续接入 Playwright，覆盖登录 → Dashboard、账户记账、收入回算、管理员模拟登录、规则维护。
+- **命名与注释**：每个 `describe` / `it` 块前加入中文注释说明场景与预期；共享夹具在 `beforeEach` 中重置，避免跨用例污染。
+- **测试基线准备**：
+  - 在 `vitest.setup.ts` 配置专用 SQLite 数据库（例如 `file:./dev-test.db`），`beforeAll` 执行 `prisma migrate deploy`，`beforeEach` 清空相关表。
+  - 提供夹具：`seedIncomeFixtures()`（复用 `doc/prd-income.md` 示例）、`makeUserWithCity()`（创建杭州规则用户）、`mockFxRate()` 等。
+  - 常用断言：`expectMoneyEqual`、`expectDateEqual`，统一金额精度与时区比较。
+- **重点用例覆盖**：
+  - 收入域：工资同月多次取最后一次、社保上下限 clamp、医保固定额、专项附加扣除、累计预扣个税（对照 `doc/prd-income.md` 2025-01~03 示例）、人工调整优先级、年度回算幂等与预测标记。
+  - 账户与报表：跨币种转账双边分录、幂等键重复提交、估值与收益率计算、报表聚合折算。
+  - 规则维护：区间重叠校验、专项附加扣除更新、审计日志记录。
+  - 权限与审计：管理员模拟登录流程、普通用户越权访问、敏感操作写入 `AuditLog`。
+- **覆盖率与回归**：语句/函数/分支覆盖率目标 ≥ 90%，收入与账户服务达到 100%；发布前执行 `npm run lint && npm run test -- --runInBand`，重点回归收入回算、管理员模拟、转账幂等与规则更新。
 
 ## 10. 部署与运维
 - 环境变量：`DATABASE_URL`、`NEXTAUTH_SECRET`、`NEXTAUTH_URL`、`ADMIN_EMAILS` 等。

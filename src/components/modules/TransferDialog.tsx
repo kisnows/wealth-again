@@ -76,7 +76,7 @@ export function TransferDialog({
     !form.amount ||
     Number(form.amount) === 0;
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger asChild>
         <Button variant="default">跨/同币种转账</Button>
       </DialogTrigger>
@@ -84,13 +84,13 @@ export function TransferDialog({
         <DialogHeader>
           <DialogTitle>发起转账</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="grid gap-3">
+        <form className="grid gap-3" onSubmit={onSubmit}>
           <div className="grid gap-1">
             <Label>转出账户</Label>
             <Select
-              value={form.fromAccount}
-              onValueChange={(v) => setForm((s) => ({ ...s, fromAccount: v }))}
               disabled={isLoading}
+              onValueChange={(v) => setForm((s) => ({ ...s, fromAccount: v }))}
+              value={form.fromAccount}
             >
               <SelectTrigger>
                 <SelectValue placeholder="选择账户" />
@@ -107,9 +107,9 @@ export function TransferDialog({
           <div className="grid gap-1">
             <Label>转入账户</Label>
             <Select
-              value={form.toAccount}
-              onValueChange={(v) => setForm((s) => ({ ...s, toAccount: v }))}
               disabled={isLoading}
+              onValueChange={(v) => setForm((s) => ({ ...s, toAccount: v }))}
+              value={form.toAccount}
             >
               <SelectTrigger>
                 <SelectValue placeholder="选择账户" />
@@ -127,26 +127,26 @@ export function TransferDialog({
             <Label>Amount</Label>
             <Input
               name="amount"
+              onChange={onChange}
               type="number"
               value={form.amount}
-              onChange={onChange}
             />
           </div>
           <div className="grid gap-1">
             <Label>Occurred At</Label>
             <Input
               name="occurredAt"
+              onChange={onChange}
               type="datetime-local"
               value={form.occurredAt}
-              onChange={onChange}
             />
           </div>
           <div className="grid gap-1">
             <Label>Note</Label>
-            <Input name="note" value={form.note} onChange={onChange} />
+            <Input name="note" onChange={onChange} value={form.note} />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={disableSubmit}>
+            <Button disabled={disableSubmit} type="submit">
               提交
             </Button>
           </DialogFooter>

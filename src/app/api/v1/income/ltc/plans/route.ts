@@ -19,15 +19,16 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userId = user.id;
   const items = await prisma.longTermCashPlan.findMany({
-    where: { userId: (user as any).id },
+    where: { userId },
     orderBy: { startDate: "asc" },
   });
   return NextResponse.json({ items });
 }
 
 export async function POST(req: Request) {
-  const user = await getUserFromRequest(req as any);
+  const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const {
@@ -36,7 +37,13 @@ export async function POST(req: Request) {
     startDate,
     periods,
     recurrence,
-  } = await (req as any).json();
+  } = (await req.json()) as {
+    totalAmount: number;
+    currency?: string;
+    startDate: string;
+    periods: number;
+    recurrence: "MONTHLY" | "QUARTERLY" | "YEARLY";
+  };
   if (
     typeof totalAmount !== "number" ||
     !startDate ||
@@ -45,9 +52,9 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
-  const userId = (user as any).id;
+  const userId = user.id;
   const { key, existed } = await ensureIdempotent(
-    req as any,
+    req,
     userId,
     `${userId}:${totalAmount}:${startDate}:${periods}:${recurrence}`,
   );

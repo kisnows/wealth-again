@@ -19,15 +19,16 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userId = user.id;
   const items = await prisma.equityGrant.findMany({
-    where: { userId: (user as any).id },
+    where: { userId },
     orderBy: { startVestDate: "asc" },
   });
   return NextResponse.json({ items });
 }
 
 export async function POST(req: Request) {
-  const user = await getUserFromRequest(req as any);
+  const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const {
@@ -36,7 +37,13 @@ export async function POST(req: Request) {
     startVestDate,
     vestPeriods,
     vestInterval,
-  } = await (req as any).json();
+  } = (await req.json()) as {
+    totalUnits: number;
+    currency?: string;
+    startVestDate: string;
+    vestPeriods: number;
+    vestInterval: "YEARLY" | "QUARTERLY" | "MONTHLY";
+  };
   if (
     typeof totalUnits !== "number" ||
     !startVestDate ||
@@ -45,9 +52,9 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
-  const userId = (user as any).id;
+  const userId = user.id;
   const { key, existed } = await ensureIdempotent(
-    req as any,
+    req,
     userId,
     `${userId}:${totalUnits}:${startVestDate}:${vestPeriods}:${vestInterval}`,
   );

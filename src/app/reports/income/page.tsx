@@ -147,7 +147,7 @@ export default function ReportsIncomePage() {
             月度收入、税务和净收入的趋势分析
           </p>
         </div>
-        <Badge variant="outline" className="flex items-center gap-2">
+        <Badge className="flex items-center gap-2" variant="outline">
           <BarChart3Icon className="w-4 h-4" />
           时序分析
         </Badge>
@@ -168,9 +168,9 @@ export default function ReportsIncomePage() {
                 开始日期
               </label>
               <Input
+                onChange={(e) => setRange({ ...range, from: e.target.value })}
                 type="date"
                 value={range.from.slice(0, 10)}
-                onChange={(e) => setRange({ ...range, from: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -178,18 +178,18 @@ export default function ReportsIncomePage() {
                 结束日期
               </label>
               <Input
+                onChange={(e) => setRange({ ...range, to: e.target.value })}
                 type="date"
                 value={range.to.slice(0, 10)}
-                onChange={(e) => setRange({ ...range, to: e.target.value })}
               />
             </div>
             <div className="flex items-end">
               <Button
+                className="w-full"
+                disabled={isLoading}
                 onClick={() => {
                   /* SWR 自动根据 key 变化刷新 */
                 }}
-                className="w-full"
-                disabled={isLoading}
               >
                 {isLoading ? "分析中..." : "分析"}
               </Button>
@@ -320,13 +320,13 @@ export default function ReportsIncomePage() {
               <p className="text-sm">请调整时间范围或创建收入记录</p>
             </div>
           ) : (
-            <Tabs defaultValue="chart" className="w-full">
+            <Tabs className="w-full" defaultValue="chart">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="chart">图表视图</TabsTrigger>
                 <TabsTrigger value="table">表格视图</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="chart" className="mt-4">
+              <TabsContent className="mt-4" value="chart">
                 <div className="space-y-4">
                   <IncomeStackedBar items={items} />
 
@@ -364,7 +364,7 @@ export default function ReportsIncomePage() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="table" className="mt-4">
+              <TabsContent className="mt-4" value="table">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -397,8 +397,8 @@ export default function ReportsIncomePage() {
                           index: number,
                         ) => (
                           <TableRow
-                            key={index}
                             className={index % 2 === 0 ? "bg-gray-50/50" : ""}
+                            key={index}
                           >
                             <TableCell className="font-medium">
                               {item.month}

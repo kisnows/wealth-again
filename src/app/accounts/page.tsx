@@ -102,15 +102,15 @@ export default function AccountsPage() {
                 : undefined;
           return (
             <Card
-              key={card.key}
               className="bg-muted/40"
               data-testid={`accounts-ui-summary-card-${card.key}`}
+              key={card.key}
             >
               <CardHeader>
                 <CardTitle className="flex items-center justify-between text-sm font-medium text-muted-foreground">
                   <span>{card.label}</span>
                   {badge ? (
-                    <Badge variant={badge.variant} className="text-xs">
+                    <Badge className="text-xs" variant={badge.variant}>
                       {badge.label}
                     </Badge>
                   ) : null}
@@ -145,9 +145,9 @@ export default function AccountsPage() {
       <div>
         <AccountTable
           accounts={accountList ?? []}
-          summaries={summaries}
-          isLoading={isLoading}
           displayCurrency={displayCurrency ?? null}
+          isLoading={isLoading}
+          summaries={summaries}
         />
       </div>
     </main>

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import {
@@ -21,28 +22,50 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  await ensureIncomeRecordsForUser((user as any).id);
+  const userId = user.id;
+  await ensureIncomeRecordsForUser(userId);
   const items = await prisma.incomeRecord.findMany({
     where: {
-      userId: (user as any).id,
+      userId,
       monthDate: { gte: new Date(from), lte: new Date(to) },
     },
     orderBy: { monthDate: "asc" },
   });
-  const mapSeries = (key: keyof (typeof items)[number]) =>
-    items.map((r) => ({
-      month: r.monthDate,
-      value: Number((r as any)[key] || 0),
-    }));
+  const toNumber = (value: Prisma.Decimal | number | null | undefined) =>
+    Number(value ?? 0);
   const series = {
-    gross: mapSeries("gross"),
-    bonus: mapSeries("bonus"),
-    ltcIncome: mapSeries("ltcIncome"),
-    equityIncome: mapSeries("equityIncome"),
-    socialInsurance: mapSeries("socialInsurance"),
-    housingFund: mapSeries("housingFund"),
-    incomeTax: mapSeries("incomeTax"),
-    netIncome: mapSeries("netIncome"),
+    gross: items.map((r) => ({
+      month: r.monthDate,
+      value: toNumber(r.gross),
+    })),
+    bonus: items.map((r) => ({
+      month: r.monthDate,
+      value: toNumber(r.bonus),
+    })),
+    ltcIncome: items.map((r) => ({
+      month: r.monthDate,
+      value: toNumber(r.ltcIncome),
+    })),
+    equityIncome: items.map((r) => ({
+      month: r.monthDate,
+      value: toNumber(r.equityIncome),
+    })),
+    socialInsurance: items.map((r) => ({
+      month: r.monthDate,
+      value: toNumber(r.socialInsurance),
+    })),
+    housingFund: items.map((r) => ({
+      month: r.monthDate,
+      value: toNumber(r.housingFund),
+    })),
+    incomeTax: items.map((r) => ({
+      month: r.monthDate,
+      value: toNumber(r.incomeTax),
+    })),
+    netIncome: items.map((r) => ({
+      month: r.monthDate,
+      value: toNumber(r.netIncome),
+    })),
   };
   const summary = summarizeIncomeRecords(items);
   return NextResponse.json({ series, summary });
