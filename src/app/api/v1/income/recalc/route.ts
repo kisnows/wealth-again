@@ -35,7 +35,14 @@ export async function POST(req: Request) {
     startMonth,
   });
   await logAudit("INCOME_RECALC", {
-    meta: { taxYear, endMonth, cityId, userId, startMonth, updated: res.updated },
+    meta: {
+      taxYear,
+      endMonth,
+      cityId,
+      userId,
+      startMonth,
+      updated: res.updated,
+    },
   });
   await markIdempotencyUsed(key);
   return NextResponse.json(res);

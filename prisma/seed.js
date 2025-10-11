@@ -7,7 +7,10 @@ const prisma = new PrismaClient();
 async function upsertTax(country, year) {
   const cfg = await prisma.taxConfig.upsert({
     where: { country_taxYear: { country, taxYear: year } },
-    update: {},
+    update: {
+      standardDeduction: 5000,
+      specialAdditionalDeduction: 0,
+    },
     create: {
       country,
       taxYear: year,
@@ -70,6 +73,16 @@ async function seed() {
       currentCityId: hz.id,
     },
   });
+
+  // 清理旧的收入配置，确保种子数据幂等
+  await prisma.incomeRecord.deleteMany({ where: { userId: user.id } });
+  await prisma.longTermCashPayout.deleteMany({
+    where: { plan: { userId: user.id } },
+  });
+  await prisma.longTermCashPlan.deleteMany({ where: { userId: user.id } });
+  await prisma.bonusPlan.deleteMany({ where: { userId: user.id } });
+  await prisma.incomeChange.deleteMany({ where: { userId: user.id } });
+  await prisma.userAnnualDeduction.deleteMany({ where: { userId: user.id } });
 
   // 社保（示例：ZJ 区间）
   await prisma.cityRuleSS.upsert({
@@ -175,139 +188,107 @@ async function seed() {
       {
         userId: user.id,
         taxYear: 2023,
-        annualAmount: 12000,
-        allocationRule: "AVERAGE",
-        note: "示例专项附加扣除（平均分摊）",
+        annualAmount: 0,
+        allocationRule: "NONE",
+        note: "示例专项附加扣除：无",
       },
       {
         userId: user.id,
         taxYear: 2024,
-        annualAmount: 12000,
-        allocationRule: "AVERAGE",
-        note: "示例专项附加扣除（平均分摊）",
+        annualAmount: 0,
+        allocationRule: "NONE",
+        note: "示例专项附加扣除：无",
       },
       {
         userId: user.id,
         taxYear: 2025,
-        annualAmount: 12000,
-        allocationRule: "AVERAGE",
-        note: "示例专项附加扣除（平均分摊）",
+        annualAmount: 0,
+        allocationRule: "NONE",
+        note: "示例专项附加扣除：无",
       },
     ],
-    skipDuplicates: true,
   });
 
   // 工资变更
-  try {
-    await prisma.incomeChange.createMany({
-      data: [
-        {
-          userId: user.id,
-          grossMonthly: 11000,
-          currency: "CNY",
-          effectiveFrom: new Date("2023-01-01"),
-        },
-        {
-          userId: user.id,
-          grossMonthly: 13000,
-          currency: "CNY",
-          effectiveFrom: new Date("2024-01-01"),
-        },
-        {
-          userId: user.id,
-          grossMonthly: 15000,
-          currency: "CNY",
-          effectiveFrom: new Date("2025-01-01"),
-        },
-      ],
-    });
-  } catch (_e) {
-    // 忽略重复插入错误
-    console.log("IncomeChange data already exists, skipping...");
-  }
+  await prisma.incomeChange.createMany({
+    data: [
+      {
+        userId: user.id,
+        grossMonthly: 12000,
+        currency: "CNY",
+        effectiveFrom: new Date("2023-01-01"),
+      },
+      {
+        userId: user.id,
+        grossMonthly: 15000,
+        currency: "CNY",
+        effectiveFrom: new Date("2024-01-01"),
+      },
+      {
+        userId: user.id,
+        grossMonthly: 20000,
+        currency: "CNY",
+        effectiveFrom: new Date("2025-01-01"),
+      },
+    ],
+  });
 
   // 奖金（每年1月）
-  try {
-    await prisma.bonusPlan.createMany({
-      data: [
-        {
-          userId: user.id,
-          amount: 20000,
-          currency: "CNY",
-          effectiveDate: new Date("2023-01-10"),
-        },
-        {
-          userId: user.id,
-          amount: 20000,
-          currency: "CNY",
-          effectiveDate: new Date("2024-01-10"),
-        },
-        {
-          userId: user.id,
-          amount: 20000,
-          currency: "CNY",
-          effectiveDate: new Date("2025-01-10"),
-        },
-      ],
-    });
-  } catch (_e) {
-    // 忽略重复插入错误
-    console.log("BonusPlan data already exists, skipping...");
-  }
+  await prisma.bonusPlan.createMany({
+    data: [
+      {
+        userId: user.id,
+        amount: 20000,
+        currency: "CNY",
+        effectiveDate: new Date("2024-12-15"),
+      },
+      {
+        userId: user.id,
+        amount: 30000,
+        currency: "CNY",
+        effectiveDate: new Date("2025-03-15"),
+      },
+    ],
+  });
 
   // 长期现金：每年 4 月授予，季度 4 期
-  async function createLTCPlan(year) {
-    try {
-      const plan = await prisma.longTermCashPlan.create({
-        data: {
-          userId: user.id,
-          totalAmount: 12000,
-          currency: "CNY",
-          startDate: new Date(`${year}-04-01`),
-          periods: 4,
-          recurrence: "QUARTERLY",
-        },
-      });
-      const per = 12000 / 4;
-      try {
-        await prisma.longTermCashPayout.createMany({
-          data: [
-            {
-              planId: plan.id,
-              payDate: new Date(`${year}-04-01`),
-              amount: per,
-              currency: "CNY",
-            },
-            {
-              planId: plan.id,
-              payDate: new Date(`${year}-07-01`),
-              amount: per,
-              currency: "CNY",
-            },
-            {
-              planId: plan.id,
-              payDate: new Date(`${year}-10-01`),
-              amount: per,
-              currency: "CNY",
-            },
-            {
-              planId: plan.id,
-              payDate: new Date(`${year + 1}-01-01`),
-              amount: per,
-              currency: "CNY",
-            },
-          ],
-        });
-      } catch (_e) {
-        console.log(`LTC Payouts for ${year} already exist, skipping...`);
-      }
-    } catch (_e) {
-      console.log(`LTC Plan for ${year} already exists, skipping...`);
-    }
-  }
-  await createLTCPlan(2023);
-  await createLTCPlan(2024);
-  await createLTCPlan(2025);
+  const ltcPlan = await prisma.longTermCashPlan.create({
+    data: {
+      userId: user.id,
+      totalAmount: 160000,
+      currency: "CNY",
+      startDate: new Date("2025-01-01"),
+      periods: 16,
+      recurrence: "CUSTOM",
+    },
+  });
+  const ltcPayDates = [
+    "2025-01-01",
+    "2025-03-01",
+    "2025-04-01",
+    "2025-06-01",
+    "2025-07-01",
+    "2025-09-01",
+    "2025-10-01",
+    "2025-12-01",
+    "2026-01-01",
+    "2026-03-01",
+    "2026-04-01",
+    "2026-06-01",
+    "2026-07-01",
+    "2026-09-01",
+    "2026-10-01",
+    "2026-12-01",
+  ];
+  const ltcAmount = 160000 / ltcPayDates.length;
+  await prisma.longTermCashPayout.createMany({
+    data: ltcPayDates.map((iso) => ({
+      planId: ltcPlan.id,
+      payDate: new Date(iso),
+      amount: ltcAmount,
+      currency: "CNY",
+    })),
+  });
 
   console.log("Seeding done.");
 }

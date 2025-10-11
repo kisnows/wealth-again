@@ -26,11 +26,9 @@ describe("用户资料 API", () => {
     });
 
     const res = await route.PATCH(
-      makeJsonRequest(
-        "http://localhost/api/v1/user/profile",
-        "PATCH",
-        { baseCurrency: "USD" }
-      ),
+      makeJsonRequest("http://localhost/api/v1/user/profile", "PATCH", {
+        baseCurrency: "USD",
+      }),
     );
 
     expect(res.status).toBe(200);
@@ -43,11 +41,9 @@ describe("用户资料 API", () => {
     const route = await import("@/app/api/v1/user/profile/route");
 
     const res = await route.PATCH(
-      makeJsonRequest(
-        "http://localhost/api/v1/user/profile",
-        "PATCH",
-        { currentCityId: "c2" }
-      ),
+      makeJsonRequest("http://localhost/api/v1/user/profile", "PATCH", {
+        currentCityId: "c2",
+      }),
     );
 
     expect(res.status).toBe(400);

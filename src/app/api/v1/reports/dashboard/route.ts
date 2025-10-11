@@ -12,9 +12,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const displayCurrency = searchParams.get("displayCurrency") || undefined;
   const user = await getUserFromRequest(req);
-  if (!user)
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const items = await computeAccountSummary(displayCurrency, (user as any).id);
+  const items = await computeAccountSummary(displayCurrency, user.id);
   const totals = items.reduce(
     (acc, i) => {
       const v = i.displayValue ?? i.valuation;

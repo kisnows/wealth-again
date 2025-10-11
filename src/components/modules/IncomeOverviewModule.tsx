@@ -37,19 +37,19 @@ import { useUserPrefsStore } from "@/lib/state/user-prefs";
 export default function IncomeOverviewModule() {
   const { displayCurrency } = useUserPrefsStore();
   const currency = displayCurrency || "CNY";
-  
+
   const {
     stats: overviewStats,
     loading: overviewLoading,
     error: overviewError,
   } = useIncomeStore(selectOverviewState);
-  
+
   const {
     data: timeseriesData,
     loading: timeseriesLoading,
     error: timeseriesError,
   } = useIncomeStore(selectTimeseriesState);
-  
+
   const {
     setOverviewStats,
     setOverviewLoading,
@@ -57,26 +57,29 @@ export default function IncomeOverviewModule() {
     setTimeseriesData,
     setTimeseriesLoading,
     setTimeseriesError,
+    recalcToken,
   } = useIncomeStore();
-  
+
   // 默认查询当年至今的数据
   const currentYear = new Date().getFullYear();
   const [dateRange, setDateRange] = useState({
     startDate: `${currentYear}-01-01`,
     endDate: new Date().toISOString().substring(0, 10),
   });
-  
+
   // 加载概况数据
   const loadOverviewData = async () => {
     setOverviewLoading(true);
     setOverviewError(null);
-    
+    setTimeseriesLoading(true);
+    setTimeseriesError(null);
+
     try {
       const [overviewResult, timeseriesResult] = await Promise.all([
         fetchIncomeOverview(dateRange.startDate, dateRange.endDate),
         fetchIncomeTimeseries(dateRange.startDate, dateRange.endDate),
       ]);
-      
+
       setOverviewStats(overviewResult);
       setTimeseriesData(timeseriesResult.series);
     } catch (error) {
@@ -85,14 +88,15 @@ export default function IncomeOverviewModule() {
       toast.error(errorMessage);
     } finally {
       setOverviewLoading(false);
+      setTimeseriesLoading(false);
     }
   };
-  
+
   // 初始加载
   useEffect(() => {
     loadOverviewData();
-  }, [dateRange]);
-  
+  }, [dateRange, recalcToken]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -103,7 +107,7 @@ export default function IncomeOverviewModule() {
           </p>
         </div>
       </div>
-      
+
       {/* 时间范围选择 */}
       <Card>
         <CardHeader>
@@ -120,7 +124,12 @@ export default function IncomeOverviewModule() {
                 id="overviewStartDate"
                 type="date"
                 value={dateRange.startDate}
-                onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                onChange={(e) =>
+                  setDateRange((prev) => ({
+                    ...prev,
+                    startDate: e.target.value,
+                  }))
+                }
               />
             </div>
             <div>
@@ -129,26 +138,32 @@ export default function IncomeOverviewModule() {
                 id="overviewEndDate"
                 type="date"
                 value={dateRange.endDate}
-                onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                onChange={(e) =>
+                  setDateRange((prev) => ({ ...prev, endDate: e.target.value }))
+                }
               />
             </div>
             <div className="flex items-end">
               <div className="flex gap-2">
                 <button
                   className="px-3 py-2 text-sm border rounded hover:bg-gray-50"
-                  onClick={() => setDateRange({
-                    startDate: `${currentYear}-01-01`,
-                    endDate: new Date().toISOString().substring(0, 10),
-                  })}
+                  onClick={() =>
+                    setDateRange({
+                      startDate: `${currentYear}-01-01`,
+                      endDate: new Date().toISOString().substring(0, 10),
+                    })
+                  }
                 >
                   今年至今
                 </button>
                 <button
                   className="px-3 py-2 text-sm border rounded hover:bg-gray-50"
-                  onClick={() => setDateRange({
-                    startDate: `${currentYear - 1}-01-01`,
-                    endDate: `${currentYear - 1}-12-31`,
-                  })}
+                  onClick={() =>
+                    setDateRange({
+                      startDate: `${currentYear - 1}-01-01`,
+                      endDate: `${currentYear - 1}-12-31`,
+                    })
+                  }
                 >
                   去年全年
                 </button>
@@ -157,16 +172,14 @@ export default function IncomeOverviewModule() {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* 年度概况卡片 */}
       {overviewLoading ? (
         <div className="text-center py-8 text-gray-500">
           正在加载概况数据...
         </div>
       ) : overviewError ? (
-        <div className="text-center py-8 text-red-500">
-          {overviewError}
-        </div>
+        <div className="text-center py-8 text-red-500">{overviewError}</div>
       ) : overviewStats && overviewStats.monthsCount > 0 ? (
         <>
           <Card>
@@ -187,61 +200,89 @@ export default function IncomeOverviewModule() {
                   </div>
                   <div className="text-sm text-gray-600 mb-1">税前收入</div>
                   {overviewStats.yearOverYearGrowth !== 0 && (
-                    <div className={`flex items-center justify-center gap-1 text-xs ${
-                      overviewStats.yearOverYearGrowth > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <div
+                      className={`flex items-center justify-center gap-1 text-xs ${
+                        overviewStats.yearOverYearGrowth > 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
                       {overviewStats.yearOverYearGrowth > 0 ? (
                         <ArrowUpIcon className="w-3 h-3" />
                       ) : (
                         <ArrowDownIcon className="w-3 h-3" />
                       )}
-                      {Math.abs(overviewStats.yearOverYearGrowth * 100).toFixed(1)}%
+                      {Math.abs(overviewStats.yearOverYearGrowth * 100).toFixed(
+                        1,
+                      )}
+                      %
                     </div>
                   )}
                 </div>
-                
+
                 <div className="text-center">
                   <div className="text-3xl font-bold text-orange-600 mb-2">
                     {formatMoney(overviewStats.totalSocialInsurance, currency)}
                   </div>
                   <div className="text-sm text-gray-600 mb-1">社保</div>
                   <div className="text-xs text-gray-500">
-                    占比 {overviewStats.totalGrossIncome > 0 ? 
-                      ((overviewStats.totalSocialInsurance / overviewStats.totalGrossIncome) * 100).toFixed(1) : 0}%
+                    占比{" "}
+                    {overviewStats.totalGrossIncome > 0
+                      ? (
+                          (overviewStats.totalSocialInsurance /
+                            overviewStats.totalGrossIncome) *
+                          100
+                        ).toFixed(1)
+                      : 0}
+                    %
                   </div>
                 </div>
-                
+
                 <div className="text-center">
                   <div className="text-3xl font-bold text-purple-600 mb-2">
                     {formatMoney(overviewStats.totalHousingFund, currency)}
                   </div>
                   <div className="text-sm text-gray-600 mb-1">公积金</div>
                   <div className="text-xs text-gray-500">
-                    占比 {overviewStats.totalGrossIncome > 0 ? 
-                      ((overviewStats.totalHousingFund / overviewStats.totalGrossIncome) * 100).toFixed(1) : 0}%
+                    占比{" "}
+                    {overviewStats.totalGrossIncome > 0
+                      ? (
+                          (overviewStats.totalHousingFund /
+                            overviewStats.totalGrossIncome) *
+                          100
+                        ).toFixed(1)
+                      : 0}
+                    %
                   </div>
                 </div>
-                
+
                 <div className="text-center">
                   <div className="text-3xl font-bold text-green-600 mb-2">
                     {formatMoney(overviewStats.totalNetIncome, currency)}
                   </div>
                   <div className="text-sm text-gray-600 mb-1">税后收入</div>
                   {overviewStats.yearOverYearGrowth !== 0 && (
-                    <div className={`flex items-center justify-center gap-1 text-xs ${
-                      overviewStats.yearOverYearGrowth > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <div
+                      className={`flex items-center justify-center gap-1 text-xs ${
+                        overviewStats.yearOverYearGrowth > 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
                       {overviewStats.yearOverYearGrowth > 0 ? (
                         <ArrowUpIcon className="w-3 h-3" />
                       ) : (
                         <ArrowDownIcon className="w-3 h-3" />
                       )}
-                      {Math.abs(overviewStats.yearOverYearGrowth * 100).toFixed(1)}%
+                      {Math.abs(overviewStats.yearOverYearGrowth * 100).toFixed(
+                        1,
+                      )}
+                      %
                     </div>
                   )}
                 </div>
               </div>
-              
+
               <div className="mt-6 pt-6 border-t">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
                   <div>
@@ -266,7 +307,7 @@ export default function IncomeOverviewModule() {
               </div>
             </CardContent>
           </Card>
-          
+
           {/* 月度趋势图 */}
           <Card>
             <CardHeader>
@@ -274,9 +315,7 @@ export default function IncomeOverviewModule() {
                 <TrendingUpIcon className="w-5 h-5" />
                 月度趋势
               </CardTitle>
-              <CardDescription>
-                收入趋势变化图表
-              </CardDescription>
+              <CardDescription>收入趋势变化图表</CardDescription>
             </CardHeader>
             <CardContent>
               {timeseriesLoading ? (
@@ -288,7 +327,7 @@ export default function IncomeOverviewModule() {
                   {timeseriesError}
                 </div>
               ) : timeseriesData ? (
-                                  <div className="space-y-4">
+                <div className="space-y-4">
                   {/* 简化的趋势展示 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -320,7 +359,7 @@ export default function IncomeOverviewModule() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* 数据概览 */}
                   <div className="pt-4 border-t">
                     <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
@@ -332,28 +371,36 @@ export default function IncomeOverviewModule() {
                         <DollarSignIcon className="w-4 h-4 text-blue-500" />
                         <div>
                           <div className="text-gray-600">工资数据点</div>
-                          <div className="font-medium">{timeseriesData.gross?.length || 0} 个月</div>
+                          <div className="font-medium">
+                            {timeseriesData.gross?.length || 0} 个月
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <TrendingUpIcon className="w-4 h-4 text-orange-500" />
                         <div>
                           <div className="text-gray-600">奖金数据点</div>
-                          <div className="font-medium">{timeseriesData.bonus?.length || 0} 个月</div>
+                          <div className="font-medium">
+                            {timeseriesData.bonus?.length || 0} 个月
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <CalendarIcon className="w-4 h-4 text-purple-500" />
                         <div>
                           <div className="text-gray-600">长期现金数据点</div>
-                          <div className="font-medium">{timeseriesData.ltcIncome?.length || 0} 个月</div>
+                          <div className="font-medium">
+                            {timeseriesData.ltcIncome?.length || 0} 个月
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <ArrowUpIcon className="w-4 h-4 text-green-500" />
                         <div>
                           <div className="text-gray-600">股权收入数据点</div>
-                          <div className="font-medium">{timeseriesData.equityIncome?.length || 0} 个月</div>
+                          <div className="font-medium">
+                            {timeseriesData.equityIncome?.length || 0} 个月
+                          </div>
                         </div>
                       </div>
                     </div>

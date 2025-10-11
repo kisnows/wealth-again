@@ -61,9 +61,7 @@ const countryLabels: Record<string, string> = {
 
 const cityChangeSchema = z.object({
   toCityId: z.string().min(1, "请选择目标城市"),
-  effectiveMonth: z
-    .string()
-    .regex(/^\d{4}-\d{2}$/, "请选择生效月份"),
+  effectiveMonth: z.string().regex(/^\d{4}-\d{2}$/, "请选择生效月份"),
   reason: z
     .string()
     .max(120, "备注最多 120 个字符")
@@ -75,7 +73,9 @@ type CityChangeFormValues = z.infer<typeof cityChangeSchema>;
 
 function getNextMonthValue(): string {
   const now = new Date();
-  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const next = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+  );
   const month = String(next.getUTCMonth() + 1).padStart(2, "0");
   return `${next.getUTCFullYear()}-${month}`;
 }
@@ -109,7 +109,8 @@ function findUpcomingChange(items: CityChangeItem[]) {
       new Date(b.effectiveMonth).getTime(),
   );
   return sorted.find(
-    (change) => new Date(change.effectiveMonth).getTime() > monthStart.getTime(),
+    (change) =>
+      new Date(change.effectiveMonth).getTime() > monthStart.getTime(),
   );
 }
 
@@ -265,6 +266,30 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>当前用户 ID</Label>
+            <div className="flex items-center justify-between rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+              <code className="break-all font-mono text-xs text-foreground/80">
+                {user?.id ?? "未获取到用户信息"}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!user?.id}
+                onClick={async () => {
+                  if (!user?.id) return;
+                  try {
+                    await navigator.clipboard.writeText(user.id);
+                    toast.success("用户 ID 已复制");
+                  } catch (_error) {
+                    toast.error("复制失败，请手动选择复制");
+                  }
+                }}
+              >
+                复制
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -274,9 +299,9 @@ export default function SettingsPage() {
             <Calendar className="h-5 w-5" />
             城市迁移
           </CardTitle>
-            <CardDescription>
-              提交迁移后，从生效月份起系统会按新城市的税务与社保规则回算收入
-            </CardDescription>
+          <CardDescription>
+            提交迁移后，从生效月份起系统会按新城市的税务与社保规则回算收入
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <Form {...changeForm}>

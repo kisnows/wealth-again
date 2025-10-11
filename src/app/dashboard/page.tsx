@@ -406,7 +406,7 @@ export default function DashboardPage() {
                 转账
               </Button>
             </Link>
-            <Link href="/income/recalc">
+            <Link href="/income?dialog=recalc">
               <Button
                 variant="outline"
                 className="w-full flex items-center gap-2"

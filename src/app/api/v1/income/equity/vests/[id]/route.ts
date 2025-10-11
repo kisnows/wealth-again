@@ -11,7 +11,7 @@ import { getUserFromRequest } from "@/server/utils/auth";
 // 回填归属日 fairValue/currency
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const user = await getUserFromRequest(req as any);

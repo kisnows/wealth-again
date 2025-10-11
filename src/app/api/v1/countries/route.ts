@@ -5,7 +5,7 @@ import { type NextRequest, NextResponse } from "next/server";
  * - 获取支持的国家列表
  * - 返回: Country[]
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     // 预定义的国家列表，包含税制和社保信息
     const countries = [
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     console.error("Get countries error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

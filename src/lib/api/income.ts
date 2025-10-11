@@ -77,7 +77,7 @@ export type AnnualDeduction = {
 export function useIncomeRecords(
   userId: string | undefined,
   from: string,
-  to: string
+  to: string,
 ) {
   const key =
     from && to
@@ -106,7 +106,7 @@ export async function createSalaryChange(input: {
 }) {
   const res = await postJson<SalaryChange>(
     "/api/v1/income/salary-changes",
-    input
+    input,
   );
   await globalMutate(`/api/v1/income/salary-changes?userId=${input.userId}`);
   return res;
@@ -144,7 +144,7 @@ export async function createLTCPlan(input: {
 }) {
   const res = await postJson<LongTermCashPlan>(
     "/api/v1/income/ltc/plans",
-    input
+    input,
   );
   await globalMutate(`/api/v1/income/ltc/plans?userId=${input.userId}`);
   return res;
@@ -171,7 +171,7 @@ export async function createEquityGrant(input: {
 }) {
   const res = await postJson<EquityGrant>(
     "/api/v1/income/equity/grants",
-    input
+    input,
   );
   await globalMutate(`/api/v1/income/equity/grants?userId=${input.userId}`);
   return res;
@@ -183,7 +183,7 @@ export async function generateEquityVests(id: string) {
 
 export async function updateEquityVest(
   id: string,
-  input: { fairValue: number; currency: string }
+  input: { fairValue: number; currency: string },
 ) {
   return patchJson(`/api/v1/income/equity/vests/${id}`, input);
 }

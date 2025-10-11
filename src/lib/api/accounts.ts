@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR, { mutate as globalMutate } from "swr";
-import { getJson, patchJson, postJson } from "@/lib/utils/fetcher";
+import { deleteJson, getJson, patchJson, postJson } from "@/lib/utils/fetcher";
 
 export type Account = {
   id: string;
@@ -15,10 +15,28 @@ export type Account = {
   initialBalance?: number;
 };
 
+const ACCOUNTS_KEY = "/api/v1/accounts";
+const ACCOUNTS_SUMMARY_PREFIX = "/api/v1/reports/accounts/summary";
+
 export function useAccounts() {
-  const key = "/api/v1/accounts";
-  const swr = useSWR<Account[]>(key, getJson);
-  return { ...swr, refresh: () => globalMutate(key) };
+  const swr = useSWR<Account[]>(ACCOUNTS_KEY, getJson);
+  return { ...swr, refresh: () => globalMutate(ACCOUNTS_KEY) };
+}
+
+function revalidateAccountSummaries() {
+  return globalMutate((key) => {
+    if (typeof key !== "string") return false;
+    return key.startsWith(ACCOUNTS_SUMMARY_PREFIX);
+  });
+}
+
+async function revalidateAccountsData(options?: { skipList?: boolean }) {
+  const tasks: Array<Promise<any>> = [];
+  if (!options?.skipList) {
+    tasks.push(globalMutate(ACCOUNTS_KEY));
+  }
+  tasks.push(revalidateAccountSummaries());
+  await Promise.all(tasks);
 }
 
 export type AccountSummary = {
@@ -41,7 +59,7 @@ export function useAccountTimeseries(
   id: string | undefined,
   metric: "valuation" | "principal" = "valuation",
   from?: string,
-  to?: string
+  to?: string,
 ) {
   if (!id)
     return { data: undefined, error: undefined, isLoading: false } as const;
@@ -51,26 +69,34 @@ export function useAccountTimeseries(
   const key = `/api/v1/accounts/${id}/timeseries?${params.toString()}`;
   return useSWR<{ points: Array<{ asOf: string; value: number }> }>(
     key,
-    getJson
+    getJson,
   );
 }
 
 export async function createAccount(input: Omit<Account, "id" | "userId">) {
   const created = await postJson<Account>("/api/v1/accounts", input);
-  await globalMutate("/api/v1/accounts");
+  await revalidateAccountsData();
   return created;
 }
 
 export async function updateAccount(
   id: string,
-  patch: Partial<Pick<Account, "name" | "subType" | "description" | "status">>
+  patch: Partial<Pick<Account, "name" | "subType" | "description" | "status">>,
 ) {
-  return patchJson<Account>(`/api/v1/accounts/${id}`, patch);
+  const updated = await patchJson<Account>(`/api/v1/accounts/${id}`, patch);
+  await revalidateAccountsData();
+  return updated;
 }
 
 export async function archiveAccount(id: string) {
   const res = await postJson(`/api/v1/accounts/${id}/archive`, {});
-  await globalMutate("/api/v1/accounts");
+  await revalidateAccountsData();
+  return res;
+}
+
+export async function deleteAccount(id: string) {
+  const res = await deleteJson<{ id: string }>(`/api/v1/accounts/${id}`);
+  await revalidateAccountsData();
   return res;
 }
 
@@ -80,7 +106,9 @@ export async function postDeposit(input: {
   occurredAt: string;
   note?: string;
 }) {
-  return postJson("/api/v1/entries/deposit", input);
+  const res = await postJson("/api/v1/entries/deposit", input);
+  await revalidateAccountsData({ skipList: true });
+  return res;
 }
 
 export async function postWithdraw(input: {
@@ -89,7 +117,9 @@ export async function postWithdraw(input: {
   occurredAt: string;
   note?: string;
 }) {
-  return postJson("/api/v1/entries/withdraw", input);
+  const res = await postJson("/api/v1/entries/withdraw", input);
+  await revalidateAccountsData({ skipList: true });
+  return res;
 }
 
 export async function postTransfer(input: {
@@ -99,7 +129,9 @@ export async function postTransfer(input: {
   note?: string;
   asOf?: string;
 }) {
-  return postJson("/api/v1/entries/transfer", input);
+  const res = await postJson("/api/v1/entries/transfer", input);
+  await revalidateAccountsData({ skipList: true });
+  return res;
 }
 
 export async function postValuation(input: {
@@ -110,5 +142,7 @@ export async function postValuation(input: {
   fxRateId?: string;
   note?: string;
 }) {
-  return postJson("/api/v1/valuations", input);
+  const res = await postJson("/api/v1/valuations", input);
+  await revalidateAccountsData({ skipList: true });
+  return res;
 }

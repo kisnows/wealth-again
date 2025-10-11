@@ -16,41 +16,93 @@ import {
 export async function POST(req: NextRequest) {
   const { accountId, amount, occurredAt, note } = await req.json();
   const user = await getUserFromRequest(req);
-  if (!user)
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const depositAmount = Number(amount);
+  if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
+    return NextResponse.json({ error: "invalid amount" }, { status: 400 });
+  }
+  const occurredAtDate = new Date(occurredAt);
+  if (Number.isNaN(occurredAtDate.getTime())) {
+    return NextResponse.json({ error: "invalid occurredAt" }, { status: 400 });
+  }
   const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || account.userId !== (user as any).id) {
+  if (!account || account.userId !== user.id) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
   const { key, existed } = await ensureIdempotent(
     req,
-    (user as any).id,
-    `${accountId}:${amount}:${occurredAt}:${note ?? ""}`,
+    user.id,
+    `${accountId}:${depositAmount}:${occurredAt}:${note ?? ""}`,
   );
   if (existed)
     return NextResponse.json(
       { error: "Idempotency key reused" },
       { status: 409 },
     );
-  const entry = await prisma.txnEntry.create({
-    data: {
-      userId: (user as any).id,
-      type: "DEPOSIT",
-      occurredAt: new Date(occurredAt),
-      note,
-      lines: {
-        create: {
-          accountId,
-          amount: amount,
-          currency: account.baseCurrency,
-          note,
+  const entry = await prisma.$transaction(async (tx) => {
+    const createdEntry = await tx.txnEntry.create({
+      data: {
+        userId: user.id,
+        type: "DEPOSIT",
+        occurredAt: occurredAtDate,
+        note,
+        lines: {
+          create: {
+            accountId,
+            amount: depositAmount,
+            currency: account.baseCurrency,
+            note,
+          },
         },
       },
-    },
-    include: { lines: true },
+      include: { lines: true },
+    });
+    if (account.accountType === "INVESTMENT") {
+      const [latestSnapshot, lineSum] = await Promise.all([
+        tx.valuationSnapshot.findFirst({
+          where: { accountId },
+          orderBy: { asOf: "desc" },
+        }),
+        tx.txnLine.aggregate({
+          where: { accountId },
+          _sum: { amount: true },
+        }),
+      ]);
+      const summedAmount =
+        lineSum._sum.amount != null ? Number(lineSum._sum.amount) : 0;
+      const principalAfter = Number(account.initialBalance ?? 0) + summedAmount;
+      const previousValue =
+        latestSnapshot?.totalValue?.toNumber() ??
+        principalAfter - depositAmount;
+      const newValue = previousValue + depositAmount;
+      const snapshotCurrency = latestSnapshot?.currency ?? account.baseCurrency;
+      const snapshotFxRateId = latestSnapshot?.fxRateId ?? null;
+      const snapshotNote = latestSnapshot?.note ?? null;
+      await tx.valuationSnapshot.upsert({
+        where: {
+          accountId_asOf: { accountId, asOf: occurredAtDate },
+        },
+        update: {
+          totalValue: newValue,
+          currency: snapshotCurrency,
+          fxRateId: snapshotFxRateId,
+          note: snapshotNote,
+        },
+        create: {
+          accountId,
+          asOf: occurredAtDate,
+          totalValue: newValue,
+          currency: snapshotCurrency,
+          fxRateId: snapshotFxRateId,
+          note: note ?? snapshotNote,
+        },
+      });
+    }
+    return createdEntry;
   });
   await logAudit("ENTRY_DEPOSIT", {
-    userId: (user as any).id,
+    userId: user.id,
     meta: { entryId: entry.id },
   });
   await markIdempotencyUsed(key);

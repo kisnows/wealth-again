@@ -52,8 +52,8 @@ describe("Accounts & Entries routes", () => {
           accountType: "SAVINGS",
           baseCurrency: "CNY",
         },
-        { "Idempotency-Key": "k1" }
-      )
+        { "Idempotency-Key": "k1" },
+      ),
     );
     expect(res.status).toBe(201);
     expect(mockPrisma.idempotencyKey.create).toHaveBeenCalled();
@@ -71,7 +71,7 @@ describe("Accounts & Entries routes", () => {
       makeJsonRequest("http://localhost/api/v1/accounts/a1", "PATCH", {
         baseCurrency: "USD",
       }),
-      { params: { id: "a1" } }
+      { params: { id: "a1" } },
     );
     expect(res.status).toBe(400);
   });
@@ -89,7 +89,7 @@ describe("Accounts & Entries routes", () => {
     const m = await import("@/app/api/v1/accounts/[id]/archive/route");
     const res = await m.POST(
       makeGet("http://localhost/api/v1/accounts/a1/archive"),
-      { params: { id: "a1" } }
+      { params: { id: "a1" } },
     );
     expect(res.status).toBe(200);
   });
@@ -105,9 +105,9 @@ describe("Accounts & Entries routes", () => {
     const m = await import("@/app/api/v1/accounts/[id]/timeseries/route");
     const res = await m.GET(
       makeGet(
-        "http://localhost/api/v1/accounts/acc1/timeseries?metric=valuation&from=2025-08-01&to=2025-08-31"
+        "http://localhost/api/v1/accounts/acc1/timeseries?metric=valuation&from=2025-08-01&to=2025-08-31",
       ),
-      { params: { id: "acc1" } }
+      { params: { id: "acc1" } },
     );
     expect(res.status).toBe(200);
     const j = await res.json();
@@ -139,9 +139,9 @@ describe("Accounts & Entries routes", () => {
       }); // 第二次调用：获取详细数据
     const res = await m.GET(
       makeGet(
-        "http://localhost/api/v1/accounts/a/timeseries?metric=principal&to=2025-09-01"
+        "http://localhost/api/v1/accounts/a/timeseries?metric=principal&to=2025-09-01",
       ),
-      { params: { id: "a" } }
+      { params: { id: "a" } },
     );
     expect(res.status).toBe(200);
     const j = await res.json();
@@ -161,7 +161,7 @@ describe("Accounts & Entries routes", () => {
       makeJsonRequest("http://localhost/api/v1/accounts/a", "PATCH", {
         name: "New",
       }),
-      { params: { id: "a" } }
+      { params: { id: "a" } },
     );
     expect(res.status).toBe(200);
     const j = await res.json();
@@ -176,7 +176,7 @@ describe("Accounts & Entries routes", () => {
         accountId: "x",
         amount: 1,
         occurredAt: new Date().toISOString(),
-      })
+      }),
     );
     expect(res.status).toBe(404);
   });
@@ -200,8 +200,8 @@ describe("Accounts & Entries routes", () => {
           occurredAt: new Date().toISOString(),
           note: "n",
         },
-        { "Idempotency-Key": "k2" }
-      )
+        { "Idempotency-Key": "k2" },
+      ),
     );
     expect(res.status).toBe(201);
     expect(mockPrisma.auditLog.create).toHaveBeenCalled();
@@ -215,7 +215,7 @@ describe("Accounts & Entries routes", () => {
         from: { accountId: "a", amount: 10 },
         to: { accountId: "b" },
         occurredAt: new Date().toISOString(),
-      })
+      }),
     );
     expect(res.status).toBe(404);
 
@@ -232,7 +232,7 @@ describe("Accounts & Entries routes", () => {
         from: { accountId: "a", amount: 10 },
         to: { accountId: "b", amount: 10 },
         occurredAt: new Date().toISOString(),
-      })
+      }),
     );
     expect(res.status).toBe(201);
   });
@@ -253,7 +253,7 @@ describe("Accounts & Entries routes", () => {
         accountId: "a",
         amount: 10,
         occurredAt: new Date().toISOString(),
-      })
+      }),
     );
     expect(res.status).toBe(201);
     // 摘要：初始100 + 10 = 110
@@ -270,7 +270,7 @@ describe("Accounts & Entries routes", () => {
     const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
-      { params: { id: "a" } }
+      { params: { id: "a" } },
     );
     const j = await resSum.json();
     expect(j.principal).toBe(110);
@@ -292,7 +292,7 @@ describe("Accounts & Entries routes", () => {
         accountId: "a",
         amount: 10,
         occurredAt: new Date().toISOString(),
-      })
+      }),
     );
     expect(res.status).toBe(201);
     // 摘要：初始100 - 10 = 90
@@ -309,7 +309,7 @@ describe("Accounts & Entries routes", () => {
     const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
-      { params: { id: "a" } }
+      { params: { id: "a" } },
     );
     const j = await resSum.json();
     expect(j.principal).toBe(90);
@@ -330,7 +330,7 @@ describe("Accounts & Entries routes", () => {
         to: { accountId: "b" },
         asOf: new Date().toISOString(),
         occurredAt: new Date().toISOString(),
-      })
+      }),
     );
     expect(res.status).toBe(201);
     const entry = await res.json();
@@ -354,7 +354,7 @@ describe("Account summary route", () => {
     const m = await import("@/app/api/v1/accounts/[id]/summary/route");
     const res = await m.GET(
       makeGet("http://localhost/api/v1/accounts/acc1/summary"),
-      { params: { id: "acc1" } }
+      { params: { id: "acc1" } },
     );
     expect(res.status).toBe(200);
     const j = await res.json();
@@ -381,7 +381,7 @@ describe("Entries transfer success case", () => {
         to: { accountId: "b" },
         occurredAt: new Date().toISOString(),
         note: "t",
-      })
+      }),
     );
     expect(res.status).toBe(201);
     const entry = await res.json();
@@ -404,7 +404,7 @@ describe("Entries transfer success case", () => {
     });
     const resA = await summaryRoute.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
-      { params: { id: "a" } }
+      { params: { id: "a" } },
     );
     const sjA = await resA.json();
     expect(sjA.principal).toBe(95);
@@ -422,7 +422,7 @@ describe("Entries transfer success case", () => {
     });
     const resB = await summaryRoute.GET(
       makeGet("http://localhost/api/v1/accounts/b/summary"),
-      { params: { id: "b" } }
+      { params: { id: "b" } },
     );
     const sjB = await resB.json();
     expect(sjB.principal).toBe(55);

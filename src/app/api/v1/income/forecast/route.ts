@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (!startDate || !endDate) {
     return NextResponse.json(
       { error: "startDate and endDate are required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
         const nextMonthStart = new Date(
           monthDate.getFullYear(),
           monthDate.getMonth() + 1,
-          1
+          1,
         );
 
         // 获取当月工资
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
         const monthCityId = getCityForMonth(
           cityChanges,
           monthDate,
-          userRecord.currentCityId
+          userRecord.currentCityId,
         );
 
         // 获取社保规则
@@ -193,7 +193,7 @@ export async function GET(req: NextRequest) {
         const standardDeduction =
           toNumber(taxConfig?.standardDeduction) || 5000;
         const specialAdditionalDeduction = toNumber(
-          taxConfig?.specialAdditionalDeduction
+          taxConfig?.specialAdditionalDeduction,
         );
 
         // 计算当月应税收入
@@ -203,7 +203,7 @@ export async function GET(req: NextRequest) {
             socialInsurance -
             housingFund -
             standardDeduction -
-            specialAdditionalDeduction
+            specialAdditionalDeduction,
         );
 
         return {
@@ -218,7 +218,7 @@ export async function GET(req: NextRequest) {
           monthlyTaxableIncome, // 临时字段，用于后续税收计算
           currency,
         };
-      })
+      }),
     );
 
     // 首先需要计算年初到查询起始月之前的累计应税收入
@@ -232,7 +232,7 @@ export async function GET(req: NextRequest) {
         yearStart.toISOString().slice(0, 10),
         new Date(queryStartDate.getTime() - 24 * 60 * 60 * 1000)
           .toISOString()
-          .slice(0, 10)
+          .slice(0, 10),
       );
 
       // 计算年初到查询开始前的累计应税收入
@@ -243,7 +243,7 @@ export async function GET(req: NextRequest) {
         const priorMonthCityId = getCityForMonth(
           cityChanges,
           priorMonthDate,
-          userRecord.currentCityId
+          userRecord.currentCityId,
         );
 
         // 获取历史社保规则
@@ -280,7 +280,7 @@ export async function GET(req: NextRequest) {
         const priorStandardDeduction =
           toNumber(priorTaxConfig?.standardDeduction) || 5000;
         const priorSpecialAdditionalDeduction = toNumber(
-          priorTaxConfig?.specialAdditionalDeduction
+          priorTaxConfig?.specialAdditionalDeduction,
         );
 
         // 计算历史社保和公积金
@@ -291,14 +291,14 @@ export async function GET(req: NextRequest) {
           ? clamp(
               priorSalary,
               toNumber(priorSsRule.baseMin),
-              toNumber(priorSsRule.baseMax)
+              toNumber(priorSsRule.baseMax),
             )
           : 0;
         const priorHfBase = priorHfRule
           ? clamp(
               priorSalary,
               toNumber(priorHfRule.baseMin),
-              toNumber(priorHfRule.baseMax)
+              toNumber(priorHfRule.baseMax),
             )
           : 0;
 
@@ -325,7 +325,7 @@ export async function GET(req: NextRequest) {
             priorSocialInsurance -
             priorHousingFund -
             priorStandardDeduction -
-            priorSpecialAdditionalDeduction
+            priorSpecialAdditionalDeduction,
         );
 
         priorYearTaxableIncome += priorMonthlyTaxableIncome;
@@ -357,7 +357,7 @@ export async function GET(req: NextRequest) {
 
       // 基于年初至今累计应税收入计算累计个税
       const yearToDateIncomeTax = calculateAnnualIncomeTax(
-        yearToDateTaxableIncome
+        yearToDateTaxableIncome,
       );
 
       // 计算年初到上月的累计个税
@@ -370,7 +370,7 @@ export async function GET(req: NextRequest) {
           : priorYearTaxableIncome;
 
       const previousYearToDateTax = calculateAnnualIncomeTax(
-        priorYearToDateTaxableIncome
+        priorYearToDateTaxableIncome,
       );
 
       // 当月个税 = 年初至今累计个税 - 年初至上月累计个税
@@ -414,19 +414,25 @@ export async function GET(req: NextRequest) {
             i === index
               ? monthlyIncomeTax
               : i > 0
-              ? calculateAnnualIncomeTax(
-                  monthlyResults
-                    .slice(0, i + 1)
-                    .reduce((s, mr) => s + (mr as any).monthlyTaxableIncome, 0)
-                ) -
-                calculateAnnualIncomeTax(
-                  monthlyResults
-                    .slice(0, i)
-                    .reduce((s, mr) => s + (mr as any).monthlyTaxableIncome, 0)
-                )
-              : calculateAnnualIncomeTax(
-                  (monthlyResults[0] as any).monthlyTaxableIncome
-                );
+                ? calculateAnnualIncomeTax(
+                    monthlyResults
+                      .slice(0, i + 1)
+                      .reduce(
+                        (s, mr) => s + (mr as any).monthlyTaxableIncome,
+                        0,
+                      ),
+                  ) -
+                  calculateAnnualIncomeTax(
+                    monthlyResults
+                      .slice(0, i)
+                      .reduce(
+                        (s, mr) => s + (mr as any).monthlyTaxableIncome,
+                        0,
+                      ),
+                  )
+                : calculateAnnualIncomeTax(
+                    (monthlyResults[0] as any).monthlyTaxableIncome,
+                  );
           return (
             sum + (r.grossIncome - r.socialInsurance - r.housingFund - monthTax)
           );
@@ -476,7 +482,7 @@ export async function GET(req: NextRequest) {
     console.error("Income forecast error:", error);
     return NextResponse.json(
       { error: "Failed to calculate income forecast" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -497,7 +503,7 @@ function toNumber(value: any): number {
 function getCityForMonth(
   cityChanges: any[],
   monthDate: Date,
-  defaultCityId: string
+  defaultCityId: string,
 ): string {
   if (!cityChanges || cityChanges.length === 0) {
     return defaultCityId;
@@ -505,10 +511,10 @@ function getCityForMonth(
   const sorted = [...cityChanges].sort(
     (a, b) =>
       new Date(a.effectiveMonth).getTime() -
-      new Date(b.effectiveMonth).getTime()
+      new Date(b.effectiveMonth).getTime(),
   );
   const monthStart = new Date(
-    Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth(), 1)
+    Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth(), 1),
   );
   let currentCity = sorted[0]?.fromCityId || defaultCityId;
   for (const change of sorted) {
@@ -517,8 +523,8 @@ function getCityForMonth(
       Date.UTC(
         effectiveStart.getUTCFullYear(),
         effectiveStart.getUTCMonth(),
-        1
-      )
+        1,
+      ),
     );
     if (monthStart >= effectiveMonthStart) {
       currentCity = change.toCityId;
@@ -549,7 +555,7 @@ function getMonthsBetween(startDate: string, endDate: string): string[] {
 // 辅助函数：获取指定月份的当前工资
 function getCurrentSalary(salaryChanges: any[], monthDate: Date): number {
   const applicableChanges = salaryChanges.filter(
-    (change) => new Date(change.effectiveFrom) <= monthDate
+    (change) => new Date(change.effectiveFrom) <= monthDate,
   );
 
   if (applicableChanges.length === 0) return 0;

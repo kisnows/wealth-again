@@ -28,9 +28,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  useBonus, 
-  useLTCPlans, 
+import {
+  useBonus,
+  useLTCPlans,
   useSalaryChanges,
   deleteSalaryChange,
   deleteBonus,
@@ -43,7 +43,7 @@ import { mutate } from "swr";
 export default function IncomeEntryModule() {
   const { displayCurrency } = useUserPrefsStore();
   const currency = displayCurrency || "CNY";
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -54,7 +54,7 @@ export default function IncomeEntryModule() {
           </p>
         </div>
       </div>
-      
+
       {/* 平铺显示所有收入信息录入表单 */}
       <div className="space-y-6">
         <SalaryChangesSection currency={currency} />
@@ -75,7 +75,7 @@ function SalaryChangesSection({ currency }: { currency: string }) {
     if (!confirm("确定要删除这条工资变更记录吗？删除后将影响收入计算结果。")) {
       return;
     }
-    
+
     setDeletingId(id);
     try {
       await deleteSalaryChange(id);
@@ -88,7 +88,7 @@ function SalaryChangesSection({ currency }: { currency: string }) {
       setDeletingId(null);
     }
   };
-  
+
   return (
     <Card>
       <CardHeader>
@@ -99,7 +99,7 @@ function SalaryChangesSection({ currency }: { currency: string }) {
               工资变更记录
             </CardTitle>
             <CardDescription>
-              记录工资变更历史，每月1日生效
+              记录工资变更历史，当月生效，同月多次取最后一次
             </CardDescription>
           </div>
           <Link href="/income/salary-changes">
@@ -110,16 +110,14 @@ function SalaryChangesSection({ currency }: { currency: string }) {
           </Link>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         {isLoading ? (
           <div className="text-center py-8 text-gray-500">加载中...</div>
         ) : error ? (
           <div className="text-center py-8 text-red-500">加载失败</div>
         ) : salaryChanges.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            暂无工资变更记录
-          </div>
+          <div className="text-center py-8 text-gray-500">暂无工资变更记录</div>
         ) : (
           <Table>
             <TableHeader>
@@ -148,7 +146,9 @@ function SalaryChangesSection({ currency }: { currency: string }) {
                   </TableCell>
                   <TableCell>
                     {index === 0 ? (
-                      <Badge className="bg-green-100 text-green-800">当前</Badge>
+                      <Badge className="bg-green-100 text-green-800">
+                        当前
+                      </Badge>
                     ) : (
                       <Badge variant="secondary">历史</Badge>
                     )}
@@ -189,7 +189,7 @@ function BonusSection({ currency }: { currency: string }) {
     if (!confirm("确定要删除这条奖金记录吗？删除后将影响收入计算结果。")) {
       return;
     }
-    
+
     setDeletingId(id);
     try {
       await deleteBonus(id);
@@ -202,7 +202,7 @@ function BonusSection({ currency }: { currency: string }) {
       setDeletingId(null);
     }
   };
-  
+
   return (
     <Card>
       <CardHeader>
@@ -212,9 +212,7 @@ function BonusSection({ currency }: { currency: string }) {
               <BanknoteIcon className="w-5 h-5" />
               奖金记录
             </CardTitle>
-            <CardDescription>
-              一次性奖金，与当月工资合并发放
-            </CardDescription>
+            <CardDescription>一次性奖金，与当月工资合并发放</CardDescription>
           </div>
           <Link href="/income/bonus">
             <Button size="sm" className="flex items-center gap-2">
@@ -224,16 +222,14 @@ function BonusSection({ currency }: { currency: string }) {
           </Link>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         {isLoading ? (
           <div className="text-center py-8 text-gray-500">加载中...</div>
         ) : error ? (
           <div className="text-center py-8 text-red-500">加载失败</div>
         ) : bonusPlans.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            暂无奖金记录
-          </div>
+          <div className="text-center py-8 text-gray-500">暂无奖金记录</div>
         ) : (
           <Table>
             <TableHeader>
@@ -261,7 +257,11 @@ function BonusSection({ currency }: { currency: string }) {
                     <Badge variant="outline">{bonus.currency}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={bonus.taxMethod === "MERGE" ? "default" : "secondary"}>
+                    <Badge
+                      variant={
+                        bonus.taxMethod === "MERGE" ? "default" : "secondary"
+                      }
+                    >
                       {bonus.taxMethod === "MERGE" ? "合并计税" : "单独计税"}
                     </Badge>
                   </TableCell>
@@ -292,16 +292,35 @@ function BonusSection({ currency }: { currency: string }) {
 }
 
 // 长期现金计划组件
+function formatRecurrenceLabel(value: string) {
+  switch (value) {
+    case "MONTHLY":
+      return "月度";
+    case "QUARTERLY":
+      return "季度";
+    case "YEARLY":
+      return "年度";
+    case "CUSTOM":
+      return "自定义";
+    default:
+      return value;
+  }
+}
+
 function LongTermCashSection({ currency }: { currency: string }) {
   const { data, isLoading, error } = useLTCPlans();
   const ltcPlans = data?.items ?? [];
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("确定要删除这个长期现金计划吗？删除后将同时删除所有关联的支付记录。")) {
+    if (
+      !confirm(
+        "确定要删除这个长期现金计划吗？删除后将同时删除所有关联的支付记录。",
+      )
+    ) {
       return;
     }
-    
+
     setDeletingId(id);
     try {
       await deleteLTCPlan(id);
@@ -314,7 +333,7 @@ function LongTermCashSection({ currency }: { currency: string }) {
       setDeletingId(null);
     }
   };
-  
+
   return (
     <Card>
       <CardHeader>
@@ -324,9 +343,7 @@ function LongTermCashSection({ currency }: { currency: string }) {
               <TrendingUpIcon className="w-5 h-5" />
               长期现金计划
             </CardTitle>
-            <CardDescription>
-              按季度分期发放的长期现金激励
-            </CardDescription>
+            <CardDescription>按季度分期发放的长期现金激励</CardDescription>
           </div>
           <Link href="/income/long-term-cash">
             <Button size="sm" className="flex items-center gap-2">
@@ -336,16 +353,14 @@ function LongTermCashSection({ currency }: { currency: string }) {
           </Link>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         {isLoading ? (
           <div className="text-center py-8 text-gray-500">加载中...</div>
         ) : error ? (
           <div className="text-center py-8 text-red-500">加载失败</div>
         ) : ltcPlans.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            暂无长期现金计划
-          </div>
+          <div className="text-center py-8 text-gray-500">暂无长期现金计划</div>
         ) : (
           <Table>
             <TableHeader>
@@ -362,12 +377,17 @@ function LongTermCashSection({ currency }: { currency: string }) {
               {ltcPlans.map((plan) => {
                 const vestCount = plan.vests?.length || 0;
                 const totalPeriods = plan.periods;
-                const progress = totalPeriods > 0 ? (vestCount / totalPeriods) * 100 : 0;
-                
+                const progress =
+                  totalPeriods > 0 ? (vestCount / totalPeriods) * 100 : 0;
+
                 return (
                   <TableRow key={plan.id}>
                     <TableCell className="font-medium">
-                      LTC-{new Date(plan.startDate).getFullYear()}-{String(new Date(plan.startDate).getMonth() + 1).padStart(2, '0')}
+                      LTC-{new Date(plan.startDate).getFullYear()}-
+                      {String(new Date(plan.startDate).getMonth() + 1).padStart(
+                        2,
+                        "0",
+                      )}
                     </TableCell>
                     <TableCell>
                       {formatMoney(Number(plan.totalAmount), plan.currency)}
@@ -380,15 +400,14 @@ function LongTermCashSection({ currency }: { currency: string }) {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {plan.recurrence === "QUARTERLY" ? "季度" : 
-                         plan.recurrence === "MONTHLY" ? "月度" : "年度"}
+                        {formatRecurrenceLabel(plan.recurrence)}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="w-16 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
                             style={{ width: `${Math.min(progress, 100)}%` }}
                           />
                         </div>

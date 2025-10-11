@@ -1,12 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Building2,
-  Calculator,
-  Landmark,
-  ShieldCheck,
-} from "lucide-react";
+import { Building2, Calculator, Landmark, ShieldCheck } from "lucide-react";
 import {
   Card,
   CardContent,

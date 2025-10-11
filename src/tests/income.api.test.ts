@@ -45,12 +45,8 @@ beforeEach(() => {
   mockPrisma.equityVest.findMany = vi.fn().mockResolvedValue([]);
   mockPrisma.incomeRecord.findFirst = vi.fn().mockResolvedValue(null);
   mockPrisma.incomeRecord.findMany = vi.fn().mockResolvedValue([]);
-  mockPrisma.userAnnualDeduction.findUnique = vi
-    .fn()
-    .mockResolvedValue(null);
-  mockPrisma.userAnnualDeduction.findMany = vi
-    .fn()
-    .mockResolvedValue([]);
+  mockPrisma.userAnnualDeduction.findUnique = vi.fn().mockResolvedValue(null);
+  mockPrisma.userAnnualDeduction.findMany = vi.fn().mockResolvedValue([]);
   mockPrisma.incomeChange.findFirst = vi.fn().mockResolvedValue(null);
   mockPrisma.cityChangeRecord.findMany = vi.fn().mockResolvedValue([]);
   mockPrisma.cityChangeRecord.findFirst = vi.fn().mockResolvedValue(null);
@@ -68,9 +64,9 @@ describe("Income basic endpoints", () => {
     expect(
       (
         await sc.GET(
-          makeGet("http://localhost/api/v1/income/salary-changes?userId=u1")
+          makeGet("http://localhost/api/v1/income/salary-changes?userId=u1"),
         )
-      ).status
+      ).status,
     ).toBe(200);
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.incomeChange.create.mockResolvedValueOnce({ id: "i1" });
@@ -81,10 +77,10 @@ describe("Income basic endpoints", () => {
             "http://localhost/api/v1/income/salary-changes",
             "POST",
             { userId: "u1", grossMonthly: 10000, effectiveFrom: "2025-01-01" },
-            { "Idempotency-Key": "k1" }
-          )
+            { "Idempotency-Key": "k1" },
+          ),
         )
-      ).status
+      ).status,
     ).toBe(201);
   });
 
@@ -97,8 +93,8 @@ describe("Income basic endpoints", () => {
         "http://localhost/api/v1/income/salary-changes",
         "POST",
         { userId: "u1", grossMonthly: 10000, effectiveFrom: "2025-01-01" },
-        { "Idempotency-Key": "k-sc" }
-      )
+        { "Idempotency-Key": "k-sc" },
+      ),
     );
     expect(res.status).toBe(409);
   });
@@ -110,9 +106,9 @@ describe("Income basic endpoints", () => {
     expect(
       (
         await bonus.GET(
-          makeGet("http://localhost/api/v1/income/bonus?userId=u1")
+          makeGet("http://localhost/api/v1/income/bonus?userId=u1"),
         )
-      ).status
+      ).status,
     ).toBe(200);
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.bonusPlan.create.mockResolvedValueOnce({ id: "b1" });
@@ -123,10 +119,10 @@ describe("Income basic endpoints", () => {
             "http://localhost/api/v1/income/bonus",
             "POST",
             { userId: "u1", amount: 20000, effectiveDate: "2025-01-10" },
-            { "Idempotency-Key": "k2" }
-          )
+            { "Idempotency-Key": "k2" },
+          ),
         )
-      ).status
+      ).status,
     ).toBe(201);
   });
 
@@ -137,9 +133,9 @@ describe("Income basic endpoints", () => {
     expect(
       (
         await ltc.GET(
-          makeGet("http://localhost/api/v1/income/ltc/plans?userId=u1")
+          makeGet("http://localhost/api/v1/income/ltc/plans?userId=u1"),
         )
-      ).status
+      ).status,
     ).toBe(200);
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.longTermCashPlan.create.mockResolvedValueOnce({
@@ -164,10 +160,10 @@ describe("Income basic endpoints", () => {
               periods: 4,
               recurrence: "QUARTERLY",
             },
-            { "Idempotency-Key": "k3" }
-          )
+            { "Idempotency-Key": "k3" },
+          ),
         )
-      ).status
+      ).status,
     ).toBe(201);
     const gen = await import(
       "@/app/api/v1/income/ltc/plans/[id]/generate/route"
@@ -186,9 +182,9 @@ describe("Income basic endpoints", () => {
       (
         await gen.POST(
           makeGet("http://localhost/api/v1/income/ltc/plans/p1/generate"),
-          { params: { id: "p1" } }
+          { params: { id: "p1" } },
         )
-      ).status
+      ).status,
     ).toBe(200);
   });
 
@@ -199,9 +195,9 @@ describe("Income basic endpoints", () => {
     expect(
       (
         await grants.GET(
-          makeGet("http://localhost/api/v1/income/equity/grants?userId=u1")
+          makeGet("http://localhost/api/v1/income/equity/grants?userId=u1"),
         )
-      ).status
+      ).status,
     ).toBe(200);
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.equityGrant.create.mockResolvedValueOnce({ id: "g1" });
@@ -218,10 +214,10 @@ describe("Income basic endpoints", () => {
               vestPeriods: 4,
               vestInterval: "YEARLY",
             },
-            { "Idempotency-Key": "k4" }
-          )
+            { "Idempotency-Key": "k4" },
+          ),
         )
-      ).status
+      ).status,
     ).toBe(201);
     const gen = await import(
       "@/app/api/v1/income/equity/grants/[id]/generate/route"
@@ -240,9 +236,9 @@ describe("Income basic endpoints", () => {
       (
         await gen.POST(
           makeGet("http://localhost/api/v1/income/equity/grants/g1/generate"),
-          { params: { id: "g1" } }
+          { params: { id: "g1" } },
         )
-      ).status
+      ).status,
     ).toBe(200);
     const vest = await import("@/app/api/v1/income/equity/vests/[id]/route");
     mockPrisma.equityVest.findUnique.mockResolvedValueOnce({
@@ -259,11 +255,11 @@ describe("Income basic endpoints", () => {
           makeJsonRequest(
             "http://localhost/api/v1/income/equity/vests/v1",
             "PATCH",
-            { fairValue: 123, currency: "CNY" }
+            { fairValue: 123, currency: "CNY" },
           ),
-          { params: { id: "v1" } }
+          { params: { id: "v1" } },
         )
-      ).status
+      ).status,
     ).toBe(200);
   });
 
@@ -275,10 +271,10 @@ describe("Income basic endpoints", () => {
       (
         await recs.GET(
           makeGet(
-            "http://localhost/api/v1/income/records?userId=u1&from=2025-01-01&to=2025-12-01"
-          )
+            "http://localhost/api/v1/income/records?userId=u1&from=2025-01-01&to=2025-12-01",
+          ),
         )
-      ).status
+      ).status,
     ).toBe(200);
     const rec = await import("@/app/api/v1/income/records/[id]/route");
     mockPrisma.incomeRecord.findUnique.mockResolvedValueOnce({
@@ -292,11 +288,11 @@ describe("Income basic endpoints", () => {
           makeJsonRequest(
             "http://localhost/api/v1/income/records/r1",
             "PATCH",
-            { socialInsuranceBase: 5000 }
+            { socialInsuranceBase: 5000 },
           ),
-          { params: { id: "r1" } }
+          { params: { id: "r1" } },
         )
-      ).status
+      ).status,
     ).toBe(200);
 
     // 场景B：回算参数缺失 → 400
@@ -304,9 +300,9 @@ describe("Income basic endpoints", () => {
     expect(
       (
         await recalc.POST(
-          makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {})
+          makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {}),
         )
-      ).status
+      ).status,
     ).toBe(400);
 
     // 场景C：回算成功路径（提供最小规则/税制数据）
@@ -361,9 +357,9 @@ describe("Income basic endpoints", () => {
           makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {
             taxYear: 2025,
             endMonth: 2,
-          })
+          }),
         )
-      ).status
+      ).status,
     ).toBe(200);
   });
 
@@ -378,8 +374,8 @@ describe("Income basic endpoints", () => {
         "http://localhost/api/v1/income/recalc",
         "POST",
         { taxYear: 2025, endMonth: 8 },
-        { "Idempotency-Key": "k-recalc" }
-      )
+        { "Idempotency-Key": "k-recalc" },
+      ),
     );
     expect(res.status).toBe(409);
   });
@@ -426,7 +422,7 @@ describe("Income basic endpoints", () => {
       makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {
         taxYear: 2025,
         endMonth: 2,
-      })
+      }),
     );
     expect(res.status).toBe(200);
     // 断言前两个月税额：10000*3%=300；第二月累计 20000 → 税额 600，月税=300
@@ -442,9 +438,7 @@ describe("Income basic endpoints", () => {
   });
 
   it("annual deductions endpoint returns list", async () => {
-    const route = await import(
-      "@/app/api/v1/user/annual-deductions/route"
-    );
+    const route = await import("@/app/api/v1/user/annual-deductions/route");
     const now = new Date("2025-01-01");
     mockPrisma.userAnnualDeduction.findMany.mockResolvedValueOnce([
       {

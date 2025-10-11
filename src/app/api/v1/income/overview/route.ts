@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (!startDate || !endDate) {
     return NextResponse.json(
       { error: "startDate and endDate are required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
         socialInsurance: 0,
         housingFund: 0,
         tax: 0,
-      }
+      },
     );
 
     const monthsCount = incomeRecords.length;
@@ -102,12 +102,12 @@ export async function GET(req: NextRequest) {
       const firstHalfAvg =
         firstHalf.reduce(
           (sum, record) => sum + Number(record.netIncome || 0),
-          0
+          0,
         ) / firstHalf.length;
       const secondHalfAvg =
         secondHalf.reduce(
           (sum, record) => sum + Number(record.netIncome || 0),
-          0
+          0,
         ) / secondHalf.length;
 
       if (firstHalfAvg > 0) {
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
     console.error("Income overview error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -11,14 +11,14 @@ import { getUserFromRequest } from "@/server/utils/auth";
 // GET /api/v1/accounts/:id/timeseries?metric=valuation|principal&from&to
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const user = await getUserFromRequest(req);
-  if (!user)
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const acc = await prisma.account.findUnique({ where: { id } });
-  if (!acc || acc.userId !== (user as any).id)
+  if (!acc || acc.userId !== user.id)
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const { searchParams } = new URL(req.url);
   const metric = searchParams.get("metric") ?? "valuation";

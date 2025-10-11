@@ -10,14 +10,14 @@ import { getUserFromRequest } from "@/server/utils/auth";
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) {
+  if (!user || typeof user.id !== "string") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   try {
     // 从数据库获取完整的用户信息
     const userRecord = await prisma.user.findUnique({
-      where: { id: (user as any).id },
+      where: { id: user.id },
       select: {
         id: true,
         email: true,
@@ -32,11 +32,10 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(userRecord);
-  } catch (error) {
-    console.error("Get current user error:", error);
+  } catch (_error) {
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

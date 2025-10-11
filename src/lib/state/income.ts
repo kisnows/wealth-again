@@ -73,6 +73,9 @@ type IncomeState = {
   timeseriesLoading: boolean;
   timeseriesError: string | null;
 
+  // 最近一次收入回算触发，用于跨模块刷新
+  recalcToken: number;
+
   // 操作方法
   setActiveTab: (tab: IncomeState["activeTab"]) => void;
   setForecastParams: (params: Partial<ForecastParams>) => void;
@@ -83,10 +86,11 @@ type IncomeState = {
   setOverviewLoading: (loading: boolean) => void;
   setOverviewError: (error: string | null) => void;
   setTimeseriesData: (
-    data: Record<string, Array<{ month: string; value: number }>> | null
+    data: Record<string, Array<{ month: string; value: number }>> | null,
   ) => void;
   setTimeseriesLoading: (loading: boolean) => void;
   setTimeseriesError: (error: string | null) => void;
+  notifyRecalc: () => void;
   clearCache: () => void;
   reset: () => void;
 };
@@ -121,6 +125,9 @@ export const useIncomeStore = create<IncomeState>((set, get) => ({
   timeseriesLoading: false,
   timeseriesError: null,
 
+  // 回算触发
+  recalcToken: 0,
+
   // 操作方法
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -140,6 +147,8 @@ export const useIncomeStore = create<IncomeState>((set, get) => ({
   setTimeseriesData: (data) => set({ timeseriesData: data }),
   setTimeseriesLoading: (loading) => set({ timeseriesLoading: loading }),
   setTimeseriesError: (error) => set({ timeseriesError: error }),
+
+  notifyRecalc: () => set((state) => ({ recalcToken: state.recalcToken + 1 })),
 
   clearCache: () =>
     set({
@@ -164,6 +173,7 @@ export const useIncomeStore = create<IncomeState>((set, get) => ({
       timeseriesData: null,
       timeseriesLoading: false,
       timeseriesError: null,
+      recalcToken: 0,
     }),
 }));
 

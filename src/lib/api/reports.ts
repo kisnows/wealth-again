@@ -4,6 +4,29 @@ import useSWR from "swr";
 import type { IncomeRecordsSummary } from "@/lib/api/income";
 import { getJson } from "@/lib/utils/fetcher";
 
+export type AccountSummaryItem = {
+  id: string;
+  name: string;
+  accountType: "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER" | string;
+  status: "ACTIVE" | "ARCHIVED" | string | null;
+  subType?: string | null;
+  description?: string | null;
+  currency: string;
+  initialBalance: number;
+  principal: number;
+  valuation: number;
+  profit: number;
+  roi: number | null;
+  latestValuationAt: string | null;
+  valuationCurrency: string;
+  displayValue?: number;
+};
+
+export type AccountsSummaryResponse = {
+  items: AccountSummaryItem[];
+  displayCurrency: string | null;
+};
+
 export function useDashboard(asOf?: string, displayCurrency?: string) {
   const params = new URLSearchParams();
   if (asOf) params.set("asOf", asOf);
@@ -14,7 +37,7 @@ export function useDashboard(asOf?: string, displayCurrency?: string) {
 
 export function useAccountsSummary(displayCurrency?: string) {
   const key = `/api/v1/reports/accounts/summary${displayCurrency ? `?displayCurrency=${displayCurrency}` : ""}`;
-  return useSWR<{ items: any[]; displayCurrency: string | null }>(key, getJson);
+  return useSWR<AccountsSummaryResponse>(key, getJson);
 }
 
 export function useIncomeTimeseries(

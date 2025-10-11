@@ -20,7 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
@@ -43,7 +49,7 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [countries, setCountries] = useState<Country[]>([]);
-  
+
   const [form, setForm] = useState({
     name: "",
     country: "",
@@ -61,7 +67,7 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
       baseMin: "",
       baseMax: "",
       rateEmployee: "0.12",
-    }
+    },
   });
 
   useEffect(() => {
@@ -73,11 +79,11 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
     }
   }, [open]);
 
-  const selectedCountry = countries.find(c => c.code === form.country);
+  const selectedCountry = countries.find((c) => c.code === form.country);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!form.name || !form.country) {
       toast.error("请填写城市名称和选择国家");
       return;
@@ -100,8 +106,8 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
           ratePension: parseFloat(form.socialSecurity.ratePension),
           rateMedical: parseFloat(form.socialSecurity.rateMedical),
           rateUnemployment: parseFloat(form.socialSecurity.rateUnemployment),
-          fixedMedicalPersonal: form.socialSecurity.fixedMedicalPersonal 
-            ? parseFloat(form.socialSecurity.fixedMedicalPersonal) 
+          fixedMedicalPersonal: form.socialSecurity.fixedMedicalPersonal
+            ? parseFloat(form.socialSecurity.fixedMedicalPersonal)
             : null,
         };
       }
@@ -146,9 +152,9 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
           baseMin: "",
           baseMax: "",
           rateEmployee: "0.12",
-        }
+        },
       });
-      
+
       onCityAdded?.();
     } catch (error) {
       console.error("Create city error:", error);
@@ -176,7 +182,7 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
             添加新城市并配置相关的税制、社保和公积金规则
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* 基本信息 */}
           <Card>
@@ -190,17 +196,21 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                   <Input
                     id="cityName"
                     value={form.name}
-                    onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
                     placeholder="如：Seattle, Tokyo"
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="country">所属国家 *</Label>
                   <Select
                     value={form.country}
-                    onValueChange={(value) => setForm(prev => ({ ...prev, country: value }))}
+                    onValueChange={(value) =>
+                      setForm((prev) => ({ ...prev, country: value }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="选择国家" />
@@ -215,7 +225,7 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                   </Select>
                 </div>
               </div>
-              
+
               {selectedCountry && (
                 <div className="p-3 bg-muted rounded-lg">
                   <div className="text-sm font-medium mb-1">国家信息</div>
@@ -223,10 +233,10 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
                     {selectedCountry.description}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    货币: {selectedCountry.currency} | 
-                    税制: {selectedCountry.hasTaxSystem ? "✓" : "✗"} |
-                    社保: {selectedCountry.hasSocialSecurity ? "✓" : "✗"} |
-                    公积金: {selectedCountry.hasHousingFund ? "✓" : "✗"}
+                    货币: {selectedCountry.currency} | 税制:{" "}
+                    {selectedCountry.hasTaxSystem ? "✓" : "✗"} | 社保:{" "}
+                    {selectedCountry.hasSocialSecurity ? "✓" : "✗"} | 公积金:{" "}
+                    {selectedCountry.hasHousingFund ? "✓" : "✗"}
                   </div>
                 </div>
               )}
@@ -234,172 +244,229 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
           </Card>
 
           {/* 规则配置 */}
-          {selectedCountry && (selectedCountry.hasSocialSecurity || selectedCountry.hasHousingFund) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  规则配置
-                </CardTitle>
-                <CardDescription>
-                  配置该城市的社保和公积金规则，税制将自动继承国家设置
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="social" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="social" disabled={!selectedCountry.hasSocialSecurity}>
-                      社保规则
-                    </TabsTrigger>
-                    <TabsTrigger value="housing" disabled={!selectedCountry.hasHousingFund}>
-                      公积金规则
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  {selectedCountry.hasSocialSecurity && (
-                    <TabsContent value="social" className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+          {selectedCountry &&
+            (selectedCountry.hasSocialSecurity ||
+              selectedCountry.hasHousingFund) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    规则配置
+                  </CardTitle>
+                  <CardDescription>
+                    配置该城市的社保和公积金规则，税制将自动继承国家设置
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="social" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger
+                        value="social"
+                        disabled={!selectedCountry.hasSocialSecurity}
+                      >
+                        社保规则
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="housing"
+                        disabled={!selectedCountry.hasHousingFund}
+                      >
+                        公积金规则
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {selectedCountry.hasSocialSecurity && (
+                      <TabsContent value="social" className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="ssBaseMin">缴费基数下限</Label>
+                            <Input
+                              id="ssBaseMin"
+                              type="number"
+                              value={form.socialSecurity.baseMin}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  socialSecurity: {
+                                    ...prev.socialSecurity,
+                                    baseMin: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="如：4812"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="ssBaseMax">缴费基数上限</Label>
+                            <Input
+                              id="ssBaseMax"
+                              type="number"
+                              value={form.socialSecurity.baseMax}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  socialSecurity: {
+                                    ...prev.socialSecurity,
+                                    baseMax: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="如：24930"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="ratePension">养老保险比例</Label>
+                            <Input
+                              id="ratePension"
+                              type="number"
+                              step="0.001"
+                              value={form.socialSecurity.ratePension}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  socialSecurity: {
+                                    ...prev.socialSecurity,
+                                    ratePension: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="rateMedical">医疗保险比例</Label>
+                            <Input
+                              id="rateMedical"
+                              type="number"
+                              step="0.001"
+                              value={form.socialSecurity.rateMedical}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  socialSecurity: {
+                                    ...prev.socialSecurity,
+                                    rateMedical: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="rateUnemployment">
+                              失业保险比例
+                            </Label>
+                            <Input
+                              id="rateUnemployment"
+                              type="number"
+                              step="0.001"
+                              value={form.socialSecurity.rateUnemployment}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  socialSecurity: {
+                                    ...prev.socialSecurity,
+                                    rateUnemployment: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                        </div>
+
                         <div className="space-y-2">
-                          <Label htmlFor="ssBaseMin">缴费基数下限</Label>
+                          <Label htmlFor="fixedMedical">
+                            固定医疗费用（可选）
+                          </Label>
                           <Input
-                            id="ssBaseMin"
+                            id="fixedMedical"
                             type="number"
-                            value={form.socialSecurity.baseMin}
-                            onChange={(e) => setForm(prev => ({
-                              ...prev,
-                              socialSecurity: { ...prev.socialSecurity, baseMin: e.target.value }
-                            }))}
-                            placeholder="如：4812"
+                            value={form.socialSecurity.fixedMedicalPersonal}
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                socialSecurity: {
+                                  ...prev.socialSecurity,
+                                  fixedMedicalPersonal: e.target.value,
+                                },
+                              }))
+                            }
+                            placeholder="如：3"
                           />
                         </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="ssBaseMax">缴费基数上限</Label>
-                          <Input
-                            id="ssBaseMax"
-                            type="number"
-                            value={form.socialSecurity.baseMax}
-                            onChange={(e) => setForm(prev => ({
-                              ...prev,
-                              socialSecurity: { ...prev.socialSecurity, baseMax: e.target.value }
-                            }))}
-                            placeholder="如：24930"
-                          />
+                      </TabsContent>
+                    )}
+
+                    {selectedCountry.hasHousingFund && (
+                      <TabsContent value="housing" className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="hfBaseMin">缴费基数下限</Label>
+                            <Input
+                              id="hfBaseMin"
+                              type="number"
+                              value={form.housingFund.baseMin}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  housingFund: {
+                                    ...prev.housingFund,
+                                    baseMin: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="如：2490"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="hfBaseMax">缴费基数上限</Label>
+                            <Input
+                              id="hfBaseMax"
+                              type="number"
+                              value={form.housingFund.baseMax}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  housingFund: {
+                                    ...prev.housingFund,
+                                    baseMax: e.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="如：40694"
+                            />
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-4">
+
                         <div className="space-y-2">
-                          <Label htmlFor="ratePension">养老保险比例</Label>
+                          <Label htmlFor="rateEmployee">个人缴费比例</Label>
                           <Input
-                            id="ratePension"
+                            id="rateEmployee"
                             type="number"
                             step="0.001"
-                            value={form.socialSecurity.ratePension}
-                            onChange={(e) => setForm(prev => ({
-                              ...prev,
-                              socialSecurity: { ...prev.socialSecurity, ratePension: e.target.value }
-                            }))}
+                            value={form.housingFund.rateEmployee}
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                housingFund: {
+                                  ...prev.housingFund,
+                                  rateEmployee: e.target.value,
+                                },
+                              }))
+                            }
                           />
                         </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="rateMedical">医疗保险比例</Label>
-                          <Input
-                            id="rateMedical"
-                            type="number"
-                            step="0.001"
-                            value={form.socialSecurity.rateMedical}
-                            onChange={(e) => setForm(prev => ({
-                              ...prev,
-                              socialSecurity: { ...prev.socialSecurity, rateMedical: e.target.value }
-                            }))}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="rateUnemployment">失业保险比例</Label>
-                          <Input
-                            id="rateUnemployment"
-                            type="number"
-                            step="0.001"
-                            value={form.socialSecurity.rateUnemployment}
-                            onChange={(e) => setForm(prev => ({
-                              ...prev,
-                              socialSecurity: { ...prev.socialSecurity, rateUnemployment: e.target.value }
-                            }))}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="fixedMedical">固定医疗费用（可选）</Label>
-                        <Input
-                          id="fixedMedical"
-                          type="number"
-                          value={form.socialSecurity.fixedMedicalPersonal}
-                          onChange={(e) => setForm(prev => ({
-                            ...prev,
-                            socialSecurity: { ...prev.socialSecurity, fixedMedicalPersonal: e.target.value }
-                          }))}
-                          placeholder="如：3"
-                        />
-                      </div>
-                    </TabsContent>
-                  )}
-                  
-                  {selectedCountry.hasHousingFund && (
-                    <TabsContent value="housing" className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="hfBaseMin">缴费基数下限</Label>
-                          <Input
-                            id="hfBaseMin"
-                            type="number"
-                            value={form.housingFund.baseMin}
-                            onChange={(e) => setForm(prev => ({
-                              ...prev,
-                              housingFund: { ...prev.housingFund, baseMin: e.target.value }
-                            }))}
-                            placeholder="如：2490"
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="hfBaseMax">缴费基数上限</Label>
-                          <Input
-                            id="hfBaseMax"
-                            type="number"
-                            value={form.housingFund.baseMax}
-                            onChange={(e) => setForm(prev => ({
-                              ...prev,
-                              housingFund: { ...prev.housingFund, baseMax: e.target.value }
-                            }))}
-                            placeholder="如：40694"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="rateEmployee">个人缴费比例</Label>
-                        <Input
-                          id="rateEmployee"
-                          type="number"
-                          step="0.001"
-                          value={form.housingFund.rateEmployee}
-                          onChange={(e) => setForm(prev => ({
-                            ...prev,
-                            housingFund: { ...prev.housingFund, rateEmployee: e.target.value }
-                          }))}
-                        />
-                      </div>
-                    </TabsContent>
-                  )}
-                </Tabs>
-              </CardContent>
-            </Card>
-          )}
-          
+                      </TabsContent>
+                    )}
+                  </Tabs>
+                </CardContent>
+              </Card>
+            )}
+
           <div className="flex justify-end gap-2">
             <Button
               type="button"

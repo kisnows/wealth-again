@@ -11,7 +11,7 @@ import { getUserFromRequest } from "@/server/utils/auth";
 // 生成长期现金发放日程
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const user = await getUserFromRequest(req as any);

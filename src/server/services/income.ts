@@ -133,10 +133,10 @@ export async function recalcIncome({
       cityOverride ?? fallbackCityId ?? user.currentCityId;
     const representativeCity =
       representativeCityId != null
-        ? cityMap.get(representativeCityId) ?? {
+        ? (cityMap.get(representativeCityId) ?? {
             id: representativeCityId,
             country: fallbackCountry,
-          }
+          })
         : null;
     if (!representativeCity) continue;
 
@@ -445,13 +445,9 @@ export async function ensureIncomeRecordsForUser(userId: string) {
   ]);
 
   const firstIncomeChange = firstIncomeChangeRaw ?? null;
-  const bonusEarliest = Array.isArray(bonusEarliestRaw)
-    ? bonusEarliestRaw
-    : [];
+  const bonusEarliest = Array.isArray(bonusEarliestRaw) ? bonusEarliestRaw : [];
   const ltcEarliest = Array.isArray(ltcEarliestRaw) ? ltcEarliestRaw : [];
-  const vestEarliest = Array.isArray(vestEarliestRaw)
-    ? vestEarliestRaw
-    : [];
+  const vestEarliest = Array.isArray(vestEarliestRaw) ? vestEarliestRaw : [];
 
   const candidates = [
     firstIncomeChange?.effectiveFrom,
@@ -576,7 +572,10 @@ export function summarizeIncomeRecords(
   );
 
   const totalIncome =
-    totals.totalGross + totals.totalBonus + totals.totalLtc + totals.totalEquity;
+    totals.totalGross +
+    totals.totalBonus +
+    totals.totalLtc +
+    totals.totalEquity;
   const avgTaxRate =
     totalIncome > 0 ? Number((totals.totalTax / totalIncome) * 100) : 0;
 

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -15,18 +15,17 @@ import {
  */
 
 // POST /api/v1/valuations 记录账户估值快照（SAVINGS 禁止）
-export async function POST(req: Request) {
-  const { accountId, asOf, totalValue, currency, fxRateId, note } = await (
-    req as any
-  ).json();
+export async function POST(req: NextRequest) {
+  const { accountId, asOf, totalValue, currency, fxRateId, note } =
+    await req.json();
   if (!accountId || !asOf || typeof totalValue !== "number") {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
-  const user = await getUserFromRequest(req as any);
-  if (!user)
+  const user = await getUserFromRequest(req);
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || account.userId !== (user as any).id)
+  if (!account || account.userId !== user.id)
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   if (account.accountType === "SAVINGS") {
     return NextResponse.json(
@@ -35,8 +34,8 @@ export async function POST(req: Request) {
     );
   }
   const { key, existed } = await ensureIdempotent(
-    req as any,
-    (user as any).id,
+    req,
+    user.id,
     `${accountId}:${asOf}:${totalValue}`,
   );
   if (existed)
@@ -55,7 +54,7 @@ export async function POST(req: Request) {
     },
   });
   await logAudit("VALUATION_CREATE", {
-    userId: (user as any).id,
+    userId: user.id,
     meta: { accountId },
   });
   await markIdempotencyUsed(key);

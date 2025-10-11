@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,22 +13,52 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { postDeposit } from "@/lib/api/accounts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { postDeposit, useAccounts, type Account } from "@/lib/api/accounts";
+import { toInputDatetimeValue } from "@/lib/utils/datetime";
 
 export default function DepositDialog({
   defaultAccountId,
+  onSuccess,
 }: {
   defaultAccountId?: string;
+  onSuccess?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
+  const { data: accounts, isLoading } = useAccounts();
+  const buildInitialForm = () => ({
     accountId: defaultAccountId ?? "",
     amount: "",
-    occurredAt: "",
+    occurredAt: toInputDatetimeValue(new Date()),
     note: "",
   });
+  const [form, setForm] = useState(buildInitialForm);
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
+  const accountOptions = useMemo(
+    () => (accounts ?? []).filter((a: Account) => a.status !== "ARCHIVED"),
+    [accounts],
+  );
+  useEffect(() => {
+    if (!open) return;
+    const next = buildInitialForm();
+    if (
+      next.accountId &&
+      accountOptions.every((account) => account.id !== next.accountId)
+    ) {
+      next.accountId = accountOptions[0]?.id ?? "";
+    }
+    if (!next.accountId && accountOptions.length > 0) {
+      next.accountId = accountOptions[0]?.id ?? "";
+    }
+    setForm(next);
+  }, [open, defaultAccountId, accountOptions]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     await postDeposit({
@@ -39,27 +69,42 @@ export default function DepositDialog({
     });
     toast.success("已记录存入");
     setOpen(false);
+    setForm(buildInitialForm());
+    onSuccess?.();
   };
+  const disableSubmit =
+    !form.accountId || !form.amount || Number(form.amount) === 0;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">记录存入</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-testid="accounts-ui-dialog-deposit">
         <DialogHeader>
           <DialogTitle>记录存入</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-2">
           <div className="grid gap-1">
-            <Label>Account ID</Label>
-            <Input
-              name="accountId"
+            <Label>账户</Label>
+            <Select
               value={form.accountId}
-              onChange={onChange}
-            />
+              onValueChange={(v) => setForm((s) => ({ ...s, accountId: v }))}
+              disabled={isLoading || accountOptions.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="选择账户" />
+              </SelectTrigger>
+              <SelectContent>
+                {accountOptions.map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {account.name}（{account.baseCurrency}）
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid gap-1">
-            <Label>Amount</Label>
+            <Label>金额</Label>
             <Input
               name="amount"
               type="number"
@@ -68,7 +113,7 @@ export default function DepositDialog({
             />
           </div>
           <div className="grid gap-1">
-            <Label>Occurred At</Label>
+            <Label>发生时间</Label>
             <Input
               name="occurredAt"
               type="datetime-local"
@@ -77,11 +122,13 @@ export default function DepositDialog({
             />
           </div>
           <div className="grid gap-1">
-            <Label>Note</Label>
+            <Label>备注</Label>
             <Input name="note" value={form.note} onChange={onChange} />
           </div>
           <DialogFooter>
-            <Button type="submit">提交</Button>
+            <Button type="submit" disabled={disableSubmit}>
+              提交
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

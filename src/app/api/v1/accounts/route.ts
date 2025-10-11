@@ -18,16 +18,11 @@ import {
  * 返回: Account
  */
 export async function GET(req: NextRequest) {
-  const { getUserFromRequest } = await import("@/server/utils/auth");
   const user = await getUserFromRequest(req);
-  if (!user)
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const _accounts = await prisma.account.findMany({
-    where: { id: undefined as any },
-  });
-  // prisma types workaround above: re-query properly
   const list = await prisma.account.findMany({
-    where: { userId: (user as any).id },
+    where: { userId: user.id },
   });
   return NextResponse.json(list);
 }
@@ -35,7 +30,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const data = await req.json();
   const user = await getUserFromRequest(req);
-  if (!user)
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
   const { key, existed } = await ensureIdempotent(req, userId, undefined);
@@ -62,13 +57,18 @@ export async function POST(req: NextRequest) {
     });
     await markIdempotencyUsed(key);
     return NextResponse.json(account, { status: 201 });
-  } catch (e: any) {
-    if (e?.code === "P2003") {
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2003"
+    ) {
       return NextResponse.json(
         { error: "invalid userId (foreign key)" },
         { status: 400 },
       );
     }
-    throw e;
+    throw error;
   }
 }

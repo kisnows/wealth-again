@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
@@ -11,19 +12,24 @@ import { getUserFromRequest } from "@/server/utils/auth";
 
 // POST /api/v1/accounts/:id/archive 归档账户
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const user = await getUserFromRequest(req as any);
-  if (!user)
+  const user = await getUserFromRequest(req);
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const account = await prisma.account.findUnique({ where: { id } });
-  if (!account || account.userId !== (user as any).id)
+  const { id: userId } = user;
+  if (!account || account.userId !== userId)
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const updated = await prisma.account.update({
     where: { id },
     data: { status: "ARCHIVED" },
+  });
+  await logAudit("ACCOUNT_ARCHIVE", {
+    userId,
+    meta: { accountId: id },
   });
   return NextResponse.json({ id: updated.id, status: updated.status });
 }

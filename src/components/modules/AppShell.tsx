@@ -63,7 +63,7 @@ export default function AppShell({ children }: Props) {
             <div className="size-6 rounded bg-primary" />
             <span className="hidden sm:inline">Wealth Again</span>
           </Link>
-          
+
           {/* Navigation */}
           <nav className="hidden md:flex items-center gap-1">
             {nav.map((n) => {
@@ -73,8 +73,8 @@ export default function AppShell({ children }: Props) {
                   key={n.href}
                   href={n.href}
                   className={`flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${
-                    active 
-                      ? "bg-accent text-accent-foreground" 
+                    active
+                      ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent hover:text-accent-foreground"
                   }`}
                 >
@@ -86,7 +86,7 @@ export default function AppShell({ children }: Props) {
           </nav>
 
           <div className="flex-1" />
-          
+
           {/* Search and Controls */}
           <div className="flex items-center gap-2">
             <Input
@@ -130,8 +130,8 @@ export default function AppShell({ children }: Props) {
                   key={n.href}
                   href={n.href}
                   className={`flex items-center gap-2 rounded px-3 py-2 text-sm whitespace-nowrap transition-colors ${
-                    active 
-                      ? "bg-accent text-accent-foreground" 
+                    active
+                      ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent hover:text-accent-foreground"
                   }`}
                 >
@@ -142,11 +142,9 @@ export default function AppShell({ children }: Props) {
             })}
           </div>
         </nav>
-        
+
         {/* Content */}
-        <main>
-          {children}
-        </main>
+        <main>{children}</main>
       </div>
     </div>
   );

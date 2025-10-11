@@ -69,9 +69,7 @@ describe("Income service · recalcIncome", () => {
         (plan) => plan.effectiveDate >= from && plan.effectiveDate < to,
       );
     });
-    const ltcPayouts = [
-      { payDate: new Date("2025-03-05"), amount: 5000 },
-    ];
+    const ltcPayouts = [{ payDate: new Date("2025-03-05"), amount: 5000 }];
     mockPrisma.longTermCashPayout.findMany.mockImplementation(
       async ({ where }: any) => {
         const from: Date = where.payDate.gte;
@@ -104,19 +102,19 @@ describe("Income service · recalcIncome", () => {
         fixedMedicalPersonal: 3,
       },
     ];
-    mockPrisma.cityRuleSS.findFirst.mockImplementation(async ({ where }: any) => {
-      const monthDate: Date = where.startDate.lte;
-      const candidates = ssRules
-        .filter(
-          (rule) =>
-            rule.startDate <= monthDate &&
-            (!rule.endDate || rule.endDate > monthDate),
-        )
-        .sort(
-          (a, b) => b.startDate.getTime() - a.startDate.getTime(),
-        );
-      return candidates[0] ?? null;
-    });
+    mockPrisma.cityRuleSS.findFirst.mockImplementation(
+      async ({ where }: any) => {
+        const monthDate: Date = where.startDate.lte;
+        const candidates = ssRules
+          .filter(
+            (rule) =>
+              rule.startDate <= monthDate &&
+              (!rule.endDate || rule.endDate > monthDate),
+          )
+          .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+        return candidates[0] ?? null;
+      },
+    );
     const hfRules = [
       {
         startDate: new Date("2024-01-01"),
@@ -133,19 +131,19 @@ describe("Income service · recalcIncome", () => {
         rateEmployee: 0.12,
       },
     ];
-    mockPrisma.cityRuleHF.findFirst.mockImplementation(async ({ where }: any) => {
-      const monthDate: Date = where.startDate.lte;
-      const candidates = hfRules
-        .filter(
-          (rule) =>
-            rule.startDate <= monthDate &&
-            (!rule.endDate || rule.endDate > monthDate),
-        )
-        .sort(
-          (a, b) => b.startDate.getTime() - a.startDate.getTime(),
-        );
-      return candidates[0] ?? null;
-    });
+    mockPrisma.cityRuleHF.findFirst.mockImplementation(
+      async ({ where }: any) => {
+        const monthDate: Date = where.startDate.lte;
+        const candidates = hfRules
+          .filter(
+            (rule) =>
+              rule.startDate <= monthDate &&
+              (!rule.endDate || rule.endDate > monthDate),
+          )
+          .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+        return candidates[0] ?? null;
+      },
+    );
     const brackets = [
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
       { position: 2, threshold: 144000, taxRate: 0.1, quickDeduction: 2520 },
@@ -190,8 +188,7 @@ describe("Income service · recalcIncome", () => {
 
     const monthly: Record<number, any> = {};
     for (const call of upserts) {
-      const month =
-        call.where.userId_monthDate.monthDate.getUTCMonth() + 1;
+      const month = call.where.userId_monthDate.monthDate.getUTCMonth() + 1;
       monthly[month] = call.update ?? call.create;
     }
 
@@ -304,8 +301,7 @@ describe("Income service · recalcIncome", () => {
 
     const monthly: Record<number, any> = {};
     for (const call of upserts) {
-      const month =
-        call.where.userId_monthDate.monthDate.getUTCMonth() + 1;
+      const month = call.where.userId_monthDate.monthDate.getUTCMonth() + 1;
       monthly[month] = call.update ?? call.create;
     }
 

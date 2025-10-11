@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     console.error("Get city changes error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
     console.error("Create city change error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

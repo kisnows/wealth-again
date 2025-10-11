@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAccountsSummary } from "@/lib/api/reports";
+import { useAccountsSummary, type AccountSummaryItem } from "@/lib/api/reports";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
 import DepositDialog from "./DepositDialog";
 import TransferDialog from "./TransferDialog";
@@ -21,12 +21,12 @@ import WithdrawDialog from "./WithdrawDialog";
 export default function TopAccounts() {
   const { displayCurrency } = useUserPrefsStore();
   const { data, isLoading } = useAccountsSummary(displayCurrency ?? undefined);
-  const items = (data?.items ?? [])
-    .map((it: any) => ({
+  const items = ((data?.items ?? []) as AccountSummaryItem[])
+    .map((it) => ({
       ...it,
       value: Number(it.displayValue ?? it.valuation ?? 0),
     }))
-    .sort((a: any, b: any) => b.value - a.value)
+    .sort((a, b) => b.value - a.value)
     .slice(0, 5);
   const [active, setActive] = useState<string | null>(null);
   return (
@@ -73,7 +73,9 @@ export default function TopAccounts() {
                       <DepositDialog defaultAccountId={it.id} />
                       <WithdrawDialog defaultAccountId={it.id} />
                       <TransferDialog defaultFromId={it.id} />
-                      <ValuationFormDialog defaultAccountId={it.id} />
+                      {["INVESTMENT", "LOAN"].includes(
+                        `${it.accountType ?? ""}`,
+                      ) && <ValuationFormDialog defaultAccountId={it.id} />}
                     </div>
                   )}
                 </TableCell>

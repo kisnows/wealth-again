@@ -18,14 +18,16 @@ export async function computeAccountSummary(
   const usdToDisplay = displayCurrency ? getRate(displayCurrency) : undefined;
 
   return accounts.map((a) => {
+    const latestSnapshot = a.valuations[0];
+    const initialBalance = Number(a.initialBalance);
     const principal = a.txnLines.reduce(
       (s, l) => s + Number(l.amount),
-      Number(a.initialBalance),
+      initialBalance,
     );
     const valuation =
       a.accountType === "SAVINGS"
         ? principal
-        : Number(a.valuations[0]?.totalValue ?? principal);
+        : Number(latestSnapshot?.totalValue ?? principal);
     const profit = valuation - principal;
     const roi = principal === 0 ? null : profit / principal;
     // 折算到展示币种
@@ -40,11 +42,21 @@ export async function computeAccountSummary(
     return {
       id: a.id,
       name: a.name,
+      accountType: a.accountType,
+      status: a.status,
+      subType: a.subType,
+      description: a.description,
       currency: a.baseCurrency,
+      initialBalance,
       principal,
       valuation,
       profit,
       roi,
+      latestValuationAt:
+        a.accountType === "SAVINGS"
+          ? null
+          : (latestSnapshot?.asOf.toISOString() ?? null),
+      valuationCurrency: latestSnapshot?.currency ?? a.baseCurrency,
       displayValue: displayVal,
     };
   });

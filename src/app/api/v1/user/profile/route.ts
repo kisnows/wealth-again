@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest) {
       if (!/^[A-Z]{3}$/.test(baseCurrency)) {
         return NextResponse.json(
           { error: "Invalid currency format. Must be 3 uppercase letters." },
-          { status: 400 }
+          { status: 400 },
         );
       }
       updateData.baseCurrency = baseCurrency;
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest) {
     if (currentCityId) {
       return NextResponse.json(
         { error: "请通过城市迁移功能更新工作城市" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest) {
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
         { error: "No valid fields to update" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -74,7 +74,7 @@ export async function PATCH(req: NextRequest) {
     console.error("Update user profile error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

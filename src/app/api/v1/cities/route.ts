@@ -1,14 +1,48 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
-import { getUserFromRequest } from "@/server/utils/auth";
 import { logAudit } from "@/server/services/audit";
+import { getUserFromRequest } from "@/server/utils/auth";
+
+type SocialSecurityRulePayload = {
+  startDate?: string;
+  endDate?: string | null;
+  baseMin?: number;
+  baseMax?: number;
+  ratePension?: number;
+  rateMedical?: number;
+  rateUnemployment?: number;
+  fixedMedicalPersonal?: number | null;
+};
+
+type HousingFundRulePayload = {
+  startDate?: string;
+  endDate?: string | null;
+  baseMin?: number;
+  baseMax?: number;
+  rateEmployee?: number;
+};
+
+type TaxConfigTemplate = {
+  config: {
+    country: string;
+    taxYear: number;
+    standardDeduction: number;
+    specialAdditionalDeduction: number;
+  };
+  brackets: Array<{
+    position: number;
+    threshold: number;
+    taxRate: number;
+    quickDeduction: number;
+  }>;
+};
 
 /**
  * GET /api/v1/cities
  * - 获取所有城市列表
  * - 返回: City[]
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     const cities = await prisma.city.findMany({
       orderBy: [{ country: "asc" }, { name: "asc" }],
@@ -19,7 +53,7 @@ export async function GET(req: NextRequest) {
     console.error("Get cities error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -32,9 +66,10 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
-  if (!user) {
+  if (!user || typeof user.id !== "string") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  const userId = user.id;
 
   try {
     const data = await req.json();
@@ -43,7 +78,7 @@ export async function POST(req: NextRequest) {
     if (!name || !country) {
       return NextResponse.json(
         { error: "Name and country are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -55,7 +90,7 @@ export async function POST(req: NextRequest) {
     if (existingCity) {
       return NextResponse.json(
         { error: "City already exists" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -82,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     // 记录审计日志
     await logAudit("CITY_CREATE", {
-      userId: (user as any).id,
+      userId,
       meta: { cityId: city.id, name, country },
     });
 
@@ -91,7 +126,7 @@ export async function POST(req: NextRequest) {
     console.error("Create city error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -111,7 +146,7 @@ async function ensureTaxConfig(country: string) {
     const defaultConfigs = getDefaultTaxConfig(country, currentYear);
 
     if (defaultConfigs) {
-      const config = await prisma.taxConfig.create({
+      await prisma.taxConfig.create({
         data: defaultConfigs.config,
       });
 
@@ -130,7 +165,10 @@ async function ensureTaxConfig(country: string) {
 }
 
 // 创建社保规则
-async function createSocialSecurityRule(cityId: string, rules: any) {
+async function createSocialSecurityRule(
+  cityId: string,
+  rules: SocialSecurityRulePayload,
+) {
   const startDate = new Date(rules.startDate || new Date());
 
   await prisma.cityRuleSS.create({
@@ -149,7 +187,10 @@ async function createSocialSecurityRule(cityId: string, rules: any) {
 }
 
 // 创建公积金规则
-async function createHousingFundRule(cityId: string, rules: any) {
+async function createHousingFundRule(
+  cityId: string,
+  rules: HousingFundRulePayload,
+) {
   const startDate = new Date(rules.startDate || new Date());
 
   await prisma.cityRuleHF.create({
@@ -165,8 +206,11 @@ async function createHousingFundRule(cityId: string, rules: any) {
 }
 
 // 获取默认税制配置
-function getDefaultTaxConfig(country: string, taxYear: number) {
-  const configs: Record<string, any> = {
+function getDefaultTaxConfig(
+  country: string,
+  taxYear: number,
+): TaxConfigTemplate | undefined {
+  const configs: Record<string, TaxConfigTemplate> = {
     CN: {
       config: {
         country,

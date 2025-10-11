@@ -35,13 +35,16 @@ export default function CitySelect({
 
   const citiesByCountry = useMemo(() => {
     if (!cities || cities.length === 0) return {};
-    return cities.reduce((acc, city) => {
-      if (!acc[city.country]) {
-        acc[city.country] = [];
-      }
-      acc[city.country].push(city);
-      return acc;
-    }, {} as Record<string, City[]>);
+    return cities.reduce(
+      (acc, city) => {
+        if (!acc[city.country]) {
+          acc[city.country] = [];
+        }
+        acc[city.country].push(city);
+        return acc;
+      },
+      {} as Record<string, City[]>,
+    );
   }, [cities]);
 
   const isDisabled = disabled || isLoading || !cities || cities.length === 0;
@@ -56,15 +59,9 @@ export default function CitySelect({
   };
 
   return (
-    <Select
-      value={value}
-      onValueChange={onValueChange}
-      disabled={isDisabled}
-    >
+    <Select value={value} onValueChange={onValueChange} disabled={isDisabled}>
       <SelectTrigger className={className}>
-        <SelectValue
-          placeholder={isLoading ? "加载中..." : placeholder}
-        />
+        <SelectValue placeholder={isLoading ? "加载中..." : placeholder} />
       </SelectTrigger>
       <SelectContent>
         {Object.keys(citiesByCountry).length === 0 ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,23 +21,39 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { postTransfer, useAccounts } from "@/lib/api/accounts";
+import { toInputDatetimeValue } from "@/lib/utils/datetime";
 
 export function TransferDialog({
   defaultFromId,
   defaultToId,
+  onSuccess,
 }: {
   defaultFromId?: string;
   defaultToId?: string;
+  onSuccess?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    fromAccount: defaultFromId ?? "",
-    toAccount: defaultToId ?? "",
+  const { data: accounts, isLoading } = useAccounts();
+  const accountOptions = useMemo(
+    () => (accounts ?? []).filter((a) => a.status !== "ARCHIVED"),
+    [accounts],
+  );
+  const buildInitialForm = () => ({
+    fromAccount: defaultFromId ?? accountOptions[0]?.id ?? "",
+    toAccount:
+      defaultToId ??
+      (accountOptions.length > 1
+        ? (accountOptions[1]?.id ?? accountOptions[0]?.id ?? "")
+        : (accountOptions[0]?.id ?? "")),
     amount: "",
-    occurredAt: "",
+    occurredAt: toInputDatetimeValue(new Date()),
     note: "",
   });
-  const { data: accounts, isLoading } = useAccounts();
+  const [form, setForm] = useState(buildInitialForm);
+  useEffect(() => {
+    if (!open) return;
+    setForm(buildInitialForm());
+  }, [open, defaultFromId, defaultToId, accountOptions]);
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
   const onSubmit = async (e: React.FormEvent) => {
@@ -50,20 +66,21 @@ export function TransferDialog({
     });
     toast.success("转账成功");
     setOpen(false);
-    setForm({
-      fromAccount: "",
-      toAccount: "",
-      amount: "",
-      occurredAt: "",
-      note: "",
-    });
+    setForm(buildInitialForm());
+    onSuccess?.();
   };
+  const disableSubmit =
+    !form.fromAccount ||
+    !form.toAccount ||
+    form.fromAccount === form.toAccount ||
+    !form.amount ||
+    Number(form.amount) === 0;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="default">跨/同币种转账</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-testid="accounts-ui-dialog-transfer">
         <DialogHeader>
           <DialogTitle>发起转账</DialogTitle>
         </DialogHeader>
@@ -129,7 +146,9 @@ export function TransferDialog({
             <Input name="note" value={form.note} onChange={onChange} />
           </div>
           <DialogFooter>
-            <Button type="submit">提交</Button>
+            <Button type="submit" disabled={disableSubmit}>
+              提交
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

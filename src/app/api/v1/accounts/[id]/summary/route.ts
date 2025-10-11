@@ -9,11 +9,11 @@ import { getUserFromRequest } from "@/server/utils/auth";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const user = await getUserFromRequest(req);
-  if (!user)
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const account = await prisma.account.findUnique({
     where: { id },
@@ -22,17 +22,17 @@ export async function GET(
       valuations: { orderBy: { asOf: "desc" }, take: 1 },
     },
   });
-  if (!account || account.userId !== (user as any).id) {
+  if (!account || account.userId !== user.id) {
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   }
   const principal = account.txnLines.reduce(
     (sum, line) => sum + Number(line.amount),
-    Number(account.initialBalance)
+    Number(account.initialBalance),
   );
   const valuation =
     account.accountType === "SAVINGS"
       ? principal
-      : account.valuations[0]?.totalValue.toNumber() ?? 0;
+      : (account.valuations[0]?.totalValue.toNumber() ?? 0);
   const profit = valuation - principal;
   const roi = principal === 0 ? null : profit / principal;
   return NextResponse.json({

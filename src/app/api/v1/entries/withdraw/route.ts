@@ -16,15 +16,15 @@ import {
 export async function POST(req: NextRequest) {
   const { accountId, amount, occurredAt, note } = await req.json();
   const user = await getUserFromRequest(req);
-  if (!user)
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || account.userId !== (user as any).id) {
+  if (!account || account.userId !== user.id) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
   const { key, existed } = await ensureIdempotent(
     req,
-    (user as any).id,
+    user.id,
     `${accountId}:${amount}:${occurredAt}:${note ?? ""}`,
   );
   if (existed)
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     );
   const entry = await prisma.txnEntry.create({
     data: {
-      userId: (user as any).id,
+      userId: user.id,
       type: "WITHDRAW",
       occurredAt: new Date(occurredAt),
       note,
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     include: { lines: true },
   });
   await logAudit("ENTRY_WITHDRAW", {
-    userId: (user as any).id,
+    userId: user.id,
     meta: { entryId: entry.id },
   });
   await markIdempotencyUsed(key);

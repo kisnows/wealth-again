@@ -31,10 +31,7 @@ describe("Ledger service（账户与交易）", () => {
       baseCurrency: "CNY",
       accountType: "SAVINGS",
       initialBalance: 100,
-      txnLines: [
-        { amount: 10 },
-        { amount: -5 },
-      ],
+      txnLines: [{ amount: 10 }, { amount: -5 }],
       valuations: [],
     });
     const { getAccountSummary } = await import("@/server/services/ledger");

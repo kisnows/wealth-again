@@ -79,3 +79,7 @@ export async function patchJson<T = unknown>(
     idempotencyKey,
   });
 }
+
+export async function deleteJson<T = unknown>(url: string) {
+  return fetchJson<T>(url, { method: "DELETE" });
+}

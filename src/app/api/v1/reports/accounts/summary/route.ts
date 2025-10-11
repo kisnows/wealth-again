@@ -12,11 +12,11 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const displayCurrency = searchParams.get("displayCurrency") || undefined;
   const user = await getUserFromRequest(req);
-  if (!user)
+  if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const items = await computeAccountSummary(
     displayCurrency || undefined,
-    (user as any).id,
+    user.id,
   );
   return NextResponse.json({ items, displayCurrency: displayCurrency || null });
 }

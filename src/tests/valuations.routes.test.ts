@@ -30,7 +30,7 @@ describe("Valuations routes", () => {
         accountId: "a",
         asOf: "2025-08-01",
         totalValue: 100,
-      })
+      }),
     );
     expect(res.status).toBe(400);
   });
@@ -49,7 +49,7 @@ describe("Valuations routes", () => {
         accountId: "a",
         asOf: "2025-08-01",
         totalValue: 120,
-      })
+      }),
     );
     expect(res.status).toBe(201);
 
@@ -69,7 +69,7 @@ describe("Valuations routes", () => {
     (mockPrisma.account.findUnique as any).mockResolvedValueOnce(acc);
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
-      { params: { id: "a" } }
+      { params: { id: "a" } },
     );
     const j = await resSum.json();
     expect(j.valuation).toBe(120);
@@ -84,7 +84,7 @@ describe("Valuations routes", () => {
         accountId: "not-exist",
         asOf: "2025-08-01",
         totalValue: 100,
-      })
+      }),
     );
     expect(res.status).toBe(404);
   });
@@ -95,7 +95,7 @@ describe("Valuations routes", () => {
       makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
         accountId: "a",
         totalValue: 100,
-      })
+      }),
     );
     expect(res.status).toBe(400);
   });

@@ -9,7 +9,7 @@ import { getUserFromRequest } from "@/server/utils/auth";
  */
 export async function DELETE(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const user = await getUserFromRequest(req as any);
@@ -50,7 +50,7 @@ export async function DELETE(
     console.error("Delete LTC plan error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -57,7 +57,7 @@ describe("PRD 示例（2025 年 1–3 月）", () => {
         const g = where.payDate.gte as Date;
         const m = g.getUTCMonth();
         return Promise.resolve(m === 0 || m === 2 ? [{ amount: 10000 }] : []);
-      }
+      },
     );
     mockPrisma.equityVest.findMany.mockResolvedValue([]);
     // 社保/公积金：基数区间包含 20000；比例如 PRD；医保固定额 +3
@@ -102,7 +102,7 @@ describe("PRD 示例（2025 年 1–3 月）", () => {
       makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {
         taxYear: 2025,
         endMonth: 3,
-      })
+      }),
     );
     expect(resp.status).toBe(200);
 

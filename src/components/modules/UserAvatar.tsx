@@ -42,9 +42,7 @@ export default function UserAvatar() {
   };
 
   if (loading) {
-    return (
-      <div className="size-8 rounded-full bg-muted animate-pulse" />
-    );
+    return <div className="size-8 rounded-full bg-muted animate-pulse" />;
   }
 
   if (!user) {
@@ -62,7 +60,8 @@ export default function UserAvatar() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full">
           <div className="size-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
-            {user.name?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase()}
+            {user.name?.charAt(0)?.toUpperCase() ||
+              user.email.charAt(0).toUpperCase()}
           </div>
         </Button>
       </DropdownMenuTrigger>
@@ -73,13 +72,19 @@ export default function UserAvatar() {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/settings" className="flex items-center gap-2 cursor-pointer">
+          <Link
+            href="/settings"
+            className="flex items-center gap-2 cursor-pointer"
+          >
             <Settings className="h-4 w-4" />
             设置
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 cursor-pointer">
+        <DropdownMenuItem
+          onClick={handleSignOut}
+          className="flex items-center gap-2 cursor-pointer"
+        >
           <LogOut className="h-4 w-4" />
           退出登录
         </DropdownMenuItem>

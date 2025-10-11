@@ -9,7 +9,7 @@ const API_BASE = "/api/v1";
 
 // 获取收入预测数据
 export async function fetchIncomeForecast(
-  params: ForecastParams
+  params: ForecastParams,
 ): Promise<{ items: ForecastResult[] }> {
   const searchParams = new URLSearchParams({
     startDate: params.startDate,
@@ -33,7 +33,7 @@ export async function fetchIncomeForecast(
 export async function fetchIncomeOverview(
   startDate: string,
   endDate: string,
-  cityId?: string
+  cityId?: string,
 ): Promise<OverviewStats> {
   const searchParams = new URLSearchParams({
     startDate,
@@ -56,7 +56,7 @@ export async function fetchIncomeOverview(
 // 获取收入时序数据（复用现有接口）
 export async function fetchIncomeTimeseries(
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<{
   series: Record<string, Array<{ month: string; value: number }>>;
 }> {
@@ -66,7 +66,7 @@ export async function fetchIncomeTimeseries(
   });
 
   const response = await fetch(
-    `${API_BASE}/reports/income/timeseries?${searchParams}`
+    `${API_BASE}/reports/income/timeseries?${searchParams}`,
   );
 
   if (!response.ok) {
@@ -101,7 +101,7 @@ export async function triggerIncomeRecalc(params: {
 export async function fetchIncomeRecords(
   startDate: string,
   endDate: string,
-  userId?: string
+  userId?: string,
 ): Promise<{ items: any[] }> {
   const searchParams = new URLSearchParams({
     from: startDate,

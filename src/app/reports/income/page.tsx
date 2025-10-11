@@ -51,8 +51,8 @@ export default function ReportsIncomePage() {
     if (!data?.series) return { items: [], statistics: null };
 
     const items = (data.series.gross ?? []).map((g: any, i: number) => ({
-    month: g.month,
-    gross: Number(g.value || 0),
+      month: g.month,
+      gross: Number(g.value || 0),
       bonus: Number(data.series.bonus?.[i]?.value || 0),
       ltcIncome: Number(data.series.ltcIncome?.[i]?.value || 0),
       equityIncome: Number(data.series.equityIncome?.[i]?.value || 0),
@@ -66,26 +66,29 @@ export default function ReportsIncomePage() {
     if (items.length === 0) return { items, statistics: null };
 
     const totals = items.reduce(
-      (acc: {
-        gross: number;
-        bonus: number;
-        ltcIncome: number;
-        equityIncome: number;
-        socialInsurance: number;
-        housingFund: number;
-        incomeTax: number;
-        netIncome: number;
-      }, item: {
-        month: string;
-        gross: number;
-        bonus: number;
-        ltcIncome: number;
-        equityIncome: number;
-        socialInsurance: number;
-        housingFund: number;
-        incomeTax: number;
-        netIncome: number;
-      }) => {
+      (
+        acc: {
+          gross: number;
+          bonus: number;
+          ltcIncome: number;
+          equityIncome: number;
+          socialInsurance: number;
+          housingFund: number;
+          incomeTax: number;
+          netIncome: number;
+        },
+        item: {
+          month: string;
+          gross: number;
+          bonus: number;
+          ltcIncome: number;
+          equityIncome: number;
+          socialInsurance: number;
+          housingFund: number;
+          incomeTax: number;
+          netIncome: number;
+        },
+      ) => {
         acc.gross += item.gross;
         acc.bonus += item.bonus;
         acc.ltcIncome += item.ltcIncome;
@@ -378,68 +381,73 @@ export default function ReportsIncomePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {items.map((item: {
-                        month: string;
-                        gross: number;
-                        bonus: number;
-                        ltcIncome: number;
-                        equityIncome: number;
-                        socialInsurance: number;
-                        housingFund: number;
-                        incomeTax: number;
-                        netIncome: number;
-                      }, index: number) => (
-                        <TableRow
-                          key={index}
-                          className={index % 2 === 0 ? "bg-gray-50/50" : ""}
-                        >
-                          <TableCell className="font-medium">
-                            {item.month}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {formatMoney(item.gross, "CNY")}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {item.bonus > 0 ? (
-                              <span className="text-green-600">
-                                {formatMoney(item.bonus, "CNY")}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">--</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {item.ltcIncome > 0 ? (
-                              <span className="text-blue-600">
-                                {formatMoney(item.ltcIncome, "CNY")}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">--</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {item.equityIncome > 0 ? (
-                              <span className="text-purple-600">
-                                {formatMoney(item.equityIncome, "CNY")}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">--</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-orange-600">
-                            {formatMoney(item.socialInsurance, "CNY")}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-orange-600">
-                            {formatMoney(item.housingFund, "CNY")}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-red-600">
-                            {formatMoney(item.incomeTax, "CNY")}
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-semibold">
-                            {formatMoney(item.netIncome, "CNY")}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {items.map(
+                        (
+                          item: {
+                            month: string;
+                            gross: number;
+                            bonus: number;
+                            ltcIncome: number;
+                            equityIncome: number;
+                            socialInsurance: number;
+                            housingFund: number;
+                            incomeTax: number;
+                            netIncome: number;
+                          },
+                          index: number,
+                        ) => (
+                          <TableRow
+                            key={index}
+                            className={index % 2 === 0 ? "bg-gray-50/50" : ""}
+                          >
+                            <TableCell className="font-medium">
+                              {item.month}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatMoney(item.gross, "CNY")}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {item.bonus > 0 ? (
+                                <span className="text-green-600">
+                                  {formatMoney(item.bonus, "CNY")}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">--</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {item.ltcIncome > 0 ? (
+                                <span className="text-blue-600">
+                                  {formatMoney(item.ltcIncome, "CNY")}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">--</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {item.equityIncome > 0 ? (
+                                <span className="text-purple-600">
+                                  {formatMoney(item.equityIncome, "CNY")}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">--</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-orange-600">
+                              {formatMoney(item.socialInsurance, "CNY")}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-orange-600">
+                              {formatMoney(item.housingFund, "CNY")}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-red-600">
+                              {formatMoney(item.incomeTax, "CNY")}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-semibold">
+                              {formatMoney(item.netIncome, "CNY")}
+                            </TableCell>
+                          </TableRow>
+                        ),
+                      )}
 
                       {/* 汇总行 */}
                       {statistics && (

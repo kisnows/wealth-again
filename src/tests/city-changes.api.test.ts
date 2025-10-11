@@ -64,7 +64,9 @@ describe("城市迁移 API", () => {
       },
     ]);
 
-    const res = await route.GET(makeGet("http://localhost/api/v1/city-changes"));
+    const res = await route.GET(
+      makeGet("http://localhost/api/v1/city-changes"),
+    );
     expect(res.status).toBe(200);
     const payload = await res.json();
     expect(payload.currentCity.name).toBe("杭州");
@@ -101,11 +103,10 @@ describe("城市迁移 API", () => {
     });
 
     const res = await route.POST(
-      makeJsonRequest(
-        "http://localhost/api/v1/city-changes",
-        "POST",
-        { toCityId: "c2", effectiveMonth: effective.label }
-      ),
+      makeJsonRequest("http://localhost/api/v1/city-changes", "POST", {
+        toCityId: "c2",
+        effectiveMonth: effective.label,
+      }),
     );
 
     expect(res.status).toBe(201);
@@ -146,11 +147,10 @@ describe("城市迁移 API", () => {
     });
 
     const res = await route.POST(
-      makeJsonRequest(
-        "http://localhost/api/v1/city-changes",
-        "POST",
-        { toCityId: "c3", effectiveMonth: effective.label }
-      ),
+      makeJsonRequest("http://localhost/api/v1/city-changes", "POST", {
+        toCityId: "c3",
+        effectiveMonth: effective.label,
+      }),
     );
 
     expect(res.status).toBe(400);
@@ -177,11 +177,10 @@ describe("城市迁移 API", () => {
     ).padStart(2, "0")}`;
 
     const res = await route.POST(
-      makeJsonRequest(
-        "http://localhost/api/v1/city-changes",
-        "POST",
-        { toCityId: "c2", effectiveMonth: currentMonth }
-      ),
+      makeJsonRequest("http://localhost/api/v1/city-changes", "POST", {
+        toCityId: "c2",
+        effectiveMonth: currentMonth,
+      }),
     );
 
     expect(res.status).toBe(400);
