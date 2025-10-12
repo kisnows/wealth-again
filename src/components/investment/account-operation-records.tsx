@@ -13,6 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Snapshot {
   id: string;
@@ -36,6 +44,7 @@ interface OperationRecord {
   amount: number;
   description: string;
   note?: string;
+  currency?: string;
 }
 
 interface Pagination {
@@ -126,6 +135,7 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
               amount: Number(transaction.amount),
               description: getTransactionDescription(transaction),
               note: transaction.note,
+              currency: transaction.currency,
             });
           });
         }
@@ -160,7 +170,7 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
   }
 
   function getTransactionDescription(transaction: Transaction): string {
-    const amount = formatCurrency(Number(transaction.amount));
+    const amount = formatCurrency(Number(transaction.amount), transaction.currency);
     switch (transaction.type) {
       case "DEPOSIT":
         return `存款：${amount}`;
@@ -206,10 +216,62 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
     return <div className="text-center py-8 text-red-500">错误: {error}</div>;
   }
 
+  const handleExport = () => {
+    if (records.length === 0) {
+      return;
+    }
+
+    const header = ["日期", "操作类型", "金额", "币种", "备注", "描述"];
+    const rows = records.map((record) => {
+      const sign =
+        record.type === "WITHDRAW" || record.type === "TRANSFER_OUT"
+          ? "-"
+          : record.type === "VALUATION"
+            ? ""
+            : "+";
+      const formattedAmount = `${sign}${Number(record.amount).toFixed(2)}`;
+
+      const cells = [
+        new Date(record.date).toISOString().split("T")[0],
+        OPERATION_TYPE_LABELS[record.type],
+        formattedAmount,
+        record.currency || "CNY",
+        record.note || "",
+        record.description,
+      ];
+
+      return cells.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",");
+    });
+
+    const csvContent = [header.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `account-records-${accountId}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const hasRecords = records.length > 0;
+
   return (
     <Card data-testid="account-operation-records">
       <CardHeader>
-        <CardTitle>账户操作记录</CardTitle>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <CardTitle>账户交易明细</CardTitle>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={!hasRecords}
+            data-testid="export-transactions-button"
+          >
+            导出 CSV
+          </Button>
+        </div>
 
         {/* 筛选器 */}
         <div className="flex flex-wrap gap-4 mt-4">
@@ -272,71 +334,89 @@ export default function AccountOperationRecords({ accountId }: { accountId: stri
       </CardHeader>
 
       <CardContent>
-        {records.length === 0 ? (
+        {!hasRecords ? (
           <p className="text-center text-gray-500 py-8">暂无操作记录</p>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3">日期</th>
-                    <th className="text-left py-3">操作类型</th>
-                    <th className="text-left py-3">描述</th>
-                    <th className="text-left py-3">金额</th>
-                    <th className="text-left py-3">备注</th>
-                    <th className="text-left py-3">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((record) => (
-                    <tr key={record.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3">{new Date(record.date).toLocaleDateString()}</td>
-                      <td className="py-3">
-                        <span
-                          className={`px-2 py-1 rounded text-sm ${OPERATION_TYPE_COLORS[record.type]}`}
-                        >
-                          {OPERATION_TYPE_LABELS[record.type]}
-                        </span>
-                      </td>
-                      <td className="py-3">{record.description}</td>
-                      <td className="py-3 font-medium">
-                        <span
-                          className={
-                            record.type === "WITHDRAW" || record.type === "TRANSFER_OUT"
-                              ? "text-red-600"
-                              : "text-green-600"
-                          }
-                        >
-                          {record.type === "WITHDRAW" || record.type === "TRANSFER_OUT" ? "-" : "+"}
-                          {formatCurrency(record.amount)}
-                        </span>
-                      </td>
-                      <td className="py-3 text-sm text-gray-600">{record.note || "-"}</td>
-                      <td className="py-3">
-                        {record.type === "VALUATION" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteSnapshot(record.id)}
-                            className="text-red-600 hover:text-red-700"
-                            data-testid="delete-snapshot-button"
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b">
+                    <TableHead className="w-[120px]">日期</TableHead>
+                    <TableHead className="w-[140px]">操作类型</TableHead>
+                    <TableHead>描述</TableHead>
+                    <TableHead className="w-[160px]">金额</TableHead>
+                    <TableHead className="w-[100px]">币种</TableHead>
+                    <TableHead className="w-[180px]">备注</TableHead>
+                    <TableHead className="w-[120px]">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {records.map((record) => {
+                    const isOutflow = record.type === "WITHDRAW" || record.type === "TRANSFER_OUT";
+                    const isValuation = record.type === "VALUATION";
+                    const signedAmount = isValuation
+                      ? record.amount
+                      : isOutflow
+                        ? -record.amount
+                        : record.amount;
+
+                    return (
+                      <TableRow key={record.id} className="border-b">
+                        <TableCell className="py-3 text-sm">
+                          {new Date(record.date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className={`px-2 py-1 rounded text-sm ${OPERATION_TYPE_COLORS[record.type]}`}>
+                            {OPERATION_TYPE_LABELS[record.type]}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 text-sm text-gray-700">{record.description}</TableCell>
+                        <TableCell className="py-3 font-medium">
+                          <span
+                            className={
+                              isValuation
+                                ? "text-gray-700"
+                                : isOutflow
+                                  ? "text-red-600"
+                                  : "text-green-600"
+                            }
                           >
-                            删除
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            {formatCurrency(signedAmount, record.currency)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 text-sm text-gray-600">
+                          {record.currency || "-"}
+                        </TableCell>
+                        <TableCell className="py-3 text-sm text-gray-600">
+                          {record.note || "-"}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          {record.type === "VALUATION" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteSnapshot(record.id)}
+                              className="text-red-600 hover:text-red-700"
+                              data-testid="delete-snapshot-button"
+                            >
+                              删除
+                            </Button>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
 
             {pagination.totalPages > 1 && (
               <div className="flex justify-between items-center mt-6">
                 <div className="text-sm text-gray-600">
-                  第 {pagination.page} 页，共 {pagination.totalPages} 页 | 总计 {pagination.total}{" "}
-                  条记录
+                  第 {pagination.page} 页，共 {pagination.totalPages} 页 | 总计 {pagination.total} 条记录
                 </div>
                 <div className="flex gap-2">
                   <Button
