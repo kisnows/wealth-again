@@ -2,9 +2,15 @@
 
 import { useMemo } from "react";
 import AccountTable from "@/components/modules/AccountTable";
+import AccountFxPanel from "@/components/modules/AccountFxPanel";
 import CreateAccountDialog from "@/components/modules/CreateAccountDialog";
 import TransferDialog from "@/components/modules/TransferDialog";
 import ValuationFormDialog from "@/components/modules/ValuationFormDialog";
+import {
+  PageContainer,
+  PageHeader,
+  PageSection,
+} from "@/components/modules/PageLayout";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAccounts } from "@/lib/api/accounts";
@@ -50,106 +56,145 @@ export default function AccountsPage() {
   const hasError = accountsError || summaryError;
   const summaries = summaryData?.items ?? [];
   const totals = useMemo(() => {
+    if (summaryData?.totals) return summaryData.totals;
     return summaries.reduce(
       (acc, item) => {
-        const value =
-          typeof item.displayValue === "number" && displayCurrency
-            ? item.displayValue
-            : item.valuation;
+        const valuationValue =
+          displayCurrency && typeof item.displayValue === "number"
+            ? Number(item.displayValue)
+            : Number(item.valuation ?? 0);
         if ((item.status ?? "ACTIVE") === "ARCHIVED") {
-          acc.archived += value;
+          acc.archived += valuationValue;
         }
-        if (item.accountType === "LOAN") acc.liabilities += value;
-        else acc.assets += value;
+        if (item.accountType === "LOAN") acc.liabilities += valuationValue;
+        else acc.assets += valuationValue;
+        acc.netWorth = acc.assets - acc.liabilities;
         return acc;
       },
-      { assets: 0, liabilities: 0, archived: 0 },
+      { assets: 0, liabilities: 0, archived: 0, netWorth: 0 },
     );
-  }, [summaries, displayCurrency]);
-  const netWorth = totals.assets - totals.liabilities;
+  }, [summaries, summaryData?.totals, displayCurrency]);
+  const netWorth = totals.netWorth ?? totals.assets - totals.liabilities;
+  const currencyCodes = useMemo(() => {
+    const codes = new Set<string>();
+    (accountList ?? []).forEach((account) => {
+      if (account.baseCurrency) codes.add(account.baseCurrency.toUpperCase());
+    });
+    summaries.forEach((summary) => {
+      if (summary.currency) codes.add(summary.currency.toUpperCase());
+      if (summary.valuationCurrency) {
+        codes.add(summary.valuationCurrency.toUpperCase());
+      }
+    });
+    return Array.from(codes).sort();
+  }, [accountList, summaries]);
+  const totalsCurrency =
+    summaryData?.displayCurrency ??
+    displayCurrency ??
+    summaries[0]?.currency ??
+    "CNY";
 
   return (
-    <main className="space-y-6 p-6" data-testid="accounts-ui-page">
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-foreground">账户中心</h1>
-          <p className="text-sm text-muted-foreground">
-            快速浏览资产、负债与最新估值，支持一键入账与估值记录。
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <CreateAccountDialog />
-          <TransferDialog />
-          <ValuationFormDialog />
-        </div>
-      </header>
-      <section
-        className="grid gap-4 md:grid-cols-3"
-        data-testid="accounts-ui-summary"
+    <PageContainer padding="md" testId="accounts-ui-page">
+      <PageHeader
+        actions={
+          <div className="flex flex-wrap gap-2" data-testid="accounts-ui-actions">
+            <CreateAccountDialog />
+            <TransferDialog />
+            <ValuationFormDialog />
+          </div>
+        }
+        description="快速浏览资产、负债与最新估值，支持一键入账与估值记录。"
+        overline="Accounts"
+        testId="accounts-ui-header"
+        title="账户中心"
+      />
+
+      <AccountFxPanel
+        currencies={currencyCodes}
+        displayCurrency={displayCurrency ?? null}
+      />
+
+      <PageSection
+        bleed
+        contentClassName="bg-transparent p-0 shadow-none"
+        testId="accounts-ui-summary"
       >
-        {SUMMARY_CARDS.map((card) => {
-          const value =
-            card.key === "assets"
-              ? totals.assets
-              : card.key === "liabilities"
-                ? totals.liabilities
-                : netWorth;
-          const badge =
-            card.key === "liabilities"
-              ? { variant: "outline" as const, label: "负债" }
-              : card.key === "assets"
-                ? { variant: "secondary" as const, label: "资产" }
-                : undefined;
-          return (
-            <Card
-              className="bg-muted/40"
-              data-testid={`accounts-ui-summary-card-${card.key}`}
-              key={card.key}
-            >
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between text-sm font-medium text-muted-foreground">
-                  <span>{card.label}</span>
-                  {badge ? (
-                    <Badge className="text-xs" variant={badge.variant}>
-                      {badge.label}
-                    </Badge>
-                  ) : null}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-semibold text-foreground">
-                  {formatAmount(
-                    value,
-                    displayCurrency ?? summaries[0]?.currency,
-                  )}
-                </p>
-                {card.key === "assets" && totals.archived > 0 && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    含已归档估值{" "}
+        <div className="grid gap-4 md:grid-cols-3">
+          {SUMMARY_CARDS.map((card) => {
+            const value =
+              card.key === "assets"
+                ? totals.assets
+                : card.key === "liabilities"
+                  ? totals.liabilities
+                  : netWorth;
+            const badge =
+              card.key === "liabilities"
+                ? { variant: "outline" as const, label: "负债" }
+                : card.key === "assets"
+                  ? { variant: "secondary" as const, label: "资产" }
+                  : undefined;
+            return (
+              <Card
+                className="border border-border/60 bg-card/90"
+                data-testid={`accounts-ui-summary-card-${card.key}`}
+                key={card.key}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between text-sm font-medium text-muted-foreground">
+                    <span>{card.label}</span>
+                    {badge ? (
+                      <Badge className="text-xs" variant={badge.variant}>
+                        {badge.label}
+                      </Badge>
+                    ) : null}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold text-foreground">
                     {formatAmount(
-                      totals.archived,
-                      displayCurrency ?? summaries[0]?.currency,
+                      value,
+                      totalsCurrency,
                     )}
                   </p>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </section>
-      {hasError && (
+                  {card.key === "assets" && totals.archived > 0 ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      含已归档估值 {formatAmount(
+                        totals.archived,
+                        totalsCurrency,
+                      )}
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          汇总金额按展示币种 {totalsCurrency} 折算；下方账户卡片同时展示原币种与折算值。
+        </p>
+      </PageSection>
+
+      {hasError ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           加载账户数据失败，请稍后重试。
         </div>
-      )}
-      <div>
+      ) : null}
+
+      <PageSection
+        bleed
+        contentClassName="border-none bg-transparent p-0 shadow-none"
+        description="支持快捷操作与估值维护，按当前偏好币种展示。"
+        testId="accounts-ui-table"
+        title="账户列表"
+      >
         <AccountTable
           accounts={accountList ?? []}
           displayCurrency={displayCurrency ?? null}
           isLoading={isLoading}
           summaries={summaries}
         />
-      </div>
-    </main>
+      </PageSection>
+    </PageContainer>
   );
 }

@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPrisma: any = {
-  account: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+  account: {
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+  fxRate: { findMany: vi.fn() },
   txnEntry: { create: vi.fn() },
 };
 
@@ -11,29 +17,35 @@ describe("Ledger service（账户与交易）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     for (const key of Object.keys(mockPrisma.account)) {
-      mockPrisma.account[key].mockClear();
+      mockPrisma.account[key].mockReset();
     }
-    mockPrisma.txnEntry.create.mockClear();
+    mockPrisma.fxRate.findMany.mockReset();
+    mockPrisma.txnEntry.create.mockReset();
+    mockPrisma.fxRate.findMany.mockResolvedValue([]);
   });
 
   it("getAccountSummary 未找到账户时返回 null", async () => {
     // 用例：服务在账户不存在时应返回 null，避免继续计算 ROI。
-    mockPrisma.account.findUnique.mockResolvedValueOnce(null);
+    mockPrisma.account.findMany
+      .mockResolvedValueOnce([]);
     const { getAccountSummary } = await import("@/server/services/ledger");
     await expect(getAccountSummary("missing")).resolves.toBeNull();
   });
 
   it("getAccountSummary 聚合本金/估值/ROI", async () => {
     // 用例：同一方法需兼容储蓄与投资账户，正确汇总本金、估值及 ROI。
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "acc-savings",
-      name: "储蓄账户",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 100,
-      txnLines: [{ amount: 10 }, { amount: -5 }],
-      valuations: [],
-    });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "acc-savings",
+        name: "储蓄账户",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        initialBalance: 100,
+        status: "ACTIVE",
+        txnLines: [{ amount: 10 }, { amount: -5 }],
+        valuations: [],
+      },
+    ]);
     const { getAccountSummary } = await import("@/server/services/ledger");
     const summarySavings = await getAccountSummary("acc-savings");
     expect(summarySavings).toMatchObject({
@@ -43,15 +55,18 @@ describe("Ledger service（账户与交易）", () => {
       roi: 0,
     });
 
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "acc-invest",
-      name: "投资账户",
-      baseCurrency: "USD",
-      accountType: "INVESTMENT",
-      initialBalance: 100,
-      txnLines: [{ amount: 50 }],
-      valuations: [{ totalValue: 180 }],
-    });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "acc-invest",
+        name: "投资账户",
+        baseCurrency: "USD",
+        accountType: "INVESTMENT",
+        initialBalance: 100,
+        status: "ACTIVE",
+        txnLines: [{ amount: 50 }],
+        valuations: [{ totalValue: 180 }],
+      },
+    ]);
     const summaryInvest = await getAccountSummary("acc-invest");
     expect(summaryInvest).toMatchObject({
       principal: 150,

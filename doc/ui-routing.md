@@ -32,13 +32,13 @@
   - 收入卡片：依赖 `useIncomeTimeseries`（`src/lib/api/reports`）。
 - **数据依赖**：`useDashboard`、`useAccountsSummary`、`useIncomeTimeseries`。
 - **交互**：
-  - Display Currency/As-of 输入框（`useUserPrefsStore`）。
+  - 顶部展示当前展示币种与统计日期（只读 Badge/Breadcrumb），提供跳转 `/settings` 的入口以修改偏好。
   - 管理员 impersonate 模式下在标题旁显示当前视角用户。
 
 ### 2.2 /income
-- **结构**：主页面由 `IncomeOverviewModule`、`IncomeEntryModule`、`IncomeForecastModule` 组成；子目录用于更细化的表单视图。
+- **结构**：主页面由 `IncomeAnalyticsPanel`（概览）、`IncomeEntryModule`（配置与录入）、`IncomeForecastModule`（预测与回算）组成；子目录用于更细化的表单视图。
 - **关键需求映射**：
-  - `IncomeOverviewModule` 展示本年度累计税前/税后收入、社保、公积金、税额，并标记人工调整月份。
+  - `IncomeAnalyticsPanel` 作为唯一的收入统计组件，展示累计税前/税后收入、社保、公积金、税额，并输出月度明细；`/reports/income` 同样复用该组件，保证数据与渲染逻辑一致。
   - `IncomeEntryModule` 中包含导航到工资/奖金/LTC/股权管理的卡片或 tab。
   - `IncomeForecastModule` 提供历史与未来预测图，使用 `useIncomeForecast`（待在 `src/lib/api/income` 增补）。
 - **人工调整**：
@@ -80,7 +80,8 @@
 ### 2.8 /accounts
 - **页面结构**：
   - 顶部操作按钮（新增账户、导入）。
-  - 账户列表（类型、余额、估值、收益率、币种）。
+  - 汇率面板 `AccountFxPanel`：按账户实际使用的币种展示最新 USD 中间价、上次更新时间，并支持录入新快照（调用 `/api/v1/fxrates`）。
+  - 账户列表（类型、余额、估值、收益率、币种），汇总卡片按展示币种折算金额。
   - 归档切换、快速筛选。
 - **关联页面**：
   - `/entries` 模块负责具体交易录入（存入/取出/转账）。
@@ -102,17 +103,18 @@
 ### 2.11 /reports
 - **模块**：
   - `reports/dashboard`（全局趋势）
-  - `reports/income`（收入时序、预测）
+  - `reports/income`（收入时序，复用 `IncomeAnalyticsPanel`）
   - `reports/tax`（年度税务分析）
 - **数据源**：`src/lib/api/reports` 提供统一钩子。
 
 ### 2.12 /settings
 - **功能**：
-  - 基准币种、展示币种选择。
+  - “全局偏好”分区统一维护展示币种与报表统计日期，更新后写入 `useUserPrefsStore` 并刷新关联 SWR key；其他页面只能读取这些值。
+  - 基准币种更新（调用 `/api/v1/user/profile`）。
   - 工作城市切换（需设置生效日期）。
   - 年度专线扣除维护（列表 + 新增/编辑对话框）。
   - 通知偏好。
-- **数据流**：`useUserPrefsStore` 持久化到本地；保存时调用 `/api/settings`。
+- **数据流**：全局偏好通过 `useUserPrefsStore` 管理（仅在此页面调用 setter）；保存时调用 `/api/settings`（偏好）和 `/api/v1/user/profile`（基准币种）等接口。
 
 ### 2.13 管理员工作台（待补充）
 - 建议路径：`/admin/users`、`/admin/activity`。
@@ -137,4 +139,3 @@
 - 管理员工作台、新增年度扣除界面尚未存在，需要新增页面与 API。
 - 导出功能（CSV/Excel）尚未实现，需要统一工具（建议放在 `src/lib/utils/export.ts`）。
 - 图表在暗色模式下的配色需校对，确保可读性。
-

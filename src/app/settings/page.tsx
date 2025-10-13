@@ -1,12 +1,13 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calculator, Calendar, MapPin } from "lucide-react";
+import { Calculator, Calendar, MapPin, Settings2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import CitySelect from "@/components/modules/CitySelect";
+import { PageContainer, PageHeader } from "@/components/modules/PageLayout";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -49,6 +50,7 @@ import {
   useCurrentUser,
 } from "@/lib/api/user";
 import { formatMoney } from "@/lib/domain/money";
+import { useUserPrefsStore } from "@/lib/state/user-prefs";
 
 const countryLabels: Record<string, string> = {
   CN: "中国",
@@ -144,6 +146,12 @@ export default function SettingsPage() {
 
   const [currencySaving, setCurrencySaving] = useState(false);
   const [citySubmitting, setCitySubmitting] = useState(false);
+  const {
+    displayCurrency,
+    asOfDate,
+    setDisplayCurrency,
+    setAsOfDate,
+  } = useUserPrefsStore();
 
   const annualDeductions = deductionData?.items ?? [];
   const defaultEffectiveMonth = useMemo(() => getNextMonthValue(), []);
@@ -161,6 +169,22 @@ export default function SettingsPage() {
     () => findUpcomingChange(cityChangeData?.items ?? []),
     [cityChangeData?.items],
   );
+
+  const handleDisplayCurrencyPreference = (nextValue: string) => {
+    if (!nextValue || nextValue === displayCurrency) return;
+    setDisplayCurrency(nextValue);
+    toast.success(`展示币种偏好已更新为 ${nextValue}`);
+  };
+
+  const handleAsOfDateUpdate = (value: string) => {
+    const trimmed = (value ?? "").trim();
+    const normalized = trimmed ? trimmed : null;
+    if (normalized === asOfDate) return;
+    setAsOfDate(normalized);
+    toast.success(
+      normalized ? `统计日期已更新至 ${trimmed}` : "统计日期偏好已清除",
+    );
+  };
 
   const handleBaseCurrencyUpdate = async (currency: string) => {
     if (!user || currency === user.baseCurrency) return;
@@ -200,31 +224,108 @@ export default function SettingsPage() {
 
   if (userLoading || cityChangeLoading) {
     return (
-      <main className="space-y-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 w-40 rounded bg-muted" />
-          <div className="h-32 rounded bg-muted" />
+      <PageContainer padding="md" testId="settings-ui-loading">
+        <div className="space-y-4">
+          <div className="h-8 w-40 animate-pulse rounded bg-muted" />
+          <div className="h-32 animate-pulse rounded bg-muted" />
         </div>
-      </main>
+      </PageContainer>
     );
   }
 
   return (
-    <main className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">用户设置</h1>
-        <p className="mt-1 text-muted-foreground">
-          管理个人偏好、工作城市与专项附加扣除
-        </p>
-      </div>
+    <PageContainer padding="md" testId="settings-ui-page">
+      <PageHeader
+        description="管理个人偏好、工作城市与专项附加扣除，保持收入回算口径一致。"
+        overline="Settings"
+        testId="settings-ui-header"
+        title="用户设置"
+      />
 
-      <Card>
+      <Card data-testid="settings-ui-preferences">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings2 className="h-5 w-5" />
+            展示偏好
+          </CardTitle>
+          <CardDescription>
+            统一设置展示币种与统计日期，其他页面仅以只读方式引用这些值。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="settings-pref-display">展示币种</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                data-testid="settings-ui-pref-display"
+                onValueChange={handleDisplayCurrencyPreference}
+                value={displayCurrency ?? undefined}
+              >
+                <SelectTrigger id="settings-pref-display">
+                  <SelectValue placeholder="请选择展示币种" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CNY">人民币 (CNY)</SelectItem>
+                  <SelectItem value="USD">美元 (USD)</SelectItem>
+                  <SelectItem value="EUR">欧元 (EUR)</SelectItem>
+                  <SelectItem value="HKD">港币 (HKD)</SelectItem>
+                  <SelectItem value="JPY">日元 (JPY)</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                data-testid="settings-ui-pref-display-reset"
+                onClick={() => {
+                  if (displayCurrency == null) return;
+                  setDisplayCurrency(null);
+                  toast.success("展示币种偏好已恢复为自动模式");
+                }}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                恢复自动
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              选择具体币种后，账户和报表页面会按 USD 中间价折算展示金额；选择自动则保留原币种。
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="settings-pref-asof">统计日期（As-of）</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                className="w-full md:max-w-[220px]"
+                data-testid="settings-ui-pref-asof"
+                id="settings-pref-asof"
+                onChange={(event) => handleAsOfDateUpdate(event.target.value)}
+                type="date"
+                value={asOfDate ?? ""}
+              />
+              {asOfDate ? (
+                <Button
+                  data-testid="settings-ui-pref-asof-clear"
+                  onClick={() => handleAsOfDateUpdate("")}
+                  size="sm"
+                  variant="outline"
+                >
+                  清除日期
+                </Button>
+              ) : null}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              用于 Dashboard 与报表聚合的统计截止日期，留空表示使用最新数据。
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="settings-ui-base">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5" />
             基础设置
           </CardTitle>
-          <CardDescription>调整展示币种，查看当前生效城市</CardDescription>
+          <CardDescription>管理基础币种与当前工作城市，便于收入回算匹配规则。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
@@ -293,7 +394,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-testid="settings-ui-city-change">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
@@ -418,7 +519,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-testid="settings-ui-deductions">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5" />
@@ -484,6 +585,6 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
-    </main>
+    </PageContainer>
   );
 }

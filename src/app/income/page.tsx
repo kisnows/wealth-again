@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BonusDialog,
   IncomeRecalcDialog,
@@ -23,13 +23,24 @@ import {
   LongTermCashDialog,
   SalaryChangesDialog,
 } from "@/components/modules/IncomeDialogs";
+import IncomeAnalyticsPanel from "@/components/modules/IncomeAnalyticsPanel";
 import IncomeEntryModule from "@/components/modules/IncomeEntryModule";
 import IncomeForecastModule from "@/components/modules/IncomeForecastModule";
-import IncomeOverviewModule from "@/components/modules/IncomeOverviewModule";
+import {
+  PageContainer,
+  PageHeader,
+  PageSection,
+} from "@/components/modules/PageLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 const MODAL_KEYS = ["records", "salary", "bonus", "ltc", "recalc"] as const;
 type ModalKey = (typeof MODAL_KEYS)[number];
@@ -136,68 +147,120 @@ export default function IncomePage() {
     router.push(query ? `/income?${query}` : "/income", { scroll: false });
   }, [router, searchParamsString]);
 
+  const actionButtons = useMemo(
+    () => (
+      <div className="flex flex-wrap gap-2" data-testid="income-ui-header-actions">
+        <Button
+          onClick={() => openModal("records")}
+          size="sm"
+          variant="default"
+        >
+          <ScrollTextIcon className="mr-2 h-4 w-4" />
+          查看收入记录
+        </Button>
+        <Button
+          onClick={() => openModal("recalc")}
+          size="sm"
+          variant="outline"
+        >
+          <HistoryIcon className="mr-2 h-4 w-4" />
+          年度回算
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <Link href="/rules/tax">
+            <LayersIcon className="mr-2 h-4 w-4" />
+            规则维护
+          </Link>
+        </Button>
+      </div>
+    ),
+    [openModal],
+  );
+
   return (
-    <main className="space-y-8">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-2">
-          <Badge
-            className="w-fit border-blue-200 text-blue-600"
-            variant="outline"
-          >
+    <PageContainer
+      padding="md"
+      testId="income-ui-page"
+    >
+      <PageHeader
+        actions={actionButtons}
+        description="统一维护工资、激励、社保、公积金与个税配置，所有展示均来自服务端实时回算结果。"
+        meta={
+          <Badge variant="outline" data-testid="income-ui-badge">
             Income
           </Badge>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">收入管理中心</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              统一维护工资、激励、社保、公积金与个税配置，所有展示均来源于服务端实时回算结果。
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => openModal("records")}>
-            <ScrollTextIcon className="mr-2 h-4 w-4" />
-            查看收入记录
-          </Button>
-          <Button onClick={() => openModal("recalc")} variant="outline">
-            <HistoryIcon className="mr-2 h-4 w-4" />
-            年度回算
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/rules/tax">
-              <LayersIcon className="mr-2 h-4 w-4" />
-              规则维护
-            </Link>
-          </Button>
-        </div>
-      </header>
+        }
+        overline="Income"
+        testId="income-ui-header"
+        title="收入管理中心"
+      />
 
-      <Tabs className="space-y-6" defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-3 gap-2 lg:w-[480px]">
-          <TabsTrigger value="overview">概览</TabsTrigger>
-          <TabsTrigger value="entry">配置与录入</TabsTrigger>
-          <TabsTrigger value="forecast">预测与回算</TabsTrigger>
-        </TabsList>
+      <PageSection
+        bleed
+        contentClassName="border-none bg-transparent p-0 shadow-none"
+        testId="income-ui-tabs"
+        title="收入工作台"
+        description="按概览、配置与预测拆分，支持模态框快捷操作。"
+      >
+        <Tabs
+          className="space-y-6"
+          data-testid="income-ui-tabs-root"
+          defaultValue="overview"
+        >
+          <TabsList className="grid w-full gap-2 border border-border/60 bg-muted/60 p-1 md:w-[520px] md:grid-cols-3">
+            <TabsTrigger
+              data-testid="income-ui-tab-overview"
+              value="overview"
+            >
+              概览
+            </TabsTrigger>
+            <TabsTrigger data-testid="income-ui-tab-entry" value="entry">
+              配置与录入
+            </TabsTrigger>
+            <TabsTrigger
+              data-testid="income-ui-tab-forecast"
+              value="forecast"
+            >
+              预测与回算
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent className="space-y-6" value="overview">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,2.5fr)_minmax(0,1.2fr)] xl:grid-cols-[minmax(0,3fr)_minmax(0,1.3fr)]">
-            <section className="space-y-6">
-              <IncomeOverviewModule />
-            </section>
-            <aside className="space-y-4">
-              <RealtimeSourceCard />
-              <QuickActionsPanel onOpenModal={openModal} />
-            </aside>
-          </div>
-        </TabsContent>
+          <TabsContent
+            className="space-y-6"
+            data-testid="income-ui-tabpanel-overview"
+            value="overview"
+          >
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,2.6fr)_minmax(0,1.4fr)]">
+              <section className="space-y-6" data-testid="income-ui-overview">
+                <IncomeAnalyticsPanel
+                  description="统一的收入统计面板，当前页面与报表均复用该组件，确保数据来源一致。"
+                  showHeaderBadge
+                  testIdPrefix="income"
+                  title="收入概览"
+                />
+              </section>
+              <aside className="space-y-4" data-testid="income-ui-overview-aside">
+                <RealtimeSourceCard />
+                <QuickActionsPanel onOpenModal={openModal} />
+              </aside>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="entry">
-          <IncomeEntryModule />
-        </TabsContent>
+          <TabsContent
+            data-testid="income-ui-tabpanel-entry"
+            value="entry"
+          >
+            <IncomeEntryModule />
+          </TabsContent>
 
-        <TabsContent value="forecast">
-          <IncomeForecastModule />
-        </TabsContent>
-      </Tabs>
+          <TabsContent
+            data-testid="income-ui-tabpanel-forecast"
+            value="forecast"
+          >
+            <IncomeForecastModule />
+          </TabsContent>
+        </Tabs>
+      </PageSection>
 
       {activeModal === "records" ? (
         <IncomeRecordsDialog onClose={closeModal} open />
@@ -214,32 +277,39 @@ export default function IncomePage() {
       {activeModal === "recalc" ? (
         <IncomeRecalcDialog onClose={closeModal} open />
       ) : null}
-    </main>
+    </PageContainer>
   );
 }
 
 function RealtimeSourceCard() {
   return (
-    <Card>
+    <Card data-testid="income-ui-realtime-source">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base font-semibold text-gray-900">
-          <ShieldCheckIcon className="h-5 w-5 text-blue-600" />
+        <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+          <ShieldCheckIcon className="h-5 w-5 text-primary" />
           单一实时来源
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm text-gray-600">
+      <CardContent className="space-y-3 text-sm text-muted-foreground">
         <p>
           图表、概览与预测统一读取服务端回算后的
-          `IncomeRecord`，确保页面展示与导出结果一致。
+          <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs text-foreground/80">
+            IncomeRecord
+          </code>
+          ，确保页面展示与导出结果一致。
         </p>
         <ul className="space-y-2 text-xs leading-relaxed">
           <li className="flex items-start gap-2">
-            <RefreshCcwIcon className="mt-0.5 h-4 w-4 text-blue-500" />
+            <RefreshCcwIcon className="mt-0.5 h-4 w-4 text-primary" />
             回算完成后自动失效 SWR 缓存，触发概览与预测刷新，无需手动同步。
           </li>
           <li className="flex items-start gap-2">
-            <DatabaseIcon className="mt-0.5 h-4 w-4 text-blue-500" />
-            所有写操作要求携带 `Idempotency-Key`，后端负责校验，避免重复提交。
+            <DatabaseIcon className="mt-0.5 h-4 w-4 text-primary" />
+            所有写操作要求携带
+            <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs text-foreground/80">
+              Idempotency-Key
+            </code>
+            ，后端负责校验，避免重复提交。
           </li>
         </ul>
       </CardContent>
@@ -253,17 +323,23 @@ function QuickActionsPanel({
   onOpenModal: (modal: ModalKey) => void;
 }) {
   return (
-    <Card>
+    <Card data-testid="income-ui-quick-actions">
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-gray-900">
+        <CardTitle className="text-base font-semibold text-foreground">
           快速操作
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {quickActions.map((action) =>
-          action.mode === "route" ? (
+        {quickActions.map((action) => {
+          const testId = `income-ui-quick-action-${action.id}`;
+          const baseClasses =
+            "group flex items-start justify-between gap-3 rounded-lg border border-border/60 px-3 py-3 text-left transition-colors";
+          const hoverClasses =
+            "hover:border-primary/40 hover:bg-primary/5 hover:text-foreground";
+          return action.mode === "route" ? (
             <Link
-              className="group flex items-start justify-between gap-3 rounded-lg border border-gray-200 px-3 py-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+              className={cn(baseClasses, hoverClasses)}
+              data-testid={testId}
               href={action.href}
               key={action.id}
             >
@@ -271,15 +347,16 @@ function QuickActionsPanel({
             </Link>
           ) : (
             <button
-              className="group flex w-full items-start justify-between gap-3 rounded-lg border border-gray-200 px-3 py-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40"
+              className={cn(baseClasses, hoverClasses)}
+              data-testid={testId}
               key={action.id}
               onClick={() => onOpenModal(action.id)}
               type="button"
             >
               <ActionContent action={action} />
             </button>
-          ),
-        )}
+          );
+        })}
       </CardContent>
     </Card>
   );
@@ -289,17 +366,19 @@ function ActionContent({ action }: { action: QuickAction }) {
   return (
     <>
       <div className="flex items-start gap-3">
-        <div className="mt-1 rounded-md bg-blue-50 p-2 text-blue-600">
+        <div className="mt-1 rounded-md bg-primary/10 p-2 text-primary">
           {action.icon}
         </div>
         <div>
-          <div className="text-sm font-medium text-gray-900">
+          <div className="text-sm font-medium text-foreground">
             {action.title}
           </div>
-          <p className="mt-1 text-xs text-gray-600">{action.description}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {action.description}
+          </p>
         </div>
       </div>
-      <ArrowRightIcon className="h-4 w-4 shrink-0 text-gray-400 transition-colors group-hover:text-blue-500" />
+      <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
     </>
   );
 }

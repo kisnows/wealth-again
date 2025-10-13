@@ -29,6 +29,8 @@
 - App Router 负责页面与布局装配，Server Component 承担骨架渲染，Client Component 结合 SWR 提供实时数据刷新。
 - 数据访问统一通过 `src/lib/api/*` 暴露的 fetch/SWR 封装，跨模块状态由 `src/lib/state/*` 中的 Zustand store 管理。
 - UI 层依赖 shadcn/ui 与 Tailwind；跨页面复用组件沉淀在 `components/modules/*`，页面级结构与交互详见 `doc/ui-routing.md`。
+- 收入域的概览与报表均复用 `IncomeAnalyticsPanel`，该组件统一封装时序查询、汇总卡片、图表与明细表，避免多处实现导致口径偏差。
+- 全局设置（基准币种、展示币种、统计日期、城市、税务规则等）只能在 `/settings` 内触发写操作；其它页面仅通过 `useUserPrefsStore` 或 `useCurrentUser` 读取。
 - 表单、校验、图表等前端实现规范集中在 `doc/frontend-constraints.md`，该文档是前端实现的单一事实来源。
 
 > 本章节提供架构脉络，具体约束（文件划分、表单规范、SWR key 策略等）请以 `doc/frontend-constraints.md` 为准。
@@ -48,7 +50,7 @@
 ## 4. 服务端分层
 - `src/server/services`
   - `ledger.ts`：账户、交易、估值、跨币种转账与收益计算。
-  - `fx.ts`：汇率快照 CRUD 与 USD 中间价逻辑。
+  - `fx.ts`：汇率快照 CRUD、USD 中间价折算、批量获取各币种最新快照。
   - `income.ts`：收入回算、预测、人工调整写入。
   - `tax.ts`：累计预扣税计算器（根据 TaxConfig & TaxBracket）。
   - `rule.ts`：城市社保、公积金、税率表配置校验与持久化。
@@ -58,6 +60,7 @@
   - 服务函数返回纯数据对象；路由层负责 DTO 校验与错误处理。
   - 重要计算（收入、税务）集中在服务层，保证前端只做展示。
   - 幂等性通过 `IdempotencyKey` 表实现（转账、规则写入等场景）。
+  - 报表/账户聚合中跨币种金额一律经 USD 中间价折算，缺失汇率时须显式返回错误或回退原币种。
 
 ## 5. 数据模型（Prisma 摘要）
 ```

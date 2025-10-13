@@ -51,23 +51,21 @@ export async function POST(req: NextRequest) {
   if (fromAccount.userId !== userId || toAccount.userId !== userId) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  let toAmount = Math.abs(to.amount ?? from.amount);
-  // 跨币种：若未指定入账金额，则尝试按 asOf 汇率折算
-  if (
-    fromAccount.baseCurrency !== toAccount.baseCurrency &&
-    to.amount == null
-  ) {
-    if (!asOf)
-      return NextResponse.json(
-        { error: "asOf required to convert cross-currency transfer" },
-        { status: 400 },
-      );
+  const absoluteFromAmount = Math.abs(from.amount);
+  const sameCurrency = fromAccount.baseCurrency === toAccount.baseCurrency;
+  let conversionResult:
+    | { amount: number; effectiveRate: number; snapshots: Array<{ base: string; quote: string; rate: number; asOf: Date; id?: string }> }
+    | null = null;
+  let toAmount: number;
+  if (sameCurrency) {
+    toAmount = Math.abs(to.amount ?? absoluteFromAmount);
+  } else {
     try {
-      toAmount = await convert(
-        Math.abs(from.amount),
+      conversionResult = await convert(
+        absoluteFromAmount,
         fromAccount.baseCurrency,
         toAccount.baseCurrency,
-        new Date(asOf),
+        asOf ? new Date(asOf) : undefined,
       );
     } catch (_e) {
       return NextResponse.json(
@@ -75,28 +73,55 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    toAmount = conversionResult.amount;
+  }
+  if (!Number.isFinite(toAmount) || toAmount <= 0) {
+    return NextResponse.json(
+      { error: "invalid transfer amount" },
+      { status: 400 },
+    );
   }
   const { key, existed } = await ensureIdempotent(
     req,
     userId,
-    `${from.accountId}:${to.accountId}:${from.amount}:${to.amount ?? ""}:${occurredAt}`,
+    `${from.accountId}:${to.accountId}:${from.amount}:${toAmount}:${occurredAt}`,
   );
   if (existed)
     return NextResponse.json(
       { error: "Idempotency key reused" },
       { status: 409 },
     );
+  const metaPayload = {
+    fromAmount: absoluteFromAmount,
+    fromCurrency: fromAccount.baseCurrency,
+    toAmount,
+    toCurrency: toAccount.baseCurrency,
+    effectiveRate: conversionResult
+      ? conversionResult.effectiveRate
+      : 1,
+    rateSnapshots: conversionResult
+      ? conversionResult.snapshots.map((snapshot) => ({
+          base: snapshot.base,
+          quote: snapshot.quote,
+          rate: snapshot.rate,
+          asOf: snapshot.asOf.toISOString(),
+          id: snapshot.id ?? null,
+        }))
+      : [],
+    asOf: asOf ?? null,
+  };
   const entry = await prisma.txnEntry.create({
     data: {
       userId: userId,
       type: "TRANSFER",
       occurredAt: new Date(occurredAt),
       note,
+      meta: JSON.stringify(metaPayload),
       lines: {
         create: [
           {
             accountId: from.accountId,
-            amount: -Math.abs(from.amount),
+            amount: -absoluteFromAmount,
             currency: fromAccount.baseCurrency,
             note,
           },

@@ -169,32 +169,34 @@ export default function IncomeForecastModule() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="income-ui-forecast-module">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-foreground">
             收入预测与回算
           </h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="mt-1 text-sm text-muted-foreground">
             基于收入配置计算指定时间范围的月度收入明细
           </p>
         </div>
       </div>
 
       {/* 预测参数 */}
-      <Card>
+      <Card data-testid="income-ui-forecast-params">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalculatorIcon className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalculatorIcon className="h-5 w-5 text-primary" />
             预测参数
           </CardTitle>
-          <CardDescription>设置预测时间范围和计算参数</CardDescription>
+          <CardDescription className="text-sm text-muted-foreground">
+            设置预测时间范围和计算参数
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {/* 快捷时间区间按钮 */}
             <div>
-              <Label className="text-sm font-medium text-gray-700">
+              <Label className="text-sm font-medium text-muted-foreground">
                 快捷选择
               </Label>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -327,7 +329,7 @@ export default function IncomeForecastModule() {
 
       {/* 汇总统计 */}
       {statistics && (
-        <Card>
+        <Card data-testid="income-ui-forecast-summary">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUpIcon className="w-5 h-5" />
@@ -335,42 +337,42 @@ export default function IncomeForecastModule() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
-                <div className="text-xl font-bold text-blue-600 mb-1">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <div className="rounded-lg border border-border/60 bg-primary/5 p-3 text-center">
+                <div className="mb-1 text-xl font-semibold text-primary">
                   {formatMoney(statistics.totalGrossIncome, currency)}
                 </div>
-                <div className="text-sm text-gray-600">总税前收入</div>
+                <div className="text-sm text-muted-foreground">总税前收入</div>
               </div>
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-xl font-bold text-green-600 mb-1">
+              <div className="rounded-lg border border-border/60 bg-emerald-500/10 p-3 text-center">
+                <div className="mb-1 text-xl font-semibold text-emerald-600">
                   {formatMoney(statistics.totalNetIncome, currency)}
                 </div>
-                <div className="text-sm text-gray-600">总税后收入</div>
+                <div className="text-sm text-muted-foreground">总税后收入</div>
               </div>
-              <div className="text-center p-3 bg-orange-50 rounded-lg">
-                <div className="text-xl font-bold text-orange-600 mb-1">
+              <div className="rounded-lg border border-border/60 bg-amber-500/10 p-3 text-center">
+                <div className="mb-1 text-xl font-semibold text-amber-600">
                   {formatMoney(statistics.totalSocialInsurance, currency)}
                 </div>
-                <div className="text-sm text-gray-600">总社保</div>
+                <div className="text-sm text-muted-foreground">总社保</div>
               </div>
-              <div className="text-center p-3 bg-purple-50 rounded-lg">
-                <div className="text-xl font-bold text-purple-600 mb-1">
+              <div className="rounded-lg border border-border/60 bg-violet-500/10 p-3 text-center">
+                <div className="mb-1 text-xl font-semibold text-violet-600">
                   {formatMoney(statistics.totalHousingFund, currency)}
                 </div>
-                <div className="text-sm text-gray-600">总公积金</div>
+                <div className="text-sm text-muted-foreground">总公积金</div>
               </div>
-              <div className="text-center p-3 bg-red-50 rounded-lg">
-                <div className="text-xl font-bold text-red-600 mb-1">
+              <div className="rounded-lg border border-border/60 bg-red-500/10 p-3 text-center">
+                <div className="mb-1 text-xl font-semibold text-red-600">
                   {formatMoney(statistics.totalTax, currency)}
                 </div>
-                <div className="text-sm text-gray-600">总个税</div>
+                <div className="text-sm text-muted-foreground">总个税</div>
               </div>
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <div className="text-xl font-bold text-gray-600 mb-1">
+              <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-center">
+                <div className="mb-1 text-xl font-semibold text-foreground">
                   {(statistics.averageTaxRate * 100).toFixed(1)}%
                 </div>
-                <div className="text-sm text-gray-600">平均税率</div>
+                <div className="text-sm text-muted-foreground">平均税率</div>
               </div>
             </div>
           </CardContent>
@@ -378,36 +380,40 @@ export default function IncomeForecastModule() {
       )}
 
       {/* 图表展示 */}
-      <Card>
+      <Card data-testid="income-ui-forecast-results">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3Icon className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3Icon className="h-5 w-5 text-primary" />
                 预测结果
               </CardTitle>
-              <CardDescription>月度收入预测详情</CardDescription>
+              <CardDescription className="text-sm text-muted-foreground">
+                月度收入预测详情
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
 
         <CardContent>
           {forecastLoading ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="py-8 text-center text-sm text-muted-foreground">
               正在计算预测...
             </div>
           ) : forecastError ? (
-            <div className="text-center py-8 text-red-500">{forecastError}</div>
+            <div className="py-8 text-center text-sm text-destructive">
+              {forecastError}
+            </div>
           ) : !forecastData || forecastData.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              请点击"计算预测"开始预测
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              请点击“计算预测”开始预测
             </div>
           ) : (
             <div className="space-y-8">
               {/* 预测结果表格 */}
               <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <TableIcon className="w-5 h-5" />
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+                  <TableIcon className="h-5 w-5 text-primary" />
                   预测结果详情
                 </h3>
                 <ForecastTable currency={currency} data={forecastData} />
@@ -415,8 +421,8 @@ export default function IncomeForecastModule() {
 
               {/* 柱状图 */}
               <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <BarChart3Icon className="w-5 h-5" />
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+                  <BarChart3Icon className="h-5 w-5 text-primary" />
                   收入构成分析
                 </h3>
                 <ForecastBarChart currency={currency} data={forecastData} />
@@ -424,8 +430,8 @@ export default function IncomeForecastModule() {
 
               {/* 趋势图 */}
               <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <LineChartIcon className="w-5 h-5" />
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+                  <LineChartIcon className="h-5 w-5 text-primary" />
                   收入趋势分析
                 </h3>
                 <ForecastTrendChart currency={currency} data={forecastData} />
@@ -441,7 +447,7 @@ export default function IncomeForecastModule() {
 // 预测结果表格组件
 function ForecastTable({ data, currency }: { data: any[]; currency: string }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" data-testid="income-ui-forecast-table">
       <Table>
         <TableHeader>
           <TableRow>
@@ -467,7 +473,7 @@ function ForecastTable({ data, currency }: { data: any[]; currency: string }) {
             <TableRow key={item.month}>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-gray-400" />
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                   {new Date(item.month).toLocaleDateString("zh-CN", {
                     year: "numeric",
                     month: "short",
@@ -477,20 +483,20 @@ function ForecastTable({ data, currency }: { data: any[]; currency: string }) {
               <TableCell>{formatMoney(item.salary, currency)}</TableCell>
               <TableCell>
                 {item.bonus > 0 ? (
-                  <span className="text-green-600 font-medium">
+                  <span className="font-medium text-emerald-600">
                     {formatMoney(item.bonus, currency)}
                   </span>
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-muted-foreground/70">-</span>
                 )}
               </TableCell>
               <TableCell>
                 {item.longTermCash > 0 ? (
-                  <span className="text-blue-600 font-medium">
+                  <span className="font-medium text-primary">
                     {formatMoney(item.longTermCash, currency)}
                   </span>
                 ) : (
-                  <span className="text-gray-400">-</span>
+                  <span className="text-muted-foreground/70">-</span>
                 )}
               </TableCell>
               <TableCell className="font-medium">
@@ -564,8 +570,8 @@ function ForecastBarChart({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium text-gray-900 mb-2">{label}</p>
+        <div className="rounded-lg border border-border/60 bg-card p-4 shadow-lg">
+          <p className="mb-2 font-medium text-foreground">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p className="text-sm" key={index} style={{ color: entry.color }}>
               {entry.dataKey}: {formatMoney(entry.value, currency)}
@@ -578,7 +584,7 @@ function ForecastBarChart({
   };
 
   return (
-    <Card>
+    <Card data-testid="income-ui-forecast-chart-bar">
       <CardContent className="pt-6">
         <ResponsiveContainer height={400} width="100%">
           <BarChart
@@ -634,8 +640,8 @@ function ForecastTrendChart({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium text-gray-900 mb-2">{label}</p>
+        <div className="rounded-lg border border-border/60 bg-card p-4 shadow-lg">
+          <p className="mb-2 font-medium text-foreground">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p className="text-sm" key={index} style={{ color: entry.color }}>
               {entry.dataKey === "税率"
@@ -650,9 +656,9 @@ function ForecastTrendChart({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="income-ui-forecast-chart-trend-group">
       {/* 月度收入趋势 */}
-      <Card>
+      <Card data-testid="income-ui-forecast-chart-trend-monthly">
         <CardHeader>
           <CardTitle className="text-base">月度收入趋势</CardTitle>
         </CardHeader>
@@ -698,7 +704,7 @@ function ForecastTrendChart({
       </Card>
 
       {/* 累计收入趋势 */}
-      <Card>
+      <Card data-testid="income-ui-forecast-chart-trend-cumulative">
         <CardHeader>
           <CardTitle className="text-base">累计收入趋势</CardTitle>
         </CardHeader>
@@ -737,7 +743,7 @@ function ForecastTrendChart({
       </Card>
 
       {/* 税率趋势 */}
-      <Card>
+      <Card data-testid="income-ui-forecast-chart-trend-tax">
         <CardHeader>
           <CardTitle className="text-base">税率变化趋势</CardTitle>
         </CardHeader>

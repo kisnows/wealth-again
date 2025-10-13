@@ -32,6 +32,9 @@ type NormalizedMetrics = AccountSummaryItem & {
   valuation: number;
   profit: number;
   displayValue?: number;
+  displayPrincipal?: number;
+  displayProfit?: number;
+  displayInitialBalance?: number;
   initialBalance: number;
 };
 
@@ -134,7 +137,22 @@ function normalizeAccountData(
           principal: Number(summary.principal ?? 0),
           valuation: Number(summary.valuation ?? 0),
           profit: Number(summary.profit ?? 0),
-          displayValue: summary.displayValue ?? Number(summary.valuation ?? 0),
+          displayValue:
+            typeof summary.displayValue === "number"
+              ? Number(summary.displayValue)
+              : undefined,
+          displayPrincipal:
+            typeof summary.displayPrincipal === "number"
+              ? Number(summary.displayPrincipal)
+              : undefined,
+          displayProfit:
+            typeof summary.displayProfit === "number"
+              ? Number(summary.displayProfit)
+              : undefined,
+          displayInitialBalance:
+            typeof summary.displayInitialBalance === "number"
+              ? Number(summary.displayInitialBalance)
+              : undefined,
           initialBalance: Number(summary.initialBalance ?? 0),
         }
       : {
@@ -152,7 +170,10 @@ function normalizeAccountData(
           roi: null,
           latestValuationAt: null,
           valuationCurrency: account.baseCurrency,
-          displayValue: Number(account.initialBalance ?? 0),
+          displayValue: undefined,
+          displayPrincipal: undefined,
+          displayProfit: undefined,
+          displayInitialBalance: undefined,
         };
     const resolvedStatus =
       account.status ??
@@ -203,7 +224,22 @@ function normalizeAccountData(
           principal: Number(summary.principal ?? 0),
           valuation: Number(summary.valuation ?? 0),
           profit: Number(summary.profit ?? 0),
-          displayValue: summary.displayValue ?? Number(summary.valuation ?? 0),
+          displayValue:
+            typeof summary.displayValue === "number"
+              ? Number(summary.displayValue)
+              : undefined,
+          displayPrincipal:
+            typeof summary.displayPrincipal === "number"
+              ? Number(summary.displayPrincipal)
+              : undefined,
+          displayProfit:
+            typeof summary.displayProfit === "number"
+              ? Number(summary.displayProfit)
+              : undefined,
+          displayInitialBalance:
+            typeof summary.displayInitialBalance === "number"
+              ? Number(summary.displayInitialBalance)
+              : undefined,
           initialBalance: Number(summary.initialBalance ?? 0),
         },
       } as EnrichedAccount);
@@ -353,13 +389,58 @@ export function AccountTable({
       (metrics.accountType as Account["accountType"]) ?? account.accountType;
     const status = account.status ?? "ACTIVE";
     const isArchived = status === "ARCHIVED";
-    const valuationCurrency =
-      displayCurrency ?? metrics.valuationCurrency ?? metrics.currency;
-    const valuationValue =
-      typeof metrics.displayValue === "number" && displayCurrency
-        ? metrics.displayValue
-        : metrics.valuation;
-    const profitDisplayCurrency = displayCurrency ?? metrics.currency;
+    const hasDisplayVal =
+      Boolean(displayCurrency && typeof metrics.displayValue === "number");
+    const valuationCurrency = hasDisplayVal
+      ? displayCurrency!
+      : metrics.valuationCurrency ?? metrics.currency;
+    const valuationValue = hasDisplayVal
+      ? Number(metrics.displayValue)
+      : Number(metrics.valuation ?? 0);
+    const valuationDetail = hasDisplayVal
+      ? `原币 ${formatAmount(
+          Number(metrics.valuation ?? 0),
+          metrics.valuationCurrency ?? metrics.currency,
+        )}`
+      : undefined;
+    const hasDisplayPrincipal =
+      Boolean(displayCurrency && typeof metrics.displayPrincipal === "number");
+    const principalCurrency = hasDisplayPrincipal
+      ? displayCurrency!
+      : metrics.currency;
+    const principalValue = hasDisplayPrincipal
+      ? Number(metrics.displayPrincipal)
+      : Number(metrics.principal ?? 0);
+    const principalDetail = hasDisplayPrincipal
+      ? `原币 ${formatAmount(Number(metrics.principal ?? 0), metrics.currency)}`
+      : undefined;
+    const hasDisplayProfit =
+      Boolean(displayCurrency && typeof metrics.displayProfit === "number");
+    const profitCurrency = hasDisplayProfit
+      ? displayCurrency!
+      : metrics.currency;
+    const profitValue = hasDisplayProfit
+      ? Number(metrics.displayProfit)
+      : Number(metrics.profit ?? 0);
+    const profitDetail = hasDisplayProfit
+      ? `原币 ${formatAmount(Number(metrics.profit ?? 0), metrics.currency)}`
+      : undefined;
+    const hasDisplayInitial =
+      Boolean(
+        displayCurrency && typeof metrics.displayInitialBalance === "number",
+      );
+    const initialBalanceCurrency = hasDisplayInitial
+      ? displayCurrency!
+      : metrics.currency;
+    const initialBalanceValue = hasDisplayInitial
+      ? Number(metrics.displayInitialBalance)
+      : Number(metrics.initialBalance ?? 0);
+    const initialDetail = hasDisplayInitial
+      ? `原币 ${formatAmount(
+          Number(metrics.initialBalance ?? 0),
+          metrics.currency,
+        )}`
+      : undefined;
     return (
       <Card
         className="transition-all"
@@ -394,18 +475,21 @@ export function AccountTable({
           <div className="grid gap-3 text-sm md:grid-cols-4">
             <StatBlock
               label="当前估值"
+              detail={valuationDetail}
               value={formatAmount(valuationValue, valuationCurrency)}
             />
             <StatBlock
               label="累计本金"
-              value={formatAmount(metrics.principal, metrics.currency)}
+              detail={principalDetail}
+              value={formatAmount(principalValue, principalCurrency)}
             />
             <StatBlock
               label="收益"
-              value={formatAmount(metrics.profit, profitDisplayCurrency)}
+              detail={profitDetail}
+              value={formatAmount(profitValue, profitCurrency)}
               valueClassName={cn(
-                metrics.profit > 0 && "text-emerald-600",
-                metrics.profit < 0 && "text-red-500",
+                profitValue > 0 && "text-emerald-600",
+                profitValue < 0 && "text-red-500",
               )}
             />
             <StatBlock label="ROI" value={formatPercent(metrics.roi)} />
@@ -503,8 +587,12 @@ export function AccountTable({
             >
               <div className="grid gap-2 md:grid-cols-2">
                 <DetailRow
+                  detail={initialDetail ?? undefined}
                   label="初始余额"
-                  value={formatAmount(metrics.initialBalance, metrics.currency)}
+                  value={formatAmount(
+                    initialBalanceValue,
+                    initialBalanceCurrency,
+                  )}
                 />
                 <DetailRow
                   label="估值币种"
@@ -602,16 +690,21 @@ export function AccountTable({
 function StatBlock({
   label,
   value,
+  detail,
   valueClassName,
 }: {
   label: string;
   value: string;
+  detail?: string;
   valueClassName?: string;
 }) {
   return (
     <div className="flex flex-col gap-1 rounded-lg border bg-muted/50 p-3">
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className={cn("text-sm font-medium", valueClassName)}>{value}</span>
+      {detail ? (
+        <span className="text-[11px] text-muted-foreground/80">{detail}</span>
+      ) : null}
     </div>
   );
 }
@@ -695,11 +788,22 @@ function AccountTransactionsList({ accountId }: { accountId: string }) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-foreground/90">{value}</span>
+      {detail ? (
+        <span className="text-[11px] text-muted-foreground/80">{detail}</span>
+      ) : null}
     </div>
   );
 }

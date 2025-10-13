@@ -36,6 +36,17 @@
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.623 0.214 259.815);
+  --background-pattern: radial-gradient(
+      140% 140% at 0% 0%,
+      oklch(0.982 0.028 250 / 0.24) 0,
+      transparent 55%
+    ),
+    radial-gradient(
+      120% 120% at 100% 0%,
+      oklch(0.978 0.04 205 / 0.2) 0,
+      transparent 60%
+    ),
+    linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.982 0.009 285.7) 100%);
 }
 
 .dark {
@@ -70,6 +81,17 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.488 0.243 264.376);
+  --background-pattern: radial-gradient(
+      140% 140% at 0% 0%,
+      oklch(0.308 0.052 267.6 / 0.35) 0,
+      transparent 60%
+    ),
+    radial-gradient(
+      120% 120% at 100% 0%,
+      oklch(0.32 0.07 305 / 0.28) 0,
+      transparent 65%
+    ),
+    linear-gradient(180deg, oklch(0.141 0.005 285.823) 0%, oklch(0.17 0.02 280) 100%);
 }
 
 @theme inline {
@@ -117,5 +139,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: var(--background-pattern);
+    background-attachment: fixed;
   }
 }

@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
   Table,
   TableBody,
   TableCell,
@@ -12,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { type AccountSummaryItem, useAccountsSummary } from "@/lib/api/reports";
+import { formatMoney } from "@/lib/domain/money";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
 import DepositDialog from "./DepositDialog";
 import TransferDialog from "./TransferDialog";
@@ -30,60 +37,84 @@ export default function TopAccounts() {
     .slice(0, 5);
   const [active, setActive] = useState<string | null>(null);
   return (
-    <div className="border rounded p-3">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm text-muted-foreground">账户概览（Top 5）</h3>
-      </div>
-      {isLoading ? (
-        <div className="text-sm text-muted-foreground">加载中…</div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名称</TableHead>
-              <TableHead>估值</TableHead>
-              <TableHead>ROI</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((it: any) => (
-              <TableRow key={it.id}>
-                <TableCell className="font-medium">
-                  <Link className="underline" href={`/accounts/${it.id}`}>
-                    {it.name}
-                  </Link>
-                </TableCell>
-                <TableCell>{it.value.toLocaleString()}</TableCell>
-                <TableCell>
-                  {it.roi == null ? "-" : `${(it.roi * 100).toFixed(2)}%`}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex gap-2 justify-end">
-                    <Button
-                      onClick={() => setActive(it.id)}
-                      size="sm"
-                      variant="outline"
-                    >
-                      快捷
-                    </Button>
-                  </div>
-                  {active === it.id && (
-                    <div className="flex gap-2 mt-2 justify-end">
-                      <DepositDialog defaultAccountId={it.id} />
-                      <WithdrawDialog defaultAccountId={it.id} />
-                      <TransferDialog defaultFromId={it.id} />
-                      {["INVESTMENT", "LOAN"].includes(
-                        `${it.accountType ?? ""}`,
-                      ) && <ValuationFormDialog defaultAccountId={it.id} />}
-                    </div>
-                  )}
-                </TableCell>
+    <Card data-testid="dashboard-ui-top-accounts">
+      <CardHeader className="items-start pb-0">
+        <CardTitle className="text-base font-semibold text-foreground">
+          账户概览（Top 5）
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-4">
+        {isLoading ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            加载中…
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>名称</TableHead>
+                <TableHead>估值</TableHead>
+                <TableHead>ROI</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </div>
+            </TableHeader>
+            <TableBody>
+              {items.map((it: any) => {
+                const formattedValue = formatMoney(
+                  it.value,
+                  displayCurrency ?? it.currency ?? "CNY",
+                );
+                return (
+                  <TableRow
+                    data-testid="dashboard-ui-top-accounts-row"
+                    key={it.id}
+                  >
+                    <TableCell className="font-medium text-foreground">
+                      <Link
+                        className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+                        href={`/accounts/${it.id}`}
+                      >
+                        {it.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {formattedValue}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {it.roi == null ? "-" : `${(it.roi * 100).toFixed(2)}%`}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          onClick={() =>
+                            setActive((prev) => (prev === it.id ? null : it.id))
+                          }
+                          size="sm"
+                          variant="ghost"
+                        >
+                          {active === it.id ? "收起" : "快捷"}
+                        </Button>
+                      </div>
+                      {active === it.id ? (
+                        <div className="mt-2 flex flex-wrap justify-end gap-2">
+                          <DepositDialog defaultAccountId={it.id} />
+                          <WithdrawDialog defaultAccountId={it.id} />
+                          <TransferDialog defaultFromId={it.id} />
+                          {["INVESTMENT", "LOAN"].includes(
+                            `${it.accountType ?? ""}`,
+                          ) ? (
+                            <ValuationFormDialog defaultAccountId={it.id} />
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -1,19 +1,12 @@
-import { computeAccountSummary } from "@/app/api/v1/reports/accounts/summary/utils";
+import { computeAccountsSummary } from "@/server/services/accounts-summary";
 
-export async function getDashboard(displayCurrency?: string) {
-  const items = await computeAccountSummary(displayCurrency);
-  const totals = items.reduce(
-    (acc, i) => {
-      const v = i.displayValue ?? i.valuation;
-      // 简化：全部算入资产
-      acc.assets += v;
-      return acc;
-    },
-    { assets: 0, liabilities: 0 },
-  );
-  const netWorth = totals.assets - totals.liabilities;
+export async function getDashboard(displayCurrency?: string, userId?: string) {
+  const summary = await computeAccountsSummary({
+    userId,
+    displayCurrency,
+  });
   return {
-    totals: { ...totals, netWorth },
+    totals: summary.totals,
     allocations: [],
     timeseries: [],
   } as const;

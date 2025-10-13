@@ -45,11 +45,11 @@ export default function IncomeEntryModule() {
   const currency = displayCurrency || "CNY";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="income-ui-entry-module">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">收入信息录入</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-xl font-semibold text-foreground">收入信息录入</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             管理工资变更、奖金和长期现金计划
           </p>
         </div>
@@ -90,15 +90,15 @@ function SalaryChangesSection({ currency }: { currency: string }) {
   };
 
   return (
-    <Card>
+    <Card data-testid="income-ui-entry-salary">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <WalletIcon className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <WalletIcon className="h-5 w-5 text-primary" />
               工资变更记录
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm text-muted-foreground">
               记录工资变更历史，当月生效，同月多次取最后一次
             </CardDescription>
           </div>
@@ -113,11 +113,17 @@ function SalaryChangesSection({ currency }: { currency: string }) {
 
       <CardContent>
         {isLoading ? (
-          <div className="text-center py-8 text-gray-500">加载中...</div>
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            加载中...
+          </div>
         ) : error ? (
-          <div className="text-center py-8 text-red-500">加载失败</div>
+          <div className="py-8 text-center text-sm text-destructive">
+            加载失败
+          </div>
         ) : salaryChanges.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">暂无工资变更记录</div>
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            暂无工资变更记录
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -134,7 +140,7 @@ function SalaryChangesSection({ currency }: { currency: string }) {
                 <TableRow key={change.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <CalendarIcon className="w-4 h-4 text-gray-400" />
+                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                       {new Date(change.effectiveFrom).toLocaleDateString()}
                     </div>
                   </TableCell>
@@ -204,15 +210,17 @@ function BonusSection({ currency }: { currency: string }) {
   };
 
   return (
-    <Card>
+    <Card data-testid="income-ui-entry-bonus">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <BanknoteIcon className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BanknoteIcon className="h-5 w-5 text-primary" />
               奖金记录
             </CardTitle>
-            <CardDescription>一次性奖金，与当月工资合并发放</CardDescription>
+            <CardDescription className="text-sm text-muted-foreground">
+              一次性奖金，与当月工资合并发放
+            </CardDescription>
           </div>
           <Link href="/income/bonus">
             <Button className="flex items-center gap-2" size="sm">
@@ -225,11 +233,17 @@ function BonusSection({ currency }: { currency: string }) {
 
       <CardContent>
         {isLoading ? (
-          <div className="text-center py-8 text-gray-500">加载中...</div>
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            加载中...
+          </div>
         ) : error ? (
-          <div className="text-center py-8 text-red-500">加载失败</div>
+          <div className="py-8 text-center text-sm text-destructive">
+            加载失败
+          </div>
         ) : bonusPlans.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">暂无奖金记录</div>
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            暂无奖金记录
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -246,7 +260,7 @@ function BonusSection({ currency }: { currency: string }) {
                 <TableRow key={bonus.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <CalendarIcon className="w-4 h-4 text-gray-400" />
+                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                       {new Date(bonus.effectiveDate).toLocaleDateString()}
                     </div>
                   </TableCell>
@@ -271,7 +285,7 @@ function BonusSection({ currency }: { currency: string }) {
                         编辑
                       </Button>
                       <Button
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         disabled={deletingId === bonus.id}
                         onClick={() => handleDelete(bonus.id)}
                         size="sm"
@@ -335,15 +349,17 @@ function LongTermCashSection({ currency }: { currency: string }) {
   };
 
   return (
-    <Card>
+    <Card data-testid="income-ui-entry-ltc">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUpIcon className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUpIcon className="h-5 w-5 text-primary" />
               长期现金计划
             </CardTitle>
-            <CardDescription>按季度分期发放的长期现金激励</CardDescription>
+            <CardDescription className="text-sm text-muted-foreground">
+              按季度分期发放的长期现金激励
+            </CardDescription>
           </div>
           <Link href="/income/long-term-cash">
             <Button className="flex items-center gap-2" size="sm">
@@ -356,11 +372,17 @@ function LongTermCashSection({ currency }: { currency: string }) {
 
       <CardContent>
         {isLoading ? (
-          <div className="text-center py-8 text-gray-500">加载中...</div>
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            加载中...
+          </div>
         ) : error ? (
-          <div className="text-center py-8 text-red-500">加载失败</div>
+          <div className="py-8 text-center text-sm text-destructive">
+            加载失败
+          </div>
         ) : ltcPlans.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">暂无长期现金计划</div>
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            暂无长期现金计划
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -394,7 +416,7 @@ function LongTermCashSection({ currency }: { currency: string }) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <CalendarIcon className="w-4 h-4 text-gray-400" />
+                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                         {new Date(plan.startDate).toLocaleDateString()}
                       </div>
                     </TableCell>
@@ -405,13 +427,13 @@ function LongTermCashSection({ currency }: { currency: string }) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-16 bg-gray-200 rounded-full h-2">
+                        <div className="h-2 w-16 rounded-full bg-muted">
                           <div
-                            className="bg-blue-600 h-2 rounded-full"
+                            className="h-2 rounded-full bg-primary"
                             style={{ width: `${Math.min(progress, 100)}%` }}
                           />
                         </div>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-muted-foreground">
                           {vestCount}/{totalPeriods}
                         </span>
                       </div>
@@ -425,7 +447,7 @@ function LongTermCashSection({ currency }: { currency: string }) {
                           编辑
                         </Button>
                         <Button
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           disabled={deletingId === plan.id}
                           onClick={() => handleDelete(plan.id)}
                           size="sm"

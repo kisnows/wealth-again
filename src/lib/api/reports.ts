@@ -20,11 +20,22 @@ export type AccountSummaryItem = {
   latestValuationAt: string | null;
   valuationCurrency: string;
   displayValue?: number;
+  displayPrincipal?: number;
+  displayProfit?: number;
+  displayInitialBalance?: number;
+};
+
+export type AccountsSummaryTotals = {
+  assets: number;
+  liabilities: number;
+  netWorth: number;
+  archived: number;
 };
 
 export type AccountsSummaryResponse = {
   items: AccountSummaryItem[];
   displayCurrency: string | null;
+  totals: AccountsSummaryTotals;
 };
 
 export function useDashboard(asOf?: string, displayCurrency?: string) {

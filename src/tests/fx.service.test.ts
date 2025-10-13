@@ -4,6 +4,7 @@ import { makeGet, makeJsonRequest } from "@/tests/helpers";
 const mockPrisma: any = {
   fxRate: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     create: vi.fn(),
   },
 };
@@ -86,6 +87,42 @@ describe("FX routes", () => {
     );
     expect(res.status).toBe(201);
   });
+
+  it("GET /fxrates/latest aggregates latest snapshot per currency", async () => {
+    // 用例：批量查询时需返回每个币种最新的 USD 中间价，缺失的币种以 null 标记。
+    const m = await import("@/app/api/v1/fxrates/latest/route");
+    mockPrisma.fxRate.findMany.mockResolvedValueOnce([
+      {
+        base: "USD",
+        quote: "CNY",
+        rate: 7.1,
+        asOf: new Date("2025-08-01"),
+      },
+      {
+        base: "USD",
+        quote: "CNY",
+        rate: 7.05,
+        asOf: new Date("2025-07-01"),
+      },
+    ]);
+    const res = await m.GET(
+      makeGet("http://localhost/api/v1/fxrates/latest?quotes=CNY,HKD"),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.items).toEqual([
+      {
+        quote: "CNY",
+        rate: 7.1,
+        asOf: "2025-08-01T00:00:00.000Z",
+      },
+      {
+        quote: "HKD",
+        rate: null,
+        asOf: null,
+      },
+    ]);
+  });
 });
 
 describe("FX service", () => {
@@ -93,10 +130,43 @@ describe("FX service", () => {
     // 用例：服务层应通过 USD 中间价转换，将 CNY 金额折算为 EUR。
     const { convert } = await import("@/server/services/fx");
     const asOf = new Date("2025-08-01");
-    mockPrisma.fxRate.findFirst
-      .mockResolvedValueOnce({ base: "USD", quote: "CNY", rate: 7, asOf })
-      .mockResolvedValueOnce({ base: "USD", quote: "EUR", rate: 0.9, asOf });
-    const out = await convert(7, "CNY", "EUR", asOf);
-    expect(out).toBeCloseTo(0.9, 6);
+  mockPrisma.fxRate.findFirst
+    .mockResolvedValueOnce({ base: "USD", quote: "CNY", rate: 7, asOf })
+    .mockResolvedValueOnce({ base: "USD", quote: "EUR", rate: 0.9, asOf });
+  const out = await convert(7, "CNY", "EUR", asOf);
+  expect(out.amount).toBeCloseTo(0.9, 6);
+  expect(out.effectiveRate).toBeCloseTo(0.128571, 6);
+  expect(out.snapshots).toHaveLength(2);
+  });
+
+  it("getLatestRates returns latest record per quote and fills missing", async () => {
+    // 用例：服务层批量查询需取每个币种的最新快照，并保留缺失项。
+    const { getLatestRates } = await import("@/server/services/fx");
+    mockPrisma.fxRate.findMany.mockResolvedValueOnce([
+      {
+        base: "USD",
+        quote: "CNY",
+        rate: 7.2,
+        asOf: new Date("2025-08-01"),
+      },
+      {
+        base: "USD",
+        quote: "EUR",
+        rate: 0.9,
+        asOf: new Date("2025-08-01"),
+      },
+      {
+        base: "USD",
+        quote: "CNY",
+        rate: 7.1,
+        asOf: new Date("2025-07-01"),
+      },
+    ]);
+    const results = await getLatestRates("USD", ["CNY", "HKD", "EUR"]);
+    expect(results).toEqual([
+      { quote: "CNY", rate: 7.2, asOf: new Date("2025-08-01") },
+      { quote: "HKD", rate: null, asOf: null },
+      { quote: "EUR", rate: 0.9, asOf: new Date("2025-08-01") },
+    ]);
   });
 });

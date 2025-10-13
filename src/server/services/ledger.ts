@@ -1,33 +1,12 @@
 import prisma from "@/server/db";
+import {
+  computeAccountSummaryById,
+  type AccountSummaryItem,
+} from "@/server/services/accounts-summary";
 
 export async function getAccountSummary(id: string) {
-  const account = await prisma.account.findUnique({
-    where: { id },
-    include: {
-      txnLines: true,
-      valuations: { orderBy: { asOf: "desc" }, take: 1 },
-    },
-  });
-  if (!account) return null;
-  const principal = account.txnLines.reduce(
-    (sum, line) => sum + Number(line.amount),
-    Number(account.initialBalance),
-  );
-  const valuation =
-    account.accountType === "SAVINGS"
-      ? principal
-      : Number(account.valuations[0]?.totalValue ?? principal);
-  const profit = valuation - principal;
-  const roi = principal === 0 ? null : profit / principal;
-  return {
-    id: account.id,
-    name: account.name,
-    currency: account.baseCurrency,
-    principal,
-    valuation,
-    profit,
-    roi,
-  };
+  const summary = await computeAccountSummaryById({ accountId: id });
+  return summary as AccountSummaryItem | null;
 }
 
 export async function postDeposit(input: {

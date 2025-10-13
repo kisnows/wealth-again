@@ -30,6 +30,8 @@
 - 表单体系：`react-hook-form` + `zod`，写操作附带 `Idempotency-Key`。
 - 图表依赖 Recharts（暗色模式需校对配色）。
 - 所有的组件需要添加 `data-testid` 属性以方便测试, 命名规则为 领域-层级-描述, 例如 `data-testid="income-ui-overview"`。
+- 全局设置项（基准币种、展示币种、统计日期、城市、税务规则等）必须在 `/settings` 页面统一维护，其它页面只能读取现有值或提供跳转链接。
+- 收入域的统计视图统一通过 `IncomeAnalyticsPanel` 复用；`/income` 与 `/reports/income` 禁止出现独立实现的概览/表格逻辑。
 
 ## 数据模型与计算规则
 
@@ -47,6 +49,7 @@
 - `src/tests`：Vitest 测试（严格按照 `*.test.ts` 命名）。
 - `prisma/`：模型与迁移；本地使用 SQLite `dev.db`，生产切换 Postgres。
 - `doc/`：产品/技术文档；`public/`：静态资源。
+- 账户域页面须在 `/accounts` 内提供唯一的汇率面板（USD 作为中间价），支持查看/更新当前涉及的币种汇率，并同步服务层折算逻辑。
 
 ## 构建、测试与开发命令
 

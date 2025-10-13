@@ -17,8 +17,21 @@ const mockPrisma: any = {
 // 使用局部 mock Prisma，避免影响其他测试文件
 vi.mock("@/server/db", () => ({ default: mockPrisma }));
 // 跨币种自动折算路径中，直接 mock 转换函数，避免依赖汇率表
+const mockFxSnapshotDate = new Date("2025-01-01T00:00:00.000Z");
+
 vi.mock("@/server/services/fx", () => ({
-  convert: vi.fn().mockResolvedValue(70),
+  convert: vi.fn().mockResolvedValue({
+    amount: 70,
+    effectiveRate: 7,
+    snapshots: [
+      {
+        base: "USD",
+        quote: "CNY",
+        rate: 7,
+        asOf: mockFxSnapshotDate,
+      },
+    ],
+  }),
 }));
 // Mock 认证函数，返回测试用户
 vi.mock("@/server/utils/auth", () => ({
@@ -321,7 +334,8 @@ describe("Accounts & Entries routes", () => {
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
     mockPrisma.txnEntry.create.mockImplementation(async ({ data }: any) => ({
       id: "e1",
-      lines: data.lines.create,
+      lines: data.lines.create.map((line: any) => ({ ...line })),
+      meta: data.meta,
     }));
     const transfer = await import("@/app/api/v1/entries/transfer/route");
     const res = await transfer.POST(
@@ -333,9 +347,27 @@ describe("Accounts & Entries routes", () => {
       }),
     );
     expect(res.status).toBe(201);
-    const entry = await res.json();
+    const createArgs = mockPrisma.txnEntry.create.mock.calls[0][0];
     // to.amount 使用了 convert 的返回（被 mock 为 70）
-    expect(entry.lines[1].amount).toBe(70);
+    expect(createArgs.data.lines.create[1].amount).toBe(70);
+    const meta = JSON.parse(createArgs.data.meta);
+    expect(meta).toEqual({
+      fromAmount: 10,
+      fromCurrency: "USD",
+      toAmount: 70,
+      toCurrency: "CNY",
+      effectiveRate: 7,
+      rateSnapshots: [
+        {
+          asOf: mockFxSnapshotDate.toISOString(),
+          base: "USD",
+          quote: "CNY",
+          rate: 7,
+          id: null,
+        },
+      ],
+      asOf: expect.any(String),
+    });
   });
 });
 
@@ -372,7 +404,8 @@ describe("Entries transfer success case", () => {
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
     mockPrisma.txnEntry.create.mockImplementation(async ({ data }: any) => ({
       id: "e1",
-      lines: data.lines.create,
+      lines: data.lines.create.map((line: any) => ({ ...line })),
+      meta: data.meta,
     }));
     const transfer = await import("@/app/api/v1/entries/transfer/route");
     const res = await transfer.POST(
@@ -384,9 +417,18 @@ describe("Entries transfer success case", () => {
       }),
     );
     expect(res.status).toBe(201);
-    const entry = await res.json();
-    expect(entry.lines[0].amount).toBe(-5);
-    expect(entry.lines[1].amount).toBe(5);
+    const createArgs = mockPrisma.txnEntry.create.mock.calls[0][0];
+    expect(createArgs.data.lines.create[0].amount).toBe(-5);
+    expect(createArgs.data.lines.create[1].amount).toBe(5);
+    expect(JSON.parse(createArgs.data.meta)).toEqual({
+      fromAmount: 5,
+      fromCurrency: "CNY",
+      toAmount: 5,
+      toCurrency: "CNY",
+      effectiveRate: 1,
+      rateSnapshots: [],
+      asOf: null,
+    });
 
     const summaryRoute = await import(
       "@/app/api/v1/accounts/[id]/summary/route"

@@ -60,7 +60,13 @@ describe("Reports routes", () => {
     expect(res.status).toBe(200);
     const j = await res.json();
     // displayValue = 100 USD * 7 = 700 CNY
+    expect(j.displayCurrency).toBe("CNY");
     expect(j.items[0].displayValue).toBe(700);
+    expect(j.items[0].displayPrincipal).toBe(0);
+    expect(j.items[0].displayProfit).toBe(700);
+    expect(j.totals.assets).toBe(700);
+    expect(j.totals.liabilities).toBe(0);
+    expect(j.totals.netWorth).toBe(700);
   });
 
   it("dashboard returns 200", async () => {
@@ -68,15 +74,18 @@ describe("Reports routes", () => {
     const m = await import("@/app/api/v1/reports/dashboard/route");
     mockPrisma.account.findMany.mockResolvedValueOnce([]);
     mockPrisma.fxRate.findMany.mockResolvedValueOnce([]);
-    expect(
-      (
-        await m.GET(
-          makeGet(
-            "http://localhost/api/v1/reports/dashboard?displayCurrency=CNY",
-          ),
-        )
-      ).status,
-    ).toBe(200);
+    const res = await m.GET(
+      makeGet("http://localhost/api/v1/reports/dashboard?displayCurrency=CNY"),
+    );
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.displayCurrency).toBe("CNY");
+    expect(payload.totals).toEqual({
+      assets: 0,
+      liabilities: 0,
+      netWorth: 0,
+      archived: 0,
+    });
   });
 
   it("income timeseries returns series for given range", async () => {
