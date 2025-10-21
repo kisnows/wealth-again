@@ -80,6 +80,29 @@ export function AccountTransactionsList({
       <div className="space-y-2">
         {transactions.map((txn) => {
           const amountText = formatAmount(txn.amount, txn.currency);
+          const counterpartyLabel = txn.counterpartyName
+            ? `${txn.counterpartyName}${
+                txn.counterpartyCurrency
+                  ? `（${txn.counterpartyCurrency}）`
+                  : ""
+              }`
+            : "—";
+          const formattedRateValue =
+            txn.exchangeRateAB != null
+              ? formatFxRate(txn.exchangeRateAB) ??
+                txn.exchangeRateAB.toFixed(6)
+              : null;
+          const toCurrency =
+            txn.counterpartyCurrency ?? displayCurrency ?? null;
+          const rateLabel =
+            formattedRateValue != null
+              ? `1 ${txn.currency} → ${formattedRateValue}${
+                  toCurrency ? ` ${toCurrency}` : ""
+                }${txn.viaCurrency ? `（via ${txn.viaCurrency}）` : ""}`
+              : "—";
+          const fxTimeLabel = txn.fxEffectiveAt
+            ? formatDateOnly(txn.fxEffectiveAt)
+            : "—";
           return (
             <div
               className="grid gap-2 rounded border border-border/60 bg-background/70 p-3 text-xs md:grid-cols-[170px,80px,1fr]"
@@ -106,47 +129,25 @@ export function AccountTransactionsList({
                   <span className="text-muted-foreground">{txn.note}</span>
                 )}
               </div>
-              {(txn.counterpartyName ||
-                txn.exchangeRateAB ||
-                txn.fxEffectiveAt ||
-                txn.attachmentUrl) && (
-                <div className="md:col-span-3 flex flex-col gap-1 text-[11px] text-muted-foreground">
-                  {txn.counterpartyName ? (
-                    <span>
-                      对方账户：{txn.counterpartyName}
-                      {txn.counterpartyCurrency
-                        ? `（${txn.counterpartyCurrency}）`
-                        : ""}
-                    </span>
-                  ) : null}
-                  {txn.exchangeRateAB ? (
-                    <span>
-                      汇率：1 {txn.currency} → {formatFxRate(txn.exchangeRateAB)}{" "}
-                      {txn.counterpartyCurrency ?? displayCurrency ?? ""}
-                      {txn.viaCurrency ? `（via ${txn.viaCurrency}）` : ""}
-                    </span>
-                  ) : null}
-                  {txn.fxEffectiveAt ? (
-                    <span>
-                      汇率生效时间：{formatDateOnly(txn.fxEffectiveAt)}
-                    </span>
-                  ) : null}
-                  {txn.attachmentUrl ? (
-                    <span>
-                      附件：
-                      <a
-                        className="underline hover:text-primary"
-                        data-testid={`accounts-ui-transaction-attachment-${txn.id}`}
-                        href={txn.attachmentUrl}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        查看附件
-                      </a>
-                    </span>
-                  ) : null}
-                </div>
-              )}
+              <div className="md:col-span-3 flex flex-col gap-1 text-[11px] text-muted-foreground">
+                <span>对方账户：{counterpartyLabel}</span>
+                <span>汇率：{rateLabel}</span>
+                <span>汇率生效时间：{fxTimeLabel}</span>
+                {txn.attachmentUrl ? (
+                  <span>
+                    附件：
+                    <a
+                      className="underline hover:text-primary"
+                      data-testid={`accounts-ui-transaction-attachment-${txn.id}`}
+                      href={txn.attachmentUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      查看附件
+                    </a>
+                  </span>
+                ) : null}
+              </div>
             </div>
           );
         })}

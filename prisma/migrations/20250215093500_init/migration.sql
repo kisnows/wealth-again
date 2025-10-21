@@ -93,8 +93,10 @@ CREATE TABLE "FxRate" (
     "base" TEXT NOT NULL,
     "quote" TEXT NOT NULL,
     "rate" DECIMAL NOT NULL,
-    "asOf" DATETIME NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "effectiveFrom" DATETIME NOT NULL,
+    "effectiveTo" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateTable
@@ -116,12 +118,25 @@ CREATE TABLE "TxnLine" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "entryId" TEXT NOT NULL,
     "accountId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
     "amount" DECIMAL NOT NULL,
     "currency" TEXT NOT NULL,
+    "counterpartyAccountId" TEXT,
+    "counterpartyName" TEXT,
+    "exchangeRateAB" DECIMAL,
+    "viaCurrency" TEXT DEFAULT 'USD',
+    "rateAtoUSD" DECIMAL,
+    "rateUSDtoB" DECIMAL,
+    "fxEffectiveAt" DATETIME,
+    "principalDelta" DECIMAL NOT NULL DEFAULT 0,
+    "valuationDelta" DECIMAL NOT NULL DEFAULT 0,
+    "attachmentUrl" TEXT,
     "note" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "TxnLine_entryId_fkey" FOREIGN KEY ("entryId") REFERENCES "TxnEntry" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "TxnLine_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "TxnLine_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "TxnLine_counterpartyAccountId_fkey" FOREIGN KEY ("counterpartyAccountId") REFERENCES "Account" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -136,6 +151,19 @@ CREATE TABLE "ValuationSnapshot" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "ValuationSnapshot_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "ValuationSnapshot_fxRateId_fkey" FOREIGN KEY ("fxRateId") REFERENCES "FxRate" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "UserAnnualDeduction" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "taxYear" INTEGER NOT NULL,
+    "annualAmount" DECIMAL NOT NULL DEFAULT 0,
+    "allocationRule" TEXT,
+    "note" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "UserAnnualDeduction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -264,6 +292,20 @@ CREATE TABLE "IdempotencyKey" (
     "expiresAt" DATETIME
 );
 
+-- CreateTable
+CREATE TABLE "CityChangeRecord" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "fromCityId" TEXT,
+    "toCityId" TEXT NOT NULL,
+    "effectiveMonth" DATETIME NOT NULL,
+    "reason" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CityChangeRecord_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "CityChangeRecord_fromCityId_fkey" FOREIGN KEY ("fromCityId") REFERENCES "City" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "CityChangeRecord_toCityId_fkey" FOREIGN KEY ("toCityId") REFERENCES "City" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -301,7 +343,13 @@ CREATE UNIQUE INDEX "TaxBracket_country_taxYear_position_key" ON "TaxBracket"("c
 CREATE INDEX "Account_userId_idx" ON "Account"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "FxRate_base_quote_asOf_key" ON "FxRate"("base", "quote", "asOf");
+CREATE INDEX "FxRate_base_quote_effectiveFrom_idx" ON "FxRate"("base", "quote", "effectiveFrom");
+
+-- CreateIndex
+CREATE INDEX "FxRate_base_quote_effectiveTo_idx" ON "FxRate"("base", "quote", "effectiveTo");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "FxRate_base_quote_effectiveFrom_key" ON "FxRate"("base", "quote", "effectiveFrom");
 
 -- CreateIndex
 CREATE INDEX "TxnEntry_userId_occurredAt_idx" ON "TxnEntry"("userId", "occurredAt");
@@ -310,7 +358,19 @@ CREATE INDEX "TxnEntry_userId_occurredAt_idx" ON "TxnEntry"("userId", "occurredA
 CREATE INDEX "TxnLine_accountId_createdAt_idx" ON "TxnLine"("accountId", "createdAt");
 
 -- CreateIndex
+CREATE INDEX "TxnLine_entryId_type_idx" ON "TxnLine"("entryId", "type");
+
+-- CreateIndex
+CREATE INDEX "TxnLine_counterpartyAccountId_idx" ON "TxnLine"("counterpartyAccountId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "ValuationSnapshot_accountId_asOf_key" ON "ValuationSnapshot"("accountId", "asOf");
+
+-- CreateIndex
+CREATE INDEX "UserAnnualDeduction_userId_taxYear_idx" ON "UserAnnualDeduction"("userId", "taxYear");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserAnnualDeduction_userId_taxYear_key" ON "UserAnnualDeduction"("userId", "taxYear");
 
 -- CreateIndex
 CREATE INDEX "AuditLog_userId_createdAt_idx" ON "AuditLog"("userId", "createdAt");
@@ -341,3 +401,13 @@ CREATE UNIQUE INDEX "grantId_vestDate" ON "EquityVest"("grantId", "vestDate");
 
 -- CreateIndex
 CREATE INDEX "IdempotencyKey_userId_createdAt_idx" ON "IdempotencyKey"("userId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "CityChangeRecord_userId_effectiveMonth_idx" ON "CityChangeRecord"("userId", "effectiveMonth");
+
+-- CreateIndex
+CREATE INDEX "CityChangeRecord_toCityId_idx" ON "CityChangeRecord"("toCityId");
+
+-- CreateIndex
+CREATE INDEX "CityChangeRecord_fromCityId_idx" ON "CityChangeRecord"("fromCityId");
+

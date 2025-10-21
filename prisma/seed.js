@@ -1,5 +1,5 @@
 // prisma/seed.js (CommonJS，便于直接运行)
-// 参考 doc/data.md 的重点数据，初始化城市规则、税制、工资/奖金/LTC 示例
+// 参考 doc/data.md 的重点数据，初始化城市规则、税制、账户与交易示例
 /* eslint-disable no-console */
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
@@ -74,7 +74,17 @@ async function seed() {
     },
   });
 
-  // 清理旧的收入配置，确保种子数据幂等
+  // --- 清理旧数据，确保幂等 ---
+  await prisma.cityChangeRecord.deleteMany({ where: { userId: user.id } });
+  await prisma.auditLog.deleteMany({ where: { userId: user.id } });
+  await prisma.valuationSnapshot.deleteMany({
+    where: { account: { userId: user.id } },
+  });
+  await prisma.txnLine.deleteMany({
+    where: { entry: { userId: user.id } },
+  });
+  await prisma.txnEntry.deleteMany({ where: { userId: user.id } });
+  await prisma.account.deleteMany({ where: { userId: user.id } });
   await prisma.incomeRecord.deleteMany({ where: { userId: user.id } });
   await prisma.longTermCashPayout.deleteMany({
     where: { plan: { userId: user.id } },
@@ -83,8 +93,9 @@ async function seed() {
   await prisma.bonusPlan.deleteMany({ where: { userId: user.id } });
   await prisma.incomeChange.deleteMany({ where: { userId: user.id } });
   await prisma.userAnnualDeduction.deleteMany({ where: { userId: user.id } });
+  await prisma.fxRate.deleteMany({ where: { base: "USD" } });
 
-  // 社保（示例：ZJ 区间）
+  // --- 城市规则 ---
   await prisma.cityRuleSS.upsert({
     where: {
       cityId_startDate: { cityId: hz.id, startDate: new Date("2023-01-01") },
@@ -135,7 +146,6 @@ async function seed() {
     },
   });
 
-  // 公积金
   await prisma.cityRuleHF.upsert({
     where: {
       cityId_startDate: { cityId: hz.id, startDate: new Date("2023-07-01") },
@@ -179,10 +189,8 @@ async function seed() {
     },
   });
 
-  // 税制
   for (const y of [2023, 2024, 2025]) await upsertTax("CN", y);
 
-  // 年度专项附加扣除（示例：每年 12000，均摊至每月 1000）
   await prisma.userAnnualDeduction.createMany({
     data: [
       {
@@ -209,7 +217,6 @@ async function seed() {
     ],
   });
 
-  // 工资变更
   await prisma.incomeChange.createMany({
     data: [
       {
@@ -233,7 +240,6 @@ async function seed() {
     ],
   });
 
-  // 奖金（每年1月）
   await prisma.bonusPlan.createMany({
     data: [
       {
@@ -251,7 +257,6 @@ async function seed() {
     ],
   });
 
-  // 长期现金：每年 4 月授予，季度 4 期
   const ltcPlan = await prisma.longTermCashPlan.create({
     data: {
       userId: user.id,
@@ -288,6 +293,347 @@ async function seed() {
       amount: ltcAmount,
       currency: "CNY",
     })),
+  });
+
+  await prisma.cityChangeRecord.create({
+    data: {
+      userId: user.id,
+      fromCityId: null,
+      toCityId: hz.id,
+      effectiveMonth: new Date("2023-01-01"),
+      reason: "入驻杭州",
+    },
+  });
+
+  // --- 账户与汇率 ---
+  const cnySavings = await prisma.account.create({
+    data: {
+      userId: user.id,
+      name: "工商",
+      accountType: "SAVINGS",
+      baseCurrency: "CNY",
+      description: "工资结算账户",
+    },
+  });
+  const cnyInvestment = await prisma.account.create({
+    data: {
+      userId: user.id,
+      name: "同花顺",
+      accountType: "INVESTMENT",
+      baseCurrency: "CNY",
+      subType: "A 股",
+      description: "国内股票账户",
+    },
+  });
+  const cnyLoan = await prisma.account.create({
+    data: {
+      userId: user.id,
+      name: "借款",
+      accountType: "LOAN",
+      baseCurrency: "CNY",
+      description: "房贷示例",
+    },
+  });
+  const usdSavings = await prisma.account.create({
+    data: {
+      userId: user.id,
+      name: "测试美金",
+      accountType: "SAVINGS",
+      baseCurrency: "USD",
+      description: "外汇账户",
+    },
+  });
+
+  const usdToCny = await prisma.fxRate.create({
+    data: {
+      base: "USD",
+      quote: "CNY",
+      rate: 7,
+      effectiveFrom: new Date("2025-10-12T08:00:00Z"),
+      effectiveTo: null,
+    },
+  });
+
+  // --- 账户流水 ---
+  const depositEntry = await prisma.txnEntry.create({
+    data: {
+      userId: user.id,
+      type: "DEPOSIT",
+      occurredAt: new Date("2025-10-10T09:00:00Z"),
+      note: "初始化存款",
+      lines: {
+        create: [
+          {
+            accountId: cnySavings.id,
+            type: "DEPOSIT",
+            amount: 500,
+            currency: "CNY",
+            principalDelta: 500,
+            valuationDelta: 500,
+            note: "初始资金",
+          },
+        ],
+      },
+    },
+  });
+
+  // 同币种转账
+  const sameCurrencyAt = new Date("2025-10-21T15:28:00Z");
+  await prisma.txnEntry.create({
+    data: {
+      userId: user.id,
+      type: "TRANSFER",
+      occurredAt: sameCurrencyAt,
+      note: "偿还部分借款",
+      meta: JSON.stringify({
+        fromAmount: 5,
+        fromCurrency: "CNY",
+        toAmount: 5,
+        toCurrency: "CNY",
+        effectiveRate: 1,
+        viaCurrency: "USD",
+        rateAtoUsd: 1,
+        rateUsdToB: 1,
+        fxEffectiveAt: sameCurrencyAt.toISOString(),
+        rateSnapshots: [],
+        asOf: sameCurrencyAt.toISOString(),
+      }),
+      lines: {
+        create: [
+          {
+            accountId: cnySavings.id,
+            type: "TRANSFER",
+            amount: -5,
+            currency: "CNY",
+            counterpartyAccountId: cnyLoan.id,
+            counterpartyName: "借款",
+            exchangeRateAB: 1,
+            viaCurrency: "USD",
+            rateAtoUSD: 1,
+            rateUSDtoB: 1,
+            fxEffectiveAt: sameCurrencyAt,
+            principalDelta: -5,
+            valuationDelta: -5,
+          },
+          {
+            accountId: cnyLoan.id,
+            type: "TRANSFER",
+            amount: 5,
+            currency: "CNY",
+            counterpartyAccountId: cnySavings.id,
+            counterpartyName: "工商",
+            exchangeRateAB: 1,
+            viaCurrency: "USD",
+            rateAtoUSD: 1,
+            rateUSDtoB: 1,
+            fxEffectiveAt: sameCurrencyAt,
+            principalDelta: 5,
+            valuationDelta: 5,
+          },
+        ],
+      },
+    },
+  });
+
+  // 跨币种转账 USD -> CNY
+  const crossCurrencyAt = new Date("2025-10-12T23:37:00Z");
+  await prisma.txnEntry.create({
+    data: {
+      userId: user.id,
+      type: "TRANSFER",
+      occurredAt: crossCurrencyAt,
+      fxRateId: usdToCny.id,
+      note: "外汇兑入 A 股账户",
+      meta: JSON.stringify({
+        fromAmount: 100,
+        fromCurrency: "USD",
+        toAmount: 700,
+        toCurrency: "CNY",
+        effectiveRate: 7,
+        viaCurrency: "USD",
+        rateAtoUsd: 1,
+        rateUsdToB: 7,
+        fxEffectiveAt: crossCurrencyAt.toISOString(),
+        rateSnapshots: [
+          {
+            base: "USD",
+            quote: "CNY",
+            rate: 7,
+            effectiveFrom: usdToCny.effectiveFrom.toISOString(),
+            effectiveTo: null,
+            id: usdToCny.id,
+          },
+        ],
+        asOf: crossCurrencyAt.toISOString(),
+      }),
+      lines: {
+        create: [
+          {
+            accountId: usdSavings.id,
+            type: "TRANSFER",
+            amount: -100,
+            currency: "USD",
+            counterpartyAccountId: cnyInvestment.id,
+            counterpartyName: "同花顺",
+            exchangeRateAB: 7,
+            viaCurrency: "USD",
+            rateAtoUSD: 1,
+            rateUSDtoB: 7,
+            fxEffectiveAt: crossCurrencyAt,
+            principalDelta: -100,
+            valuationDelta: -100,
+          },
+          {
+            accountId: cnyInvestment.id,
+            type: "TRANSFER",
+            amount: 700,
+            currency: "CNY",
+            counterpartyAccountId: usdSavings.id,
+            counterpartyName: "测试美金",
+            exchangeRateAB: 7,
+            viaCurrency: "USD",
+            rateAtoUSD: 1,
+            rateUSDtoB: 7,
+            fxEffectiveAt: crossCurrencyAt,
+            principalDelta: 700,
+            valuationDelta: 700,
+          },
+        ],
+      },
+    },
+  });
+
+  // 取现（示例）
+  await prisma.txnEntry.create({
+    data: {
+      userId: user.id,
+      type: "WITHDRAW",
+      occurredAt: new Date("2025-10-17T17:56:00Z"),
+      note: "投资账户提现",
+      lines: {
+        create: [
+          {
+            accountId: cnyInvestment.id,
+            type: "WITHDRAW",
+            amount: -140,
+            currency: "CNY",
+            principalDelta: -140,
+            valuationDelta: -140,
+          },
+        ],
+      },
+    },
+  });
+
+  // 估值快照
+  await prisma.valuationSnapshot.createMany({
+    data: [
+      {
+        accountId: cnyInvestment.id,
+        asOf: new Date("2025-10-11T16:12:00Z"),
+        totalValue: 6500,
+        currency: "CNY",
+      },
+      {
+        accountId: cnySavings.id,
+        asOf: new Date(depositEntry.occurredAt),
+        totalValue: 500,
+        currency: "CNY",
+      },
+      {
+        accountId: usdSavings.id,
+        asOf: new Date("2025-10-12T08:00:00Z"),
+        totalValue: 100,
+        currency: "USD",
+      },
+    ],
+  });
+
+  // --- 月度收入记录（2025 年 1-3 月） ---
+  const incomeRows = [
+    {
+      monthDate: "2025-01-01",
+      gross: 20000,
+      bonus: 0,
+      ltcIncome: 0,
+      socialInsurance: 2103,
+      housingFund: 2400,
+      taxableIncome: 10500,
+      taxableCumulative: 10500,
+      incomeTax: 1050,
+      taxCumulative: 1050,
+      taxPaid: 1050,
+      netIncome: 14447,
+    },
+    {
+      monthDate: "2025-02-01",
+      gross: 20000,
+      bonus: 0,
+      ltcIncome: 0,
+      socialInsurance: 2103,
+      housingFund: 2400,
+      taxableIncome: 10500,
+      taxableCumulative: 21000,
+      incomeTax: 1050,
+      taxCumulative: 2100,
+      taxPaid: 2100,
+      netIncome: 14447,
+    },
+    {
+      monthDate: "2025-03-01",
+      gross: 20000,
+      bonus: 30000,
+      ltcIncome: 10000,
+      socialInsurance: 2103,
+      housingFund: 2400,
+      taxableIncome: 50497,
+      taxableCumulative: 71497,
+      incomeTax: 10624.85,
+      taxCumulative: 12724.85,
+      taxPaid: 12724.85,
+      netIncome: 44872.15,
+    },
+  ];
+
+  await prisma.incomeRecord.createMany({
+    data: incomeRows.map((row) => ({
+      userId: user.id,
+      monthDate: new Date(row.monthDate),
+      cityId: hz.id,
+      currency: "CNY",
+      gross: row.gross,
+      bonus: row.bonus,
+      ltcIncome: row.ltcIncome,
+      socialInsuranceBase: row.gross,
+      housingFundBase: row.gross,
+      socialInsurance: row.socialInsurance,
+      housingFund: row.housingFund,
+      specialDeductions: 0,
+      otherDeductions: 0,
+      charityDonations: 0,
+      taxableIncome: row.taxableIncome,
+      taxableCumulative: row.taxableCumulative,
+      incomeTax: row.incomeTax,
+      taxCumulative: row.taxCumulative,
+      taxPaid: row.taxPaid,
+      netIncome: row.netIncome,
+      isForecast: false,
+    })),
+  });
+
+  await prisma.auditLog.createMany({
+    data: [
+      {
+        userId: user.id,
+        action: "ACCOUNT_SEED",
+        meta: JSON.stringify({ message: "Seeded demo accounts and balances" }),
+      },
+      {
+        userId: user.id,
+        action: "INCOME_SEED",
+        meta: JSON.stringify({ message: "Seeded demo income records" }),
+      },
+    ],
   });
 
   console.log("Seeding done.");
