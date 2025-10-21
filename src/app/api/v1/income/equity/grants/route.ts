@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
+import { scheduleIncomeRecalcTask } from "@/server/services/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
@@ -73,6 +74,16 @@ export async function POST(req: Request) {
       vestInterval,
     },
   });
+  const vestStart = new Date(startVestDate);
+  if (!Number.isNaN(vestStart.getTime())) {
+    await scheduleIncomeRecalcTask({
+      userId,
+      taxYear: vestStart.getUTCFullYear(),
+      startMonth: vestStart.getUTCMonth() + 1,
+      endMonth: 12,
+      triggeredBy: user.id,
+    });
+  }
   await logAudit("INCOME_EQUITY_GRANT_CREATE", {
     userId,
     meta: { id: created.id },

@@ -21,6 +21,7 @@
 - **自动化与延迟执行**：任务不会立即执行，而是会**延迟10分钟**。如果在这10分钟内，用户对同一年份的输入进行了多次修改，这些修改会**合并成一个回算任务**，避免了资源浪费。
 - **手动触发**：系统依然提供“立即回算”的选项，供需要即时看到结果的用户使用。
 - **任务状态追踪**：会有一个专门的 UI 界面（例如在 `/income/recalc-status`），用于展示所有回算任务的**状态**（排队中、运行中、已完成、失败），确保过程的透明性。
+- **后台处理**：`scheduleIncomeRecalcTask` 将写入 `IncomeRecalcTask`，`GET /api/v1/income/recalc/tasks` 会在返回前触发到期任务执行，实现“10 分钟合并 + 自动回算”。
 
 ### 2.2 收入页面 (`/income`) 的整合视图
 
@@ -58,8 +59,12 @@
 ## 4. 计算规则与技术实现
 
 ### 4.1 数据模型关键变更
-- `TaxConfig` 表增加字段: `specialAdditionalDeduction: Decimal?`，用于存储月度专项附加扣除额。
-- `IncomeRecord` 表增加对账字段: `taxableCumulative: Decimal?` (累计应纳税所得额) 和 `taxCumulative: Decimal?` (累计应纳税额)。
+- `TaxConfig` 表：字段 `specialAdditionalDeduction: Decimal?` 存储月度专项附加扣除额。
+- `IncomeRecord` 表：
+  - 计算字段：`taxableCurrent`、`taxableCumulative`、`taxCumulative`、`taxPaidCumulative`、`netIncome`。
+  - 人工覆盖字段：`manualGross`、`manualTaxable`、`manualIncomeTax`、`manualNet`、`manualNote`；存在人工值时 `source = 'manual'`。
+- 新增 `IncomeRecalcTask` 表：记录自动回算任务的 `status`、`scheduledFor`、`attempts`、`lastError` 等信息，支持合并与重试。
+- API：`GET /api/v1/income/recalc/tasks` 用于列出任务并触发到期任务处理。
 
 ### 4.2 计算流程 (累计预扣法)
 
@@ -161,6 +166,6 @@
 ## 7. 验收清单
 
 - **计算准确性**: 输入示例参数，回算 1–3 月的当月个税与税后实发，数值与本文档计算示例一致。
-- **数据一致性**: `IncomeRecord` 中的 `taxableCumulative`, `taxCumulative`, `taxPaid` 字段内部自洽。
+- **数据一致性**: `IncomeRecord` 中的 `taxableCumulative`, `taxCumulative`, `taxPaidCumulative` 字段内部自洽。
 - **规则可维护**: 规则与税制页面可维护新增的 `specialAdditionalDeductionMonthly` 字段。
 - **操作可追溯**: 敏感操作（回算、人工调整、管理员模拟登录）均写入 `AuditLog`，便于追踪。

@@ -1,5 +1,6 @@
 import type { IncomeRecord } from "@prisma/client";
 import prisma from "@/server/db";
+import { logAudit } from "@/server/services/audit";
 import { calculateTax } from "@/server/services/tax";
 
 type RecalcParams = {
@@ -26,6 +27,26 @@ type CityMeta = {
   country: string;
 };
 
+const RECLAC_DELAY_MS = 10 * 60 * 1000;
+const RECLAC_RETRY_DELAY_MS = 5 * 60 * 1000;
+
+type ScheduleTaskParams = {
+  userId?: string;
+  taxYear: number;
+  startMonth?: number;
+  endMonth?: number;
+  cityId?: string;
+  triggeredBy?: string;
+  delayMs?: number;
+};
+
+type ProcessResult = {
+  taskId: string;
+  status: "COMPLETED" | "FAILED";
+  updated: number;
+  error?: string;
+};
+
 function buildCityResolver(
   fallbackCityId: string,
   changes: CityChangeSnapshot[],
@@ -48,6 +69,178 @@ function buildCityResolver(
     }
     return currentCity;
   };
+}
+
+export async function scheduleIncomeRecalcTask({
+  userId,
+  taxYear,
+  startMonth = 1,
+  endMonth = 12,
+  cityId,
+  triggeredBy,
+  delayMs = RECLAC_DELAY_MS,
+}: ScheduleTaskParams) {
+  const now = new Date();
+  const scheduledFor = new Date(now.getTime() + Math.max(delayMs, 0));
+  const normalizedStart = Math.max(1, Math.min(12, startMonth));
+  const normalizedEnd = Math.max(normalizedStart, Math.min(12, endMonth));
+
+  if (userId) {
+    const existing = await prisma.incomeRecalcTask.findFirst({
+      where: {
+        userId,
+        taxYear,
+        status: "PENDING",
+      },
+      orderBy: { scheduledFor: "asc" },
+    });
+    if (existing) {
+      await prisma.incomeRecalcTask.update({
+        where: { id: existing.id },
+        data: {
+          startMonth: Math.min(existing.startMonth, normalizedStart),
+          endMonth: Math.max(existing.endMonth, normalizedEnd),
+          cityId: cityId ?? existing.cityId,
+          scheduledFor,
+          triggeredBy: triggeredBy ?? existing.triggeredBy,
+          updatedAt: now,
+        },
+      });
+      return existing.id;
+    }
+  }
+
+  const created = await prisma.incomeRecalcTask.create({
+    data: {
+      userId,
+      taxYear,
+      startMonth: normalizedStart,
+      endMonth: normalizedEnd,
+      cityId: cityId ?? null,
+      status: "PENDING",
+      scheduledFor,
+      attempts: 0,
+      triggeredBy: triggeredBy ?? null,
+    },
+  });
+  await logAudit("INCOME_RECALC_TASK_SCHEDULED", {
+    userId: userId ?? null,
+    meta: {
+      taskId: created.id,
+      taxYear,
+      startMonth: normalizedStart,
+      endMonth: normalizedEnd,
+      scheduledFor: scheduledFor.toISOString(),
+    },
+  });
+  return created.id;
+}
+
+export async function listIncomeRecalcTasks(userId: string) {
+  return prisma.incomeRecalcTask.findMany({
+    where: { userId },
+    orderBy: [{ createdAt: "desc" }],
+    take: 50,
+  });
+}
+
+export async function processDueIncomeRecalcTasks(limit = 5) {
+  const now = new Date();
+  const due = await prisma.incomeRecalcTask.findMany({
+    where: {
+      status: "PENDING",
+      scheduledFor: { lte: now },
+    },
+    orderBy: { scheduledFor: "asc" },
+    take: limit,
+  });
+  const results: ProcessResult[] = [];
+  for (const task of due) {
+    const claimed = await prisma.incomeRecalcTask.updateMany({
+      where: { id: task.id, status: "PENDING" },
+      data: {
+        status: "RUNNING",
+        attempts: task.attempts + 1,
+        updatedAt: new Date(),
+      },
+    });
+    if (!claimed.count) continue;
+    try {
+      const res = await recalcIncome({
+        taxYear: task.taxYear,
+        startMonth: task.startMonth,
+        endMonth: task.endMonth,
+        userId: task.userId ?? undefined,
+        cityId: task.cityId ?? undefined,
+      });
+      await prisma.incomeRecalcTask.update({
+        where: { id: task.id },
+        data: {
+          status: "COMPLETED",
+          processedAt: new Date(),
+          lastError: null,
+          updatedAt: new Date(),
+        },
+      });
+      await logAudit("INCOME_RECALC_TASK_COMPLETED", {
+        userId: task.userId ?? null,
+        meta: {
+          taskId: task.id,
+          taxYear: task.taxYear,
+          startMonth: task.startMonth,
+          endMonth: task.endMonth,
+          updated: res.updated,
+        },
+      });
+      results.push({ taskId: task.id, status: "COMPLETED", updated: res.updated });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "unknown error";
+      await prisma.incomeRecalcTask.update({
+        where: { id: task.id },
+        data: {
+          status: "FAILED",
+          lastError: message,
+          scheduledFor: new Date(Date.now() + RECLAC_RETRY_DELAY_MS),
+          updatedAt: new Date(),
+        },
+      });
+      await logAudit("INCOME_RECALC_TASK_FAILED", {
+        userId: task.userId ?? null,
+        meta: { taskId: task.id, error: message },
+      });
+      results.push({
+        taskId: task.id,
+        status: "FAILED",
+        updated: 0,
+        error: message,
+      });
+    }
+  }
+  return { processed: results.length, results };
+}
+
+export async function settleIncomeRecalcTasks({
+  userId,
+  taxYear,
+}: {
+  userId?: string | null;
+  taxYear: number;
+}) {
+  if (!userId) return;
+  await prisma.incomeRecalcTask.updateMany({
+    where: {
+      userId,
+      taxYear,
+      status: { in: ["PENDING", "RUNNING", "FAILED"] },
+    },
+    data: {
+      status: "COMPLETED",
+      processedAt: new Date(),
+      lastError: null,
+      updatedAt: new Date(),
+    },
+  });
 }
 
 export async function recalcIncome({
@@ -191,7 +384,7 @@ export async function recalcIncome({
       });
       for (const record of previousRecords) {
         const idx = record.monthDate.getUTCMonth();
-        monthlyTaxables[idx] = Number(record.taxableIncome || 0);
+        monthlyTaxables[idx] = Number(record.taxableCurrent || 0);
         monthRecords[idx] = {
           monthDate: record.monthDate,
           gross: Number(record.gross || 0),
@@ -352,12 +545,13 @@ export async function recalcIncome({
           socialInsurance: record.socialInsurance,
           housingFund: record.housingFund,
           specialDeductions: record.special,
-          taxableIncome: monthlyTaxables[m - 1],
+          taxableCurrent: monthlyTaxables[m - 1],
           incomeTax: tax.monthTax,
-          taxPaid: tax.cumulativePaid,
+          taxPaidCumulative: tax.cumulativePaid,
           taxableCumulative: monthlyCumTaxables[m - 1],
           taxCumulative: tax.cumulativeTax,
           netIncome: net,
+          source: "system",
           isForecast: false,
         },
         create: {
@@ -372,12 +566,13 @@ export async function recalcIncome({
           socialInsurance: record.socialInsurance,
           housingFund: record.housingFund,
           specialDeductions: record.special,
-          taxableIncome: monthlyTaxables[m - 1],
+          taxableCurrent: monthlyTaxables[m - 1],
           incomeTax: tax.monthTax,
-          taxPaid: tax.cumulativePaid,
+          taxPaidCumulative: tax.cumulativePaid,
           taxableCumulative: monthlyCumTaxables[m - 1],
           taxCumulative: tax.cumulativeTax,
           netIncome: net,
+          source: "system",
           isForecast: false,
         },
       });
@@ -586,7 +781,7 @@ export function summarizeIncomeRecords(
     currency: records[0]?.currency ?? null,
     totalIncome,
     avgTaxRate,
-    latestTaxPaid: Number(latest?.taxPaid || 0),
+    latestTaxPaid: Number(latest?.taxPaidCumulative || 0),
     latestTaxCumulative: Number(latest?.taxCumulative || 0),
     ...totals,
   };

@@ -11,8 +11,8 @@ const REPORT_LINKS = [
     testId: "reports-ui-nav-accounts",
   },
   {
-    href: "/reports/income",
-    label: "收入时序",
+    href: "/income",
+    label: "收入中心",
     testId: "reports-ui-nav-income",
   },
 ];

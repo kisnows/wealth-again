@@ -37,6 +37,7 @@ model User {
   equityGrants  EquityGrant[]
   cityChanges   CityChangeRecord[]
   annualDeductions UserAnnualDeduction[]
+  recalcTasks      IncomeRecalcTask[]
 
   @@index([email])
   @@index([isActive])
@@ -56,6 +57,7 @@ model City {
   incomeRecords IncomeRecord[]
   cityChangesTo   CityChangeRecord[] @relation("CityChangeToCity")
   cityChangesFrom CityChangeRecord[] @relation("CityChangeFromCity")
+  recalcTasks     IncomeRecalcTask[]
 }
 
 model CityRuleSS {
@@ -337,13 +339,22 @@ model IncomeRecord {
   otherDeductions   Decimal? @default(0)
   charityDonations  Decimal? @default(0)
 
-  taxableIncome     Decimal?
-  incomeTax         Decimal?
-  taxPaid           Decimal? @default(0) // 累计已缴
-  taxableCumulative Decimal?
-  taxCumulative     Decimal?
-  netIncome         Decimal?
-  isForecast        Boolean  @default(false)
+  // 人工覆盖
+  manualGross     Decimal?
+  manualTaxable   Decimal?
+  manualIncomeTax Decimal?
+  manualNet       Decimal?
+  manualNote      String?
+
+  // 对账字段
+  taxableCurrent     Decimal?
+  incomeTax          Decimal?
+  taxPaidCumulative  Decimal? @default(0) // 累计已缴
+  taxableCumulative  Decimal?
+  taxCumulative      Decimal?
+  netIncome          Decimal?
+  source             String   @default("system")
+  isForecast         Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -354,6 +365,29 @@ model IncomeRecord {
 
   @@unique([userId, monthDate])
   @@index([userId, monthDate])
+}
+
+model IncomeRecalcTask {
+  id           String   @id @default(uuid())
+  userId       String?
+  taxYear      Int
+  startMonth   Int      @default(1)
+  endMonth     Int      @default(12)
+  cityId       String?
+  status       String   @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
+  scheduledFor DateTime @default(now())
+  attempts     Int      @default(0)
+  lastError    String?
+  triggeredBy  String? // 触发来源：userId/adminId/系统
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  processedAt  DateTime?
+
+  user User? @relation(fields: [userId], references: [id])
+  city City? @relation(fields: [cityId], references: [id])
+
+  @@index([status, scheduledFor])
+  @@index([userId, taxYear, status])
 }
 
 // ==== 股权激励（授予与归属） ====

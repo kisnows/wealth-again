@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { scheduleIncomeRecalcTask } from "@/server/services/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
@@ -42,6 +43,20 @@ export async function POST(
       where: { planId_payDate: { planId: p.planId, payDate: p.payDate } },
       update: { amount: p.amount, currency: p.currency },
       create: p,
+    });
+  }
+  const affectedYears = new Set<number>();
+  data.forEach((item) => {
+    const year = item.payDate.getUTCFullYear();
+    if (!Number.isNaN(year)) affectedYears.add(year);
+  });
+  for (const year of affectedYears) {
+    await scheduleIncomeRecalcTask({
+      userId: user.id,
+      taxYear: year,
+      startMonth: 1,
+      endMonth: 12,
+      triggeredBy: user.id,
     });
   }
   return NextResponse.json({ generated: data.length });

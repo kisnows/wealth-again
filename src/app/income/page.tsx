@@ -18,7 +18,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BonusDialog,
-  IncomeRecalcDialog,
   IncomeRecordsDialog,
   LongTermCashDialog,
   SalaryChangesDialog,
@@ -42,7 +41,7 @@ import {
 } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-const MODAL_KEYS = ["records", "salary", "bonus", "ltc", "recalc"] as const;
+const MODAL_KEYS = ["records", "salary", "bonus", "ltc"] as const;
 type ModalKey = (typeof MODAL_KEYS)[number];
 
 const isModalKey = (value: string | null): value is ModalKey =>
@@ -58,7 +57,7 @@ type QuickAction =
       icon: ReactNode;
     }
   | {
-      id: "rules";
+      id: "rules" | "recalc";
       mode: "route";
       href: string;
       title: string;
@@ -76,9 +75,10 @@ const quickActions: QuickAction[] = [
   },
   {
     id: "recalc",
-    mode: "modal",
-    title: "年度回算",
-    description: "指定月份重新计算累计预扣个税",
+    mode: "route",
+    href: "/income/recalc-status",
+    title: "回算任务",
+    description: "查看自动任务进度与手动回算入口",
     icon: <HistoryIcon className="h-4 w-4" />,
   },
   {
@@ -158,13 +158,11 @@ export default function IncomePage() {
           <ScrollTextIcon className="mr-2 h-4 w-4" />
           查看收入记录
         </Button>
-        <Button
-          onClick={() => openModal("recalc")}
-          size="sm"
-          variant="outline"
-        >
-          <HistoryIcon className="mr-2 h-4 w-4" />
-          年度回算
+        <Button asChild size="sm" variant="outline">
+          <Link href="/income/recalc-status">
+            <HistoryIcon className="mr-2 h-4 w-4" />
+            回算任务
+          </Link>
         </Button>
         <Button asChild size="sm" variant="outline">
           <Link href="/rules/tax">
@@ -221,7 +219,7 @@ export default function IncomePage() {
               data-testid="income-ui-tab-forecast"
               value="forecast"
             >
-              预测与回算
+              收入预测
             </TabsTrigger>
           </TabsList>
 
@@ -273,9 +271,6 @@ export default function IncomePage() {
       ) : null}
       {activeModal === "ltc" ? (
         <LongTermCashDialog onClose={closeModal} open />
-      ) : null}
-      {activeModal === "recalc" ? (
-        <IncomeRecalcDialog onClose={closeModal} open />
       ) : null}
     </PageContainer>
   );

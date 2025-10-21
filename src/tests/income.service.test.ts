@@ -195,18 +195,18 @@ describe("Income service · recalcIncome", () => {
     expect(monthly[1].gross).toBe(4000);
     expect(monthly[1].socialInsurance).toBeCloseTo(528, 2);
     expect(monthly[1].housingFund).toBeCloseTo(600, 2);
-    expect(monthly[1].taxableIncome).toBe(0);
+    expect(monthly[1].taxableCurrent).toBe(0);
     expect(monthly[1].taxableCumulative).toBe(0);
     expect(monthly[1].incomeTax).toBeCloseTo(0, 2);
-    expect(monthly[1].taxPaid).toBeCloseTo(0, 2);
+    expect(monthly[1].taxPaidCumulative).toBeCloseTo(0, 2);
     expect(monthly[1].taxCumulative).toBeCloseTo(0, 2);
     expect(monthly[1].netIncome).toBeCloseTo(2872, 2);
 
     expect(monthly[2].gross).toBe(15000);
-    expect(monthly[2].taxableIncome).toBeCloseTo(6422, 2);
+    expect(monthly[2].taxableCurrent).toBeCloseTo(6422, 2);
     expect(monthly[2].taxableCumulative).toBeCloseTo(6422, 2);
     expect(monthly[2].incomeTax).toBeCloseTo(192.66, 2);
-    expect(monthly[2].taxPaid).toBeCloseTo(192.66, 2);
+    expect(monthly[2].taxPaidCumulative).toBeCloseTo(192.66, 2);
     expect(monthly[2].taxCumulative).toBeCloseTo(192.66, 2);
     expect(monthly[2].netIncome).toBeCloseTo(11429.34, 2);
 
@@ -215,10 +215,10 @@ describe("Income service · recalcIncome", () => {
     expect(monthly[3].ltcIncome).toBe(5000);
     expect(monthly[3].socialInsurance).toBeCloseTo(1893, 2);
     expect(monthly[3].housingFund).toBeCloseTo(2160, 2);
-    expect(monthly[3].taxableIncome).toBeCloseTo(18747, 2);
+    expect(monthly[3].taxableCurrent).toBeCloseTo(18747, 2);
     expect(monthly[3].taxableCumulative).toBeCloseTo(25169, 2);
     expect(monthly[3].incomeTax).toBeCloseTo(562.41, 2);
-    expect(monthly[3].taxPaid).toBeCloseTo(755.07, 2);
+    expect(monthly[3].taxPaidCumulative).toBeCloseTo(755.07, 2);
     expect(monthly[3].taxCumulative).toBeCloseTo(755.07, 2);
     expect(monthly[3].netIncome).toBeCloseTo(23384.59, 2);
   });

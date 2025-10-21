@@ -74,6 +74,35 @@ export type AnnualDeduction = {
   updatedAt: string;
 };
 
+export type IncomeRecalcTask = {
+  id: string;
+  userId: string | null;
+  taxYear: number;
+  startMonth: number;
+  endMonth: number;
+  cityId: string | null;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  scheduledFor: string;
+  attempts: number;
+  lastError: string | null;
+  triggeredBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  processedAt: string | null;
+};
+
+export const INCOME_RECALC_TASKS_KEY = "/api/v1/income/recalc/tasks";
+
+export function useIncomeRecalcTasks(config?: {
+  refreshInterval?: number;
+}) {
+  return useSWR<{ items: IncomeRecalcTask[] }>(
+    INCOME_RECALC_TASKS_KEY,
+    getJson,
+    config,
+  );
+}
+
 export function useIncomeRecords(
   userId: string | undefined,
   from: string,
@@ -109,6 +138,7 @@ export async function createSalaryChange(input: {
     input,
   );
   await globalMutate(`/api/v1/income/salary-changes?userId=${input.userId}`);
+  await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
@@ -126,6 +156,7 @@ export async function createBonus(input: {
 }) {
   const res = await postJson<BonusPlan>("/api/v1/income/bonus", input);
   await globalMutate(`/api/v1/income/bonus?userId=${input.userId}`);
+  await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
@@ -147,11 +178,14 @@ export async function createLTCPlan(input: {
     input,
   );
   await globalMutate(`/api/v1/income/ltc/plans?userId=${input.userId}`);
+  await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
 export async function generateLTCPayouts(id: string) {
-  return postJson(`/api/v1/income/ltc/plans/${id}/generate`, {});
+  const res = await postJson(`/api/v1/income/ltc/plans/${id}/generate`, {});
+  await globalMutate(INCOME_RECALC_TASKS_KEY);
+  return res;
 }
 
 export function useEquityGrants(userId?: string) {
@@ -174,18 +208,23 @@ export async function createEquityGrant(input: {
     input,
   );
   await globalMutate(`/api/v1/income/equity/grants?userId=${input.userId}`);
+  await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
 export async function generateEquityVests(id: string) {
-  return postJson(`/api/v1/income/equity/grants/${id}/generate`, {});
+  const res = await postJson(`/api/v1/income/equity/grants/${id}/generate`, {});
+  await globalMutate(INCOME_RECALC_TASKS_KEY);
+  return res;
 }
 
 export async function updateEquityVest(
   id: string,
   input: { fairValue: number; currency: string },
 ) {
-  return patchJson(`/api/v1/income/equity/vests/${id}`, input);
+  const res = await patchJson(`/api/v1/income/equity/vests/${id}`, input);
+  await globalMutate(INCOME_RECALC_TASKS_KEY);
+  return res;
 }
 
 export async function postIncomeRecalc(input: {
@@ -195,7 +234,9 @@ export async function postIncomeRecalc(input: {
   userId?: string;
   startMonth?: number;
 }) {
-  return postJson("/api/v1/income/recalc", input);
+  const res = await postJson("/api/v1/income/recalc", input);
+  await globalMutate(INCOME_RECALC_TASKS_KEY);
+  return res;
 }
 
 // 删除工资变更记录

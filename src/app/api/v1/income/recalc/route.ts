@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/server/services/audit";
-import { recalcIncome } from "@/server/services/income";
+import {
+  recalcIncome,
+  settleIncomeRecalcTasks,
+} from "@/server/services/income";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
  * POST /api/v1/income/recalc
@@ -13,14 +17,17 @@ import {
  * - 返回: 501 TODO（占位），后续返回 { updated: number }
  */
 
-export async function POST(req: Request) {
-  const { taxYear, endMonth, cityId, userId, startMonth } = await req.json();
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { taxYear, endMonth, cityId, userId, startMonth } = body;
   if (!taxYear || !endMonth)
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  const actor = await getUserFromRequest(req);
+  const targetUserId: string | undefined = userId ?? actor?.id ?? undefined;
   const { key, existed } = await ensureIdempotent(
     req,
     undefined,
-    `${taxYear}:${endMonth}:${cityId ?? ""}:${userId ?? ""}:${startMonth ?? ""}`,
+    `${taxYear}:${endMonth}:${cityId ?? ""}:${targetUserId ?? ""}:${startMonth ?? ""}`,
   );
   if (existed)
     return NextResponse.json(
@@ -31,15 +38,16 @@ export async function POST(req: Request) {
     taxYear,
     endMonth,
     cityId,
-    userId,
+    userId: targetUserId,
     startMonth,
   });
+  await settleIncomeRecalcTasks({ userId: targetUserId, taxYear });
   await logAudit("INCOME_RECALC", {
     meta: {
       taxYear,
       endMonth,
       cityId,
-      userId,
+      userId: targetUserId,
       startMonth,
       updated: res.updated,
     },

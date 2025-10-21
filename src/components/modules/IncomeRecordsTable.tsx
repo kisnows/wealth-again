@@ -205,7 +205,7 @@ export default function IncomeRecordsTable() {
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">
                           {monthLabel}
-                          {item.manualNetIncome ? (
+                          {item.manualNet || item.source === "manual" ? (
                             <Badge className="ml-2" variant="secondary">
                               人工调整
                             </Badge>
@@ -240,7 +240,7 @@ export default function IncomeRecordsTable() {
                         </TableCell>
                         <TableCell className="text-right font-mono">
                           {formatMoney(
-                            Number(item.taxableIncome || 0),
+                            Number(item.taxableCurrent || 0),
                             currency,
                           )}
                         </TableCell>
@@ -257,7 +257,10 @@ export default function IncomeRecordsTable() {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {formatMoney(Number(item.taxPaid || 0), currency)}
+                          {formatMoney(
+                            Number(item.taxPaidCumulative || 0),
+                            currency,
+                          )}
                         </TableCell>
                         <TableCell className="text-right font-mono font-semibold">
                           {formatMoney(Number(item.netIncome || 0), currency)}

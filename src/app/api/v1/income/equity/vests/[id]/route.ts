@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { scheduleIncomeRecalcTask } from "@/server/services/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
@@ -34,5 +35,15 @@ export async function PATCH(
     where: { id },
     data: { fairValue, currency },
   });
+  const vestDate = new Date(vest.vestDate);
+  if (!Number.isNaN(vestDate.getTime())) {
+    await scheduleIncomeRecalcTask({
+      userId: user.id,
+      taxYear: vestDate.getUTCFullYear(),
+      startMonth: vestDate.getUTCMonth() + 1,
+      endMonth: vestDate.getUTCMonth() + 1,
+      triggeredBy: user.id,
+    });
+  }
   return NextResponse.json(updated);
 }

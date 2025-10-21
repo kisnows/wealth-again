@@ -20,6 +20,13 @@ const mockPrisma: any = {
     upsert: vi.fn(),
     findUnique: vi.fn(),
   },
+  incomeRecalcTask: {
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    findMany: vi.fn(),
+    updateMany: vi.fn(),
+  },
   user: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   cityChangeRecord: { findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
   city: { findMany: vi.fn(), findUnique: vi.fn() },
@@ -44,6 +51,15 @@ beforeEach(() => {
   mockPrisma.city.findMany.mockResolvedValue([]);
   mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
   mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
+  mockPrisma.incomeRecalcTask.findFirst = vi.fn().mockResolvedValue(null);
+  mockPrisma.incomeRecalcTask.create = vi.fn().mockResolvedValue({
+    id: "task-1",
+  });
+  mockPrisma.incomeRecalcTask.update = vi.fn().mockResolvedValue(null);
+  mockPrisma.incomeRecalcTask.findMany = vi.fn().mockResolvedValue([]);
+  mockPrisma.incomeRecalcTask.updateMany = vi
+    .fn()
+    .mockResolvedValue({ count: 0 });
 });
 
 // 本文件覆盖收入域路由：工资/奖金/长期现金/股权、月度快照与回算。
@@ -353,6 +369,14 @@ describe("Income basic endpoints", () => {
         )
       ).status,
     ).toBe(200);
+    expect(mockPrisma.incomeRecalcTask.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: "u1",
+          taxYear: 2025,
+        }),
+      }),
+    );
   });
 
   it("income recalc idempotency reuse returns 409", async () => {

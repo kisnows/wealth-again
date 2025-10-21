@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
+import { scheduleIncomeRecalcTask } from "@/server/services/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
@@ -62,6 +63,16 @@ export async function POST(req: Request) {
       effectiveFrom: new Date(effectiveFrom),
     },
   });
+  const effectiveDate = new Date(effectiveFrom);
+  if (!Number.isNaN(effectiveDate.getTime())) {
+    await scheduleIncomeRecalcTask({
+      userId,
+      taxYear: effectiveDate.getUTCFullYear(),
+      startMonth: effectiveDate.getUTCMonth() + 1,
+      endMonth: 12,
+      triggeredBy: user.id,
+    });
+  }
   await logAudit("INCOME_SALARY_CHANGE_CREATE", {
     userId,
     meta: { id: created.id },

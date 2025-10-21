@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
+import { scheduleIncomeRecalcTask } from "@/server/services/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
@@ -66,6 +67,16 @@ export async function POST(req: Request) {
       effectiveDate: new Date(effectiveDate),
     },
   });
+  const payDate = new Date(effectiveDate);
+  if (!Number.isNaN(payDate.getTime())) {
+    await scheduleIncomeRecalcTask({
+      userId,
+      taxYear: payDate.getUTCFullYear(),
+      startMonth: payDate.getUTCMonth() + 1,
+      endMonth: 12,
+      triggeredBy: user.id,
+    });
+  }
   await logAudit("INCOME_BONUS_CREATE", { userId, meta: { id: created.id } });
   await markIdempotencyUsed(key);
   return NextResponse.json(created, { status: 201 });

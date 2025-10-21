@@ -76,27 +76,6 @@ export async function fetchIncomeTimeseries(
   return response.json();
 }
 
-// 触发收入回算
-export async function triggerIncomeRecalc(params: {
-  taxYear: number;
-  endMonth: number;
-  cityId?: string;
-}): Promise<{ updated: number }> {
-  const response = await fetch(`${API_BASE}/income/recalc`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(params),
-  });
-
-  if (!response.ok) {
-    throw new Error(`收入回算失败: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
 // 获取收入记录（复用现有接口）
 export async function fetchIncomeRecords(
   startDate: string,

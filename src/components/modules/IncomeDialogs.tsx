@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import { toast } from "sonner";
-import CitySelect from "@/components/modules/CitySelect";
 import {
   BonusForm,
   LTCPlanForm,
@@ -17,8 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -29,13 +25,11 @@ import {
 } from "@/components/ui/table";
 import {
   generateLTCPayouts,
-  postIncomeRecalc,
   useBonus,
   useLTCPlans,
   useSalaryChanges,
 } from "@/lib/api/income";
 import { formatMoney } from "@/lib/domain/money";
-import { useIncomeStore } from "@/lib/state/income";
 
 type DialogBaseProps = {
   open: boolean;
@@ -229,140 +223,6 @@ export function BonusDialog({ open, onClose }: DialogBaseProps) {
           </div>
           <BonusForm />
         </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function IncomeRecalcDialog({ open, onClose }: DialogBaseProps) {
-  const today = new Date();
-  const currentYear = today.getFullYear();
-  const defaultEndMonth = String(today.getMonth() + 1).padStart(2, "0");
-  const [form, setForm] = useState({
-    taxYear: `${currentYear}`,
-    endMonth: defaultEndMonth,
-    cityId: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const notifyRecalc = useIncomeStore((state) => state.notifyRecalc);
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitting(true);
-    try {
-      const taxYearNumber = Number(form.taxYear);
-      const endMonthNumber = Number(form.endMonth);
-
-      if (
-        Number.isNaN(taxYearNumber) ||
-        taxYearNumber < 2000 ||
-        Number.isNaN(endMonthNumber) ||
-        endMonthNumber < 1 ||
-        endMonthNumber > 12
-      ) {
-        toast.error("请填写有效的税年与截止月份");
-        setSubmitting(false);
-        return;
-      }
-
-      const payload = {
-        taxYear: taxYearNumber,
-        endMonth: endMonthNumber,
-        cityId: form.cityId || undefined,
-      };
-      const result = await postIncomeRecalc(payload);
-      toast.success(`回算完成，本次更新 ${result?.updated ?? 0} 条记录`);
-      notifyRecalc();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "回算失败，请稍后再试";
-      toast.error(message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Dialog
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      open={open}
-    >
-      <DialogContent
-        className={`${formDialogClasses} max-h-[88vh]`}
-        showCloseButton
-      >
-        <DialogHeader>
-          <DialogTitle>年度回算</DialogTitle>
-          <DialogDescription>
-            以累计预扣法重新计算 1 月至指定月份的工资、社保、公积金与个税记录
-          </DialogDescription>
-        </DialogHeader>
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="recalc-tax-year">税年</Label>
-              <Input
-                id="recalc-tax-year"
-                min="2000"
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, taxYear: event.target.value }))
-                }
-                type="number"
-                value={form.taxYear}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="recalc-end-month">截止月份</Label>
-              <Input
-                id="recalc-end-month"
-                max="12"
-                min="1"
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, endMonth: event.target.value }))
-                }
-                type="number"
-                value={form.endMonth}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>指定城市（可选）</Label>
-              <div className="flex items-center gap-2">
-                <CitySelect
-                  className="w-full"
-                  onValueChange={(value) =>
-                    setForm((prev) => ({ ...prev, cityId: value }))
-                  }
-                  placeholder="默认使用当前城市"
-                  value={form.cityId || undefined}
-                />
-                {form.cityId ? (
-                  <Button
-                    onClick={() => setForm((prev) => ({ ...prev, cityId: "" }))}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    清除
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg border border-dashed bg-muted/40 p-4 text-sm text-muted-foreground">
-            系统将在后台按月份重算 IncomeRecord
-            并回填对账字段。完成后，概览与预测数据会自动刷新。
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button onClick={onClose} type="button" variant="ghost">
-              取消
-            </Button>
-            <Button disabled={submitting} type="submit">
-              {submitting ? "回算中..." : "开始回算"}
-            </Button>
-          </div>
-        </form>
       </DialogContent>
     </Dialog>
   );

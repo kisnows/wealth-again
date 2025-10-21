@@ -4,11 +4,12 @@ import {
   BarChart3Icon,
   CalculatorIcon,
   CalendarIcon,
+  HistoryIcon,
   LineChartIcon,
   TableIcon,
   TrendingUpIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Bar,
   BarChart,
@@ -46,7 +47,6 @@ import {
 import {
   fetchIncomeForecast,
   fetchIncomeTimeseries,
-  triggerIncomeRecalc,
 } from "@/lib/api/income-management";
 import { formatMoney } from "@/lib/domain/money";
 import {
@@ -81,10 +81,7 @@ export default function IncomeForecastModule() {
     setTimeseriesData,
     setTimeseriesLoading,
     setTimeseriesError,
-    notifyRecalc,
   } = useIncomeStore();
-
-  const [isRecalculating, setIsRecalculating] = useState(false);
 
   // 计算汇总统计
   const statistics = forecastData
@@ -141,44 +138,13 @@ export default function IncomeForecastModule() {
     }
   };
 
-  // 执行收入回算
-  const handleRecalc = async () => {
-    setIsRecalculating(true);
-
-    try {
-      const startYear = new Date(forecastParams.startDate).getFullYear();
-      const endMonth = new Date(forecastParams.endDate).getMonth() + 1;
-
-      const result = await triggerIncomeRecalc({
-        taxYear: startYear,
-        endMonth,
-        cityId: forecastParams.cityId,
-      });
-
-      toast.success(`回算完成，更新了 ${result.updated} 条记录`);
-
-      // 重新执行预测
-      await handleForecast();
-      notifyRecalc();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "回算失败";
-      toast.error(errorMessage);
-    } finally {
-      setIsRecalculating(false);
-    }
-  };
-
   return (
     <div className="space-y-6" data-testid="income-ui-forecast-module">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">
-            收入预测与回算
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            基于收入配置计算指定时间范围的月度收入明细
-          </p>
-        </div>
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">收入预测</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          基于当前收入配置计算指定时间范围的月度预测；回算任务请通过下方入口统一管理。
+        </p>
       </div>
 
       {/* 预测参数 */}
@@ -306,24 +272,39 @@ export default function IncomeForecastModule() {
                   value={forecastParams.cityId || ""}
                 />
               </div>
-              <div className="flex items-end gap-2">
+              <div className="flex items-end">
                 <Button
-                  className="flex-1"
+                  className="mt-6 w-full md:w-auto"
                   disabled={forecastLoading}
                   onClick={handleForecast}
                 >
                   {forecastLoading ? "计算中..." : "计算预测"}
                 </Button>
-                <Button
-                  disabled={isRecalculating}
-                  onClick={handleRecalc}
-                  variant="outline"
-                >
-                  {isRecalculating ? "回算中..." : "年度回算"}
-                </Button>
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="income-ui-forecast-recalc-cta">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <HistoryIcon className="h-5 w-5 text-primary" />
+            回算任务入口
+          </CardTitle>
+          <CardDescription className="text-sm text-muted-foreground">
+            所有自动与手动回算操作现已集中到“回算任务中心”，支持队列状态、立即回算与审计追踪。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            当工资、奖金、长期现金等输入变动时，系统会自动汇总任务。需要即时结果时，可前往任务中心手动触发或查看执行日志。
+          </p>
+          <Button asChild size="sm" variant="secondary">
+            <Link data-testid="income-ui-forecast-recalc-link" href="/income/recalc-status">
+              打开回算任务中心
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 
