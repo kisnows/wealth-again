@@ -29,7 +29,7 @@
 ### 阶段三：前端与文档
 - `/income` 页面替换“年度回算”对话框为“回算任务”抽屉/面板；新增 `/income/recalc-status` 真实页面并绑定数据源。
 - 移除 `/reports/income`（改为 `/reports` 内提示与跳转），检查导航避免断链。
-- 更新 `IncomeRecordsTable`，展示人工覆盖标记与新字段。
+- 更新 `/income` 时间线表格，展示人工覆盖标记与新增对账字段。
 - 同步更新 `doc/income-spec.md` 中的落地路径、API 示例，以及 README/导航说明。
 
 ## 验证
@@ -42,6 +42,7 @@
 
 - [x] 新增 `IncomeRecalcTask` 表与 `scheduleIncomeRecalcTask`/`processDueIncomeRecalcTasks` 服务，工资/奖金/LTC/股权 API 自动排队任务。
 - [x] `IncomeRecord` 增加人工覆盖字段与 `taxableCurrent`、`taxPaidCumulative`、`source`，表格展示人工标记。
-- [x] `/income/recalc-status` 页面上线，整合任务列表与“立即回算”表单；`/income` 快捷入口指向该页面。
+- [x] 回算任务中心并入 `/income` 主页面，保留 `/income/recalc-status` anchor 重定向，统一查看与手动回算。
 - [x] `/reports/income` 改为跳转避免重复。
+- [x] `/income` 页面重新编排，整合预测、回算、维护入口，移除嵌套 Tab 与冗余快捷区域。
 - [ ] 后续：人工调整 API/表单补强、任务失败可视化、测试覆盖完善。

@@ -6,7 +6,6 @@ import {
   LTCPlanForm,
   SalaryChangeForm,
 } from "@/components/modules/IncomeForms";
-import IncomeRecordsTable from "@/components/modules/IncomeRecordsTable";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,40 +34,6 @@ type DialogBaseProps = {
   open: boolean;
   onClose: () => void;
 };
-
-const baseDialogClasses =
-  "w-full max-w-[min(98vw,1280px)] sm:max-w-[min(98vw,1280px)]";
-
-export function IncomeRecordsDialog({ open, onClose }: DialogBaseProps) {
-  return (
-    <Dialog
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      open={open}
-    >
-      <DialogContent
-        className={`${baseDialogClasses} h-[90vh]`}
-        showCloseButton
-      >
-        <DialogHeader>
-          <DialogTitle>收入记录</DialogTitle>
-          <DialogDescription>
-            展示月度收入明细，可执行人工调整或导出数据。
-          </DialogDescription>
-        </DialogHeader>
-        <div className="h-full overflow-y-auto pr-1">
-          <IncomeRecordsTable />
-        </div>
-        <div className="flex justify-end pt-2">
-          <Button onClick={onClose} variant="ghost">
-            返回
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 const formDialogClasses =
   "w-full max-w-[min(98vw,1080px)] sm:max-w-[min(98vw,1080px)]";

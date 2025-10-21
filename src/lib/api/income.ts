@@ -63,6 +63,67 @@ export type IncomeRecordsSummary = {
   latestTaxCumulative?: number;
 };
 
+export type IncomeTimelineItem = {
+  recordId: string | null;
+  monthDate: string;
+  month: string;
+  currency: string;
+  cityId: string | null;
+  gross: number;
+  bonus: number;
+  ltcIncome: number;
+  equityIncome: number;
+  socialInsurance: number;
+  housingFund: number;
+  specialDeductions: number;
+  taxableCurrent: number;
+  taxableCumulative: number;
+  taxCumulative: number;
+  taxPaidCumulative: number;
+  incomeTax: number;
+  netIncome: number;
+  source: "system" | "manual" | "forecast";
+  isForecast: boolean;
+  manualNet: number | null;
+  manualNote: string | null;
+};
+
+export type IncomeTimelineTotals = {
+  gross: number;
+  bonus: number;
+  ltcIncome: number;
+  equityIncome: number;
+  socialInsurance: number;
+  housingFund: number;
+  incomeTax: number;
+  netIncome: number;
+};
+
+export type IncomeTimelineSummary = {
+  currency: string;
+  counts: {
+    total: number;
+    actual: number;
+    forecast: number;
+  };
+  totals: {
+    actual: IncomeTimelineTotals;
+    forecast: IncomeTimelineTotals;
+    combined: IncomeTimelineTotals;
+  };
+};
+
+export type IncomeTimelineResponse = {
+  items: IncomeTimelineItem[];
+  summary: IncomeTimelineSummary;
+  meta: {
+    range: {
+      from: string;
+      to: string;
+    };
+  };
+};
+
 export type AnnualDeduction = {
   id: string;
   userId: string;
@@ -118,6 +179,25 @@ export function useIncomeRecords(
     items: any[];
     summary: IncomeRecordsSummary;
   }>(key, getJson);
+}
+
+export function useIncomeTimeline(from: string, to: string) {
+  const key =
+    from && to ? `/api/v1/income/timeline?from=${from}&to=${to}` : null;
+  return useSWR<IncomeTimelineResponse>(key, getJson);
+}
+
+export async function updateIncomeRecord(
+  id: string,
+  payload: Partial<{
+    manualGross: number | null;
+    manualTaxable: number | null;
+    manualIncomeTax: number | null;
+    manualNet: number | null;
+    manualNote: string | null;
+  }>,
+) {
+  return patchJson(`/api/v1/income/records/${id}`, payload);
 }
 
 export function useSalaryChanges(userId?: string) {

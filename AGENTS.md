@@ -31,7 +31,7 @@
 - 图表依赖 Recharts（暗色模式需校对配色）。
 - 所有的组件需要添加 `data-testid` 属性以方便测试, 命名规则为 领域-层级-描述, 例如 `data-testid="income-ui-overview"`。
 - 全局设置项（基准币种、展示币种、统计日期、城市、税务规则等）必须在 `/settings` 页面统一维护，其它页面只能读取现有值或提供跳转链接。
-- 收入域的统计视图统一通过 `IncomeAnalyticsPanel` 复用；`/income` 与 `/reports/income` 禁止出现独立实现的概览/表格逻辑。
+- 收入域的统计视图统一通过时间线版 `IncomeAnalyticsPanel` 复用；`/income` 与 `/reports/income` 禁止出现额外的概览/表格实现。
 
 ## 数据模型与计算规则
 

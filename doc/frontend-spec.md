@@ -46,11 +46,10 @@
 
 - **/dashboard**: 呈现资产、负债、净资产、收入等关键指标。主要组件包括 `NetWorthLine`, `AllocPie`, `TopAccounts` 和 `IncomeSummaryCard`。
 
-- **/income**: 收入管理中心，通过 Tabs 或分块整合以下功能：
-  - **概览与分析**: 复用 `IncomeAnalyticsPanel` 组件，展示累计值和月度趋势图。
-  - **数据录入**: 提供表单或入口用于管理工资、奖金、长期现金和股权激励 (`IncomeEntryModule`)。
-  - **月度记录**: `IncomeRecordsTable` 展示 `IncomeRecord` 的详细对账列表，并提供“人工调整”入口。
-  - **回算任务**: 导航至 `/income/recalc-status` 页面查看自动化回算任务。
+- **/income**: 收入管理中心，以分区方式呈现：
+  - **核心配置入口**：页面顶部以紧凑分组呈现工资、奖金、长期现金与税务入口，避免重复按钮并保留快速操作。
+  - **收入时间线**：`IncomeAnalyticsPanel` 统一展示历史与预测的汇总、图表与月度表格，数据源为 `/api/v1/income/timeline`。
+  - **回算任务中心**：`IncomeRecalcTaskBoard` 实时展示/触发回算任务（`/income/recalc-status` 指向该锚点），配合即时回算表单。
 
 - **/accounts**: 账户列表页。
   - 顶部包含操作按钮（新增账户）和汇率面板 (`AccountFxPanel`)。

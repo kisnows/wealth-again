@@ -45,6 +45,12 @@ vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
 
+const mockTimelineService = {
+  buildIncomeTimeline: vi.fn(),
+};
+
+vi.mock("@/server/services/income-timeline", () => mockTimelineService);
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.bonusPlan.findMany = vi.fn().mockResolvedValue([]);
@@ -202,6 +208,116 @@ describe("Income basic endpoints", () => {
         )
       ).status,
     ).toBe(200);
+  });
+
+  it("income timeline GET merges actual and forecast", async () => {
+    // 场景：请求时间线接口，应返回合并的历史+预测数据。
+    const timelineRoute = await import("@/app/api/v1/income/timeline/route");
+    const sample = {
+      items: [
+        {
+          recordId: "rec-jan",
+          monthDate: "2025-01-01T00:00:00.000Z",
+          month: "2025-01",
+          currency: "CNY",
+          cityId: "hz",
+          gross: 20000,
+          bonus: 0,
+          ltcIncome: 0,
+          equityIncome: 0,
+          socialInsurance: 2103,
+          housingFund: 1200,
+          specialDeductions: 6000,
+          taxableCurrent: 10700,
+          taxableCumulative: 10700,
+          taxCumulative: 321,
+          taxPaidCumulative: 321,
+          incomeTax: 321,
+          netIncome: 16376,
+          source: "system",
+          isForecast: false,
+          manualNote: "手动备注",
+        },
+        {
+          recordId: null,
+          monthDate: "2025-02-01T00:00:00.000Z",
+          month: "2025-02",
+          currency: "CNY",
+          cityId: "hz",
+          gross: 20000,
+          bonus: 5000,
+          ltcIncome: 0,
+          equityIncome: 0,
+          socialInsurance: 2103,
+          housingFund: 1200,
+          specialDeductions: 6000,
+          taxableCurrent: 16700,
+          taxableCumulative: 27400,
+          taxCumulative: 1880,
+          taxPaidCumulative: 1880,
+          incomeTax: 1559,
+          netIncome: 20138,
+          source: "forecast",
+          isForecast: true,
+          manualNote: null,
+        },
+      ],
+      summary: {
+        currency: "CNY",
+        counts: { total: 2, actual: 1, forecast: 1 },
+        totals: {
+          actual: {
+            gross: 20000,
+            bonus: 0,
+            ltcIncome: 0,
+            equityIncome: 0,
+            socialInsurance: 2103,
+            housingFund: 1200,
+            incomeTax: 321,
+            netIncome: 16376,
+          },
+          forecast: {
+            gross: 20000,
+            bonus: 5000,
+            ltcIncome: 0,
+            equityIncome: 0,
+            socialInsurance: 2103,
+            housingFund: 1200,
+            incomeTax: 1559,
+            netIncome: 20138,
+          },
+          combined: {
+            gross: 40000,
+            bonus: 5000,
+            ltcIncome: 0,
+            equityIncome: 0,
+            socialInsurance: 4206,
+            housingFund: 2400,
+            incomeTax: 1880,
+            netIncome: 36514,
+          },
+        },
+      },
+      meta: {
+        range: {
+          from: "2025-01-01T00:00:00.000Z",
+          to: "2025-02-01T00:00:00.000Z",
+        },
+      },
+    };
+    mockTimelineService.buildIncomeTimeline.mockResolvedValueOnce(sample);
+    const res = await timelineRoute.GET(
+      makeGet(
+        "http://localhost/api/v1/income/timeline?from=2025-01-01&to=2025-02-01",
+      ),
+    );
+    expect(res.status).toBe(200);
+    expect(mockTimelineService.buildIncomeTimeline).toHaveBeenCalledWith(
+      "u1",
+      "2025-01-01",
+      "2025-02-01",
+    );
+    expect(await res.json()).toEqual(sample);
   });
 
   it("equity grants GET/POST, generate, vest patch", async () => {
