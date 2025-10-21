@@ -86,6 +86,7 @@ export default function CreateAccountDialog() {
                 <SelectItem value="SAVINGS">储蓄</SelectItem>
                 <SelectItem value="INVESTMENT">投资</SelectItem>
                 <SelectItem value="LOAN">借贷</SelectItem>
+                <SelectItem value="OTHER">其他</SelectItem>
               </SelectContent>
             </Select>
           </div>

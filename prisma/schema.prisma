@@ -127,7 +127,7 @@ model Account {
   id             String   @id @default(uuid())
   userId         String
   name           String
-  accountType    String // AccountType: "SAVINGS" | "INVESTMENT" | "LOAN"
+  accountType    String // AccountType: "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER"
   baseCurrency   String
   initialBalance Decimal  @default(0)
   subType        String?
@@ -136,26 +136,31 @@ model Account {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user       User                @relation(fields: [userId], references: [id])
-  txnLines   TxnLine[]
-  valuations ValuationSnapshot[]
+  user               User                @relation(fields: [userId], references: [id])
+  txnLines           TxnLine[]
+  counterpartyLines  TxnLine[]          @relation("TxnLineCounterparty")
+  valuations         ValuationSnapshot[]
 
   @@index([userId])
 }
 
 model FxRate {
-  id        String   @id @default(uuid())
-  base      String
-  quote     String
-  rate      Decimal
-  asOf      DateTime
-  createdAt DateTime @default(now())
+  id             String   @id @default(uuid())
+  base           String
+  quote          String
+  rate           Decimal
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   entries       TxnEntry[]
   valuations    ValuationSnapshot[]
   incomeRecords IncomeRecord[]
 
-  @@unique([base, quote, asOf])
+  @@index([base, quote, effectiveFrom])
+  @@index([base, quote, effectiveTo])
+  @@unique([base, quote, effectiveFrom])
 }
 
 model TxnEntry {
@@ -176,18 +181,33 @@ model TxnEntry {
 }
 
 model TxnLine {
-  id        String   @id @default(uuid())
-  entryId   String
-  accountId String
-  amount    Decimal
-  currency  String
-  note      String?
-  createdAt DateTime @default(now())
+  id                    String   @id @default(uuid())
+  entryId               String
+  accountId             String
+  type                  String
+  amount                Decimal
+  currency              String
+  counterpartyAccountId String?
+  counterpartyName      String?
+  exchangeRateAB        Decimal?
+  viaCurrency           String?  @default("USD")
+  rateAtoUSD            Decimal?
+  rateUSDtoB            Decimal?
+  fxEffectiveAt         DateTime?
+  principalDelta        Decimal  @default(0)
+  valuationDelta        Decimal  @default(0)
+  attachmentUrl         String?
+  note                  String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  entry   TxnEntry @relation(fields: [entryId], references: [id])
-  account Account  @relation(fields: [accountId], references: [id])
+  entry               TxnEntry @relation(fields: [entryId], references: [id])
+  account             Account  @relation(fields: [accountId], references: [id])
+  counterpartyAccount Account? @relation("TxnLineCounterparty", fields: [counterpartyAccountId], references: [id])
 
   @@index([accountId, createdAt])
+  @@index([entryId, type])
+  @@index([counterpartyAccountId])
 }
 
 model ValuationSnapshot {

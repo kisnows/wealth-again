@@ -7,7 +7,7 @@ export type Account = {
   id: string;
   userId: string;
   name: string;
-  accountType: "SAVINGS" | "INVESTMENT" | "LOAN";
+  accountType: "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
   baseCurrency: string;
   subType?: string | null;
   description?: string | null;
@@ -40,7 +40,7 @@ function revalidateAccountTransactions(ids: string | string[]) {
 }
 
 async function revalidateAccountsData(options?: { skipList?: boolean }) {
-  const tasks: Array<Promise<any>> = [];
+  const tasks: Array<Promise<unknown>> = [];
   if (!options?.skipList) {
     tasks.push(globalMutate(ACCOUNTS_KEY));
   }
@@ -76,6 +76,17 @@ export type AccountTransaction = {
   entryNote: string | null;
   lineNote: string | null;
   direction: "INFLOW" | "OUTFLOW";
+  counterpartyAccountId: string | null;
+  counterpartyName: string | null;
+  counterpartyCurrency: string | null;
+  exchangeRateAB: number | null;
+  viaCurrency: string | null;
+  rateAtoUSD: number | null;
+  rateUSDtoB: number | null;
+  fxEffectiveAt: string | null;
+  principalDelta: number;
+  valuationDelta: number;
+  attachmentUrl: string | null;
 };
 
 export function useAccountTransactions(id: string | null | undefined) {
@@ -94,12 +105,12 @@ export function useAccountTimeseries(
   from?: string,
   to?: string,
 ) {
-  if (!id)
-    return { data: undefined, error: undefined, isLoading: false } as const;
   const params = new URLSearchParams({ metric });
   if (from) params.set("from", from);
   if (to) params.set("to", to ?? "");
-  const key = `/api/v1/accounts/${id}/timeseries?${params.toString()}`;
+  const key = id
+    ? `/api/v1/accounts/${id}/timeseries?${params.toString()}`
+    : null;
   return useSWR<{ points: Array<{ asOf: string; value: number }> }>(
     key,
     getJson,
@@ -138,6 +149,7 @@ export async function postDeposit(input: {
   amount: number;
   occurredAt: string;
   note?: string;
+  attachmentUrl?: string;
 }) {
   const res = await postJson("/api/v1/entries/deposit", input);
   await revalidateAccountsData({ skipList: true });
@@ -150,6 +162,7 @@ export async function postWithdraw(input: {
   amount: number;
   occurredAt: string;
   note?: string;
+  attachmentUrl?: string;
 }) {
   const res = await postJson("/api/v1/entries/withdraw", input);
   await revalidateAccountsData({ skipList: true });
@@ -163,6 +176,7 @@ export async function postTransfer(input: {
   occurredAt: string;
   note?: string;
   asOf?: string;
+  attachmentUrl?: string;
 }) {
   const res = await postJson("/api/v1/entries/transfer", input);
   await revalidateAccountsData({ skipList: true });

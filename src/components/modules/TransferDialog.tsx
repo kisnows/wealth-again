@@ -48,6 +48,7 @@ export function TransferDialog({
     amount: "",
     occurredAt: toInputDatetimeValue(new Date()),
     note: "",
+    attachmentUrl: "",
   });
   const [form, setForm] = useState(buildInitialForm);
   useEffect(() => {
@@ -63,6 +64,9 @@ export function TransferDialog({
       to: { accountId: form.toAccount },
       occurredAt: new Date(form.occurredAt).toISOString(),
       note: form.note || undefined,
+      attachmentUrl: form.attachmentUrl.trim()
+        ? form.attachmentUrl.trim()
+        : undefined,
     });
     toast.success("转账成功");
     setOpen(false);
@@ -96,7 +100,7 @@ export function TransferDialog({
                 <SelectValue placeholder="选择账户" />
               </SelectTrigger>
               <SelectContent>
-                {(accounts ?? []).map((a) => (
+                {accountOptions.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     {a.name} ({a.baseCurrency})
                   </SelectItem>
@@ -115,7 +119,7 @@ export function TransferDialog({
                 <SelectValue placeholder="选择账户" />
               </SelectTrigger>
               <SelectContent>
-                {(accounts ?? []).map((a) => (
+                {accountOptions.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     {a.name} ({a.baseCurrency})
                   </SelectItem>
@@ -144,6 +148,15 @@ export function TransferDialog({
           <div className="grid gap-1">
             <Label>Note</Label>
             <Input name="note" onChange={onChange} value={form.note} />
+          </div>
+          <div className="grid gap-1">
+            <Label>附件链接（可选）</Label>
+            <Input
+              name="attachmentUrl"
+              onChange={onChange}
+              placeholder="https://..."
+              value={form.attachmentUrl}
+            />
           </div>
           <DialogFooter>
             <Button disabled={disableSubmit} type="submit">

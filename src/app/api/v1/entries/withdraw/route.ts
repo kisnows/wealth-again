@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
@@ -14,13 +15,20 @@ import {
  * - 返回: TxnEntry（含 lines）
  */
 export async function POST(req: NextRequest) {
-  const { accountId, amount, occurredAt, note } = await req.json();
+  const { accountId, amount, occurredAt, note, attachmentUrl } =
+    await req.json();
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account || account.userId !== user.id) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
+  }
+  if ((account.status ?? "ACTIVE") === "ARCHIVED") {
+    return NextResponse.json(
+      { error: "account is archived" },
+      { status: 409 },
+    );
   }
   const { key, existed } = await ensureIdempotent(
     req,
@@ -32,6 +40,19 @@ export async function POST(req: NextRequest) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
+  const lineInput = {
+    accountId,
+    type: "WITHDRAW",
+    amount: -Math.abs(amount),
+    currency: account.baseCurrency,
+    principalDelta: -Math.abs(amount),
+    valuationDelta: -Math.abs(amount),
+    note,
+    attachmentUrl:
+      typeof attachmentUrl === "string" && attachmentUrl.trim().length > 0
+        ? attachmentUrl.trim()
+        : undefined,
+  } satisfies Record<string, unknown>;
   const entry = await prisma.txnEntry.create({
     data: {
       userId: user.id,
@@ -39,12 +60,7 @@ export async function POST(req: NextRequest) {
       occurredAt: new Date(occurredAt),
       note,
       lines: {
-        create: {
-          accountId,
-          amount: -Math.abs(amount),
-          currency: account.baseCurrency,
-          note,
-        },
+        create: lineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
       },
     },
     include: { lines: true },

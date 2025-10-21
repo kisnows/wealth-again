@@ -6,13 +6,17 @@ const mockPrisma: any = {
     findFirst: vi.fn(),
     findMany: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
   },
 };
 
 // 使用局部 mock Prisma，确保该测试文件内的行为可控
 vi.mock("@/server/db", () => ({ default: mockPrisma }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("FX routes", () => {
   it("GET /fxrates returns nearest asOf match", async () => {
@@ -23,7 +27,9 @@ describe("FX routes", () => {
       base: "USD",
       quote: "CNY",
       rate: 7.2,
-      asOf: new Date("2025-08-01"),
+      effectiveFrom: new Date("2025-07-15"),
+      effectiveTo: null,
+      createdAt: new Date("2025-07-15"),
     });
     const res = await m.GET(
       makeGet(
@@ -52,7 +58,9 @@ describe("FX routes", () => {
       base: "USD",
       quote: "EUR",
       rate: 0.9,
-      asOf: new Date("2025-08-03"),
+      effectiveFrom: new Date("2025-08-01"),
+      effectiveTo: null,
+      createdAt: new Date("2025-08-01"),
     });
     const res = await m.GET(
       makeGet("http://localhost/api/v1/fxrates?base=USD&quote=EUR"),
@@ -76,16 +84,30 @@ describe("FX routes", () => {
   it("POST /fxrates creates snapshot", async () => {
     // 用例：POST 提交完整参数时成功创建汇率快照并返回 201。
     const m = await import("@/app/api/v1/fxrates/route");
-    mockPrisma.fxRate.create.mockResolvedValueOnce({ id: "r2" });
+    mockPrisma.fxRate.findFirst
+      .mockResolvedValueOnce(null) // existingSameStart
+      .mockResolvedValueOnce(null); // overlapping lookup
+    mockPrisma.fxRate.updateMany.mockResolvedValueOnce({ count: 0 });
+    const created = {
+      id: "r2",
+      base: "USD",
+      quote: "CNY",
+      rate: 7.1,
+      effectiveFrom: new Date("2025-08-02"),
+      effectiveTo: null,
+      createdAt: new Date("2025-08-02"),
+    };
+    mockPrisma.fxRate.create.mockResolvedValueOnce(created);
     const res = await m.POST(
       makeJsonRequest("http://localhost/api/v1/fxrates", "POST", {
         base: "USD",
         quote: "CNY",
         rate: 7.1,
-        asOf: "2025-08-02",
+        effectiveFrom: "2025-08-02",
       }),
     );
     expect(res.status).toBe(201);
+    expect(mockPrisma.fxRate.update).not.toHaveBeenCalled();
   });
 
   it("GET /fxrates/latest aggregates latest snapshot per currency", async () => {
@@ -96,13 +118,15 @@ describe("FX routes", () => {
         base: "USD",
         quote: "CNY",
         rate: 7.1,
-        asOf: new Date("2025-08-01"),
+        effectiveFrom: new Date("2025-08-01"),
+        effectiveTo: null,
       },
       {
         base: "USD",
         quote: "CNY",
         rate: 7.05,
-        asOf: new Date("2025-07-01"),
+        effectiveFrom: new Date("2025-07-01"),
+        effectiveTo: new Date("2025-08-01"),
       },
     ]);
     const res = await m.GET(
@@ -114,12 +138,14 @@ describe("FX routes", () => {
       {
         quote: "CNY",
         rate: 7.1,
-        asOf: "2025-08-01T00:00:00.000Z",
+        effectiveFrom: "2025-08-01T00:00:00.000Z",
+        effectiveTo: null,
       },
       {
         quote: "HKD",
         rate: null,
-        asOf: null,
+        effectiveFrom: null,
+        effectiveTo: null,
       },
     ]);
   });
@@ -130,13 +156,27 @@ describe("FX service", () => {
     // 用例：服务层应通过 USD 中间价转换，将 CNY 金额折算为 EUR。
     const { convert } = await import("@/server/services/fx");
     const asOf = new Date("2025-08-01");
-  mockPrisma.fxRate.findFirst
-    .mockResolvedValueOnce({ base: "USD", quote: "CNY", rate: 7, asOf })
-    .mockResolvedValueOnce({ base: "USD", quote: "EUR", rate: 0.9, asOf });
-  const out = await convert(7, "CNY", "EUR", asOf);
-  expect(out.amount).toBeCloseTo(0.9, 6);
-  expect(out.effectiveRate).toBeCloseTo(0.128571, 6);
-  expect(out.snapshots).toHaveLength(2);
+    mockPrisma.fxRate.findFirst
+      .mockResolvedValueOnce({
+        base: "USD",
+        quote: "CNY",
+        rate: 7,
+        effectiveFrom: asOf,
+        effectiveTo: null,
+      })
+      .mockResolvedValueOnce({
+        base: "USD",
+        quote: "EUR",
+        rate: 0.9,
+        effectiveFrom: asOf,
+        effectiveTo: null,
+      });
+    const out = await convert(7, "CNY", "EUR", asOf);
+    expect(out.amount).toBeCloseTo(0.9, 6);
+    expect(out.effectiveRate).toBeCloseTo(0.128571, 6);
+    expect(out.rateAtoUsd).toBeCloseTo(1 / 7, 6);
+    expect(out.rateUsdToB).toBeCloseTo(0.9, 6);
+    expect(out.snapshots).toHaveLength(2);
   });
 
   it("getLatestRates returns latest record per quote and fills missing", async () => {
@@ -147,26 +187,39 @@ describe("FX service", () => {
         base: "USD",
         quote: "CNY",
         rate: 7.2,
-        asOf: new Date("2025-08-01"),
+        effectiveFrom: new Date("2025-08-01"),
+        effectiveTo: null,
       },
       {
         base: "USD",
         quote: "EUR",
         rate: 0.9,
-        asOf: new Date("2025-08-01"),
+        effectiveFrom: new Date("2025-08-01"),
+        effectiveTo: null,
       },
       {
         base: "USD",
         quote: "CNY",
         rate: 7.1,
-        asOf: new Date("2025-07-01"),
+        effectiveFrom: new Date("2025-07-01"),
+        effectiveTo: new Date("2025-08-01"),
       },
     ]);
     const results = await getLatestRates("USD", ["CNY", "HKD", "EUR"]);
     expect(results).toEqual([
-      { quote: "CNY", rate: 7.2, asOf: new Date("2025-08-01") },
-      { quote: "HKD", rate: null, asOf: null },
-      { quote: "EUR", rate: 0.9, asOf: new Date("2025-08-01") },
+      {
+        quote: "CNY",
+        rate: 7.2,
+        effectiveFrom: new Date("2025-08-01"),
+        effectiveTo: null,
+      },
+      { quote: "HKD", rate: null, effectiveFrom: null, effectiveTo: null },
+      {
+        quote: "EUR",
+        rate: 0.9,
+        effectiveFrom: new Date("2025-08-01"),
+        effectiveTo: null,
+      },
     ]);
   });
 });

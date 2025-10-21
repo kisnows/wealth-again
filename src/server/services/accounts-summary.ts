@@ -14,15 +14,27 @@ type AccountWithRelations = Prisma.AccountGetPayload<{
 
 type LatestFxRate = {
   rate: number;
-  asOf: Date;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
 };
 
-function buildFxRateMap(rows: Array<{ quote: string; rate: Prisma.Decimal; asOf: Date }>) {
+function buildFxRateMap(
+  rows: Array<{
+    quote: string;
+    rate: Prisma.Decimal;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+  }>,
+) {
   const map = new Map<string, LatestFxRate>();
   rows.forEach((row) => {
     const quote = row.quote.toUpperCase();
     if (!map.has(quote)) {
-      map.set(quote, { rate: Number(row.rate), asOf: row.asOf });
+      map.set(quote, {
+        rate: Number(row.rate),
+        effectiveFrom: row.effectiveFrom,
+        effectiveTo: row.effectiveTo ?? null,
+      });
     }
   });
   return map;
@@ -47,15 +59,21 @@ function convertAmount(
 
 function computeAccountMetrics(account: AccountWithRelations) {
   const initialBalance = Number(account.initialBalance ?? 0);
-  const principal = account.txnLines.reduce(
-    (sum, line) => sum + Number(line.amount),
-    initialBalance,
-  );
+  const principal = account.txnLines.reduce((sum, line) => {
+    const candidate = (
+      line as unknown as { principalDelta?: Prisma.Decimal | number }
+    ).principalDelta;
+    const delta =
+      candidate != null && Number(candidate) !== 0
+        ? Number(candidate)
+        : Number(line.amount);
+    return sum + delta;
+  }, initialBalance);
   const latestSnapshot = account.valuations[0] ?? null;
   const valuationCurrency =
     account.accountType === "SAVINGS"
       ? account.baseCurrency
-      : latestSnapshot?.currency ?? account.baseCurrency;
+      : (latestSnapshot?.currency ?? account.baseCurrency);
   const valuationBase =
     account.accountType === "SAVINGS"
       ? principal
@@ -156,19 +174,47 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
     : null;
 
   const codesToFetch = gatherCurrencyCodes(accounts, displayCurrencyUpper);
-  const fxRows =
+  const now = new Date();
+  const fxRateClient = prisma.fxRate as unknown as {
+    findMany: (args: {
+      where: {
+        base: string;
+        quote: { in: string[] };
+        effectiveFrom: { lte: Date };
+        OR: Array<{ effectiveTo: null } | { effectiveTo: { gt: Date } }>;
+      };
+      orderBy: { effectiveFrom: "desc" };
+    }) => Promise<
+      Array<{
+        quote: string;
+        rate: Prisma.Decimal;
+        effectiveFrom: Date;
+        effectiveTo: Date | null;
+      }>
+    >;
+  };
+  const rawFxRows =
     codesToFetch.length === 0
       ? []
-      : await prisma.fxRate.findMany({
+      : await fxRateClient.findMany({
           where: {
             base: BASE_CURRENCY,
             quote: { in: codesToFetch },
+            effectiveFrom: { lte: now },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
           },
-          orderBy: { asOf: "desc" },
+          orderBy: { effectiveFrom: "desc" },
         });
-  const rateMap = buildFxRateMap(fxRows);
+  const rateMap = buildFxRateMap(
+    rawFxRows as Array<{
+      quote: string;
+      rate: Prisma.Decimal;
+      effectiveFrom: Date;
+      effectiveTo: Date | null;
+    }>,
+  );
 
-  const items = accounts.map((account) => {
+  const items: AccountSummaryItem[] = accounts.map((account) => {
     const metrics = computeAccountMetrics(account);
     if (!displayCurrencyUpper) {
       return metrics;

@@ -33,6 +33,12 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  if ((account.status ?? "ACTIVE") === "ARCHIVED") {
+    return NextResponse.json(
+      { error: "account is archived" },
+      { status: 409 },
+    );
+  }
   const { key, existed } = await ensureIdempotent(
     req,
     user.id,

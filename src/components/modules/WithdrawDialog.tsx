@@ -37,6 +37,7 @@ export default function WithdrawDialog({
     amount: "",
     occurredAt: toInputDatetimeValue(new Date()),
     note: "",
+    attachmentUrl: "",
   });
   const [form, setForm] = useState(buildInitialForm);
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -66,6 +67,9 @@ export default function WithdrawDialog({
       amount: Number(form.amount),
       occurredAt: new Date(form.occurredAt).toISOString(),
       note: form.note || undefined,
+      attachmentUrl: form.attachmentUrl.trim()
+        ? form.attachmentUrl.trim()
+        : undefined,
     });
     toast.success("已记录取出");
     setOpen(false);
@@ -124,6 +128,15 @@ export default function WithdrawDialog({
           <div className="grid gap-1">
             <Label>备注</Label>
             <Input name="note" onChange={onChange} value={form.note} />
+          </div>
+          <div className="grid gap-1">
+            <Label>附件链接（可选）</Label>
+            <Input
+              name="attachmentUrl"
+              onChange={onChange}
+              placeholder="https://..."
+              value={form.attachmentUrl}
+            />
           </div>
           <DialogFooter>
             <Button disabled={disableSubmit} type="submit">

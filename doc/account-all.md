@@ -22,14 +22,6 @@
 
 ## 2. 角色与权限
 
-| 角色       | 权限说明                                      |
-| -------- | ----------------------------------------- |
-| **普通用户** | 管理自身账户、记录交易、录入估值、进行转账和换汇操作；设置展示币种、导出个人报表。 |
-| **管理员**  | 具备普通用户所有权限；维护全局汇率表，查看和修改任意用户账户，模拟登录与导出报表。 |
-| **审计角色** | 本版不包括，但系统必须保留所有敏感操作日志供追溯。                  |
-
----
-
 ## 3. 核心模块与功能
 
 ### 3.1 账户生命周期
@@ -93,17 +85,7 @@ rate(A → B) = rate(A → USD) × rate(USD → B)
 - 以 USD 作为全局基准币种，仅维护 `1 USD = rate targetCurrency`。
 - 支持手动录入与后续对接外部接口（OpenExchangeRates、ECB、中国银行等）。
 - 汇率需设置 `effectiveFrom`、`effectiveTo`，禁止同一币种区间重叠；缺失时阻止跨币种交易。
-- 管理后台展示最新汇率日期与状态，便于运维巡检。
-
-| 字段             | 类型      | 描述                          |
-| -------------- | ------- | --------------------------- |
-| baseCurrency   | String  | 固定为 USD                     |
-| targetCurrency | String  | 目标币种                        |
-| rate           | Decimal | 1 USD = rate targetCurrency |
-| effectiveFrom  | Date    | 生效时间                        |
-| effectiveTo    | Date?   | 失效时间                        |
-| createdAt      | Date    | 创建时间                        |
-| createdBy      | String  | 操作者                         |
+- 除了历史交易中的汇率快照，汇率信息只维护最新的汇率数据
 
 ### 3.4 展示币种设置与折算逻辑
 
@@ -111,7 +93,7 @@ rate(A → B) = rate(A → USD) × rate(USD → B)
 - 系统在渲染列表、详情、Dashboard、报表时，将原币种金额折算为展示币种并同步展示原币种值。
 - 折算公式：
 
-```
+```js
 accountValueInDisplay = value × rate(account.baseCurrency→USD) × rate(USD→displayCurrency)
 ```
 

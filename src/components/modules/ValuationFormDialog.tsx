@@ -44,8 +44,10 @@ export function ValuationFormDialog({
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
   const valuationCandidates = useMemo(
     () =>
-      (accounts ?? []).filter((account: Account) =>
-        ["INVESTMENT", "LOAN"].includes(account.accountType),
+      (accounts ?? []).filter(
+        (account: Account) =>
+          ["INVESTMENT", "LOAN"].includes(account.accountType) &&
+          account.status !== "ARCHIVED",
       ),
     [accounts],
   );

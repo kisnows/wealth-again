@@ -23,12 +23,18 @@ vi.mock("@/server/services/fx", () => ({
   convert: vi.fn().mockResolvedValue({
     amount: 70,
     effectiveRate: 7,
+    viaCurrency: "USD",
+    rateAtoUsd: 1,
+    rateUsdToB: 7,
+    fxEffectiveAt: mockFxSnapshotDate,
     snapshots: [
       {
         base: "USD",
         quote: "CNY",
         rate: 7,
-        asOf: mockFxSnapshotDate,
+        effectiveFrom: mockFxSnapshotDate,
+        effectiveTo: null,
+        id: null,
       },
     ],
   }),
@@ -38,7 +44,9 @@ vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 // 本文件覆盖账户与记账接口，验证白名单更新、归档、时序查询与跨币种校验等逻辑。
 describe("Accounts & Entries routes", () => {
@@ -332,11 +340,20 @@ describe("Accounts & Entries routes", () => {
     mockPrisma.account.findUnique
       .mockResolvedValueOnce({ id: "a", userId: "u1", baseCurrency: "USD" })
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
-    mockPrisma.txnEntry.create.mockImplementation(async ({ data }: any) => ({
-      id: "e1",
-      lines: data.lines.create.map((line: any) => ({ ...line })),
-      meta: data.meta,
-    }));
+    mockPrisma.txnEntry.create.mockImplementation(
+      async ({
+        data,
+      }: {
+        data: {
+          lines: { create: Array<Record<string, unknown>> };
+          meta?: string;
+        };
+      }) => ({
+        id: "e1",
+        lines: data.lines.create.map((line) => ({ ...line })),
+        meta: data.meta,
+      }),
+    );
     const transfer = await import("@/app/api/v1/entries/transfer/route");
     const res = await transfer.POST(
       makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
@@ -357,13 +374,18 @@ describe("Accounts & Entries routes", () => {
       toAmount: 70,
       toCurrency: "CNY",
       effectiveRate: 7,
+      viaCurrency: "USD",
+      rateAtoUsd: 1,
+      rateUsdToB: 7,
+      fxEffectiveAt: mockFxSnapshotDate.toISOString(),
       rateSnapshots: [
         {
-          asOf: mockFxSnapshotDate.toISOString(),
           base: "USD",
           quote: "CNY",
           rate: 7,
           id: null,
+          effectiveFrom: mockFxSnapshotDate.toISOString(),
+          effectiveTo: null,
         },
       ],
       asOf: expect.any(String),
@@ -402,11 +424,20 @@ describe("Entries transfer success case", () => {
     mockPrisma.account.findUnique
       .mockResolvedValueOnce({ id: "a", userId: "u1", baseCurrency: "CNY" })
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
-    mockPrisma.txnEntry.create.mockImplementation(async ({ data }: any) => ({
-      id: "e1",
-      lines: data.lines.create.map((line: any) => ({ ...line })),
-      meta: data.meta,
-    }));
+    mockPrisma.txnEntry.create.mockImplementation(
+      async ({
+        data,
+      }: {
+        data: {
+          lines: { create: Array<Record<string, unknown>> };
+          meta?: string;
+        };
+      }) => ({
+        id: "e1",
+        lines: data.lines.create.map((line) => ({ ...line })),
+        meta: data.meta,
+      }),
+    );
     const transfer = await import("@/app/api/v1/entries/transfer/route");
     const res = await transfer.POST(
       makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
@@ -426,6 +457,10 @@ describe("Entries transfer success case", () => {
       toAmount: 5,
       toCurrency: "CNY",
       effectiveRate: 1,
+      viaCurrency: "USD",
+      rateAtoUsd: 1,
+      rateUsdToB: 1,
+      fxEffectiveAt: null,
       rateSnapshots: [],
       asOf: null,
     });

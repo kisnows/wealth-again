@@ -13,7 +13,8 @@ export async function createFxRate(input: {
   base: string;
   quote: string;
   rate: number;
-  asOf: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
 }) {
   return postJson("/api/v1/fxrates", input);
 }
@@ -21,7 +22,8 @@ export async function createFxRate(input: {
 export type LatestFxRate = {
   quote: string;
   rate: number | null;
-  asOf: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
 };
 
 export function useLatestFxRates(quotes: string[]) {

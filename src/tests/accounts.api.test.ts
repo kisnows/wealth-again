@@ -26,15 +26,35 @@ const mockPrisma: any = {
 // 使用局部 mock Prisma，避免影响其他测试文件
 vi.mock("@/server/db", () => ({ default: mockPrisma }));
 // 跨币种自动折算路径中，直接 mock 转换函数，避免依赖汇率表
+const mockFxSnapshotDate = new Date("2025-01-01T00:00:00.000Z");
 vi.mock("@/server/services/fx", () => ({
-  convert: vi.fn().mockResolvedValue(70),
+  convert: vi.fn().mockResolvedValue({
+    amount: 70,
+    effectiveRate: 7,
+    viaCurrency: "USD",
+    rateAtoUsd: 1,
+    rateUsdToB: 7,
+    fxEffectiveAt: mockFxSnapshotDate,
+    snapshots: [
+      {
+        base: "USD",
+        quote: "CNY",
+        rate: 7,
+        effectiveFrom: mockFxSnapshotDate,
+        effectiveTo: null,
+        id: null,
+      },
+    ],
+  }),
 }));
 // Mock 认证函数，返回测试用户
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 // 本文件覆盖账户与记账接口，验证白名单更新、归档、时序查询与跨币种校验等逻辑。
 describe("Accounts & Entries routes", () => {
@@ -215,6 +235,7 @@ describe("Accounts & Entries routes", () => {
         currency: "CNY",
         note: "line",
         createdAt: new Date("2024-01-03T10:00:00Z"),
+        attachmentUrl: "https://example.com/a.pdf",
         entry: {
           id: "e1",
           type: "DEPOSIT",
@@ -248,6 +269,7 @@ describe("Accounts & Entries routes", () => {
     expect(body.items).toHaveLength(2);
     expect(body.items[0].direction).toBe("INFLOW");
     expect(body.items[1].direction).toBe("OUTFLOW");
+    expect(body.items[0].attachmentUrl).toBe("https://example.com/a.pdf");
   });
 
   it("POST /entries/deposit writes idempotency & audit", async () => {
@@ -258,6 +280,7 @@ describe("Accounts & Entries routes", () => {
       baseCurrency: "CNY",
       initialBalance: 0,
       accountType: "INVESTMENT",
+      status: "ACTIVE",
     });
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.txnEntry.create.mockResolvedValueOnce({
@@ -287,6 +310,55 @@ describe("Accounts & Entries routes", () => {
     expect(res.status).toBe(201);
     expect(mockPrisma.auditLog.create).toHaveBeenCalled();
     expect(mockPrisma.valuationSnapshot.upsert).toHaveBeenCalled();
+  });
+
+  it("POST /entries/deposit stores attachment url", async () => {
+    // 用例：存入时传入附件链接，应写入 TxnLine.attachmentUrl。
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "acc2",
+      userId: "u1",
+      baseCurrency: "CNY",
+      status: "ACTIVE",
+    });
+    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockPrisma.txnEntry.create.mockResolvedValueOnce({
+      id: "e2",
+      lines: [{ accountId: "acc2", amount: 50 }],
+    });
+    const route = await import("@/app/api/v1/entries/deposit/route");
+    const attachment = "https://files.example.com/voucher.pdf";
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/entries/deposit", "POST", {
+        accountId: "acc2",
+        amount: 50,
+        occurredAt: new Date().toISOString(),
+        attachmentUrl: attachment,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const args = mockPrisma.txnEntry.create.mock.calls.at(-1)?.[0] as {
+      data: { lines: { create: Array<{ attachmentUrl?: string }> } };
+    };
+    expect(args.data.lines.create[0].attachmentUrl).toBe(attachment);
+  });
+
+  it("POST /entries/deposit rejects archived account", async () => {
+    // 用例：归档账户禁止继续入账，接口需返回 409。
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "acc1",
+      userId: "u1",
+      baseCurrency: "CNY",
+      status: "ARCHIVED",
+    });
+    const route = await import("@/app/api/v1/entries/deposit/route");
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/entries/deposit", "POST", {
+        accountId: "acc1",
+        amount: 100,
+        occurredAt: new Date().toISOString(),
+      }),
+    );
+    expect(res.status).toBe(409);
   });
 
   it("POST /entries/transfer returns 404 when account missing; cross currency allowed with explicit to.amount", async () => {
@@ -366,6 +438,7 @@ describe("Accounts & Entries routes", () => {
       id: "a",
       userId: "u1",
       baseCurrency: "CNY",
+      status: "ACTIVE",
     });
     mockPrisma.txnEntry.create.mockResolvedValueOnce({
       id: "e1",
@@ -400,15 +473,70 @@ describe("Accounts & Entries routes", () => {
     expect(j.principal).toBe(90);
   });
 
+  it("POST /entries/withdraw stores attachment url", async () => {
+    // 用例：取款时的附件链接写入 TxnLine.attachmentUrl。
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "withdraw-acc",
+      userId: "u1",
+      baseCurrency: "CNY",
+      status: "ACTIVE",
+    });
+    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockPrisma.txnEntry.create.mockResolvedValueOnce({
+      id: "entry-withdraw",
+      lines: [{ accountId: "withdraw-acc", amount: -30 }],
+    });
+    const route = await import("@/app/api/v1/entries/withdraw/route");
+    const attachment = "https://files.example.com/withdraw.png";
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/entries/withdraw", "POST", {
+        accountId: "withdraw-acc",
+        amount: 30,
+        occurredAt: new Date().toISOString(),
+        attachmentUrl: attachment,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const args = mockPrisma.txnEntry.create.mock.calls.at(-1)?.[0] as {
+      data: { lines: { create: Array<{ attachmentUrl?: string }> } };
+    };
+    expect(args.data.lines.create[0].attachmentUrl).toBe(attachment);
+  });
+
+  it("POST /entries/withdraw rejects archived account", async () => {
+    // 用例：归档账户禁止取款，需返回 409。
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "archived",
+      userId: "u1",
+      baseCurrency: "CNY",
+      status: "ARCHIVED",
+    });
+    const route = await import("@/app/api/v1/entries/withdraw/route");
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/entries/withdraw", "POST", {
+        accountId: "archived",
+        amount: 20,
+        occurredAt: new Date().toISOString(),
+      }),
+    );
+    expect(res.status).toBe(409);
+  });
+
   it("POST /entries/transfer cross-currency auto convert when to.amount omitted (asOf provided)", async () => {
     // 用例：未提供目标金额时自动调用汇率服务折算，返回的入账金额应与转换结果一致。
     mockPrisma.account.findUnique
       .mockResolvedValueOnce({ id: "a", userId: "u1", baseCurrency: "USD" })
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
-    mockPrisma.txnEntry.create.mockImplementation(async ({ data }: any) => ({
-      id: "e1",
-      lines: data.lines.create,
-    }));
+    mockPrisma.txnEntry.create.mockImplementation(
+      async ({
+        data,
+      }: {
+        data: { lines: { create: Array<Record<string, unknown>> } };
+      }) => ({
+        id: "e1",
+        lines: data.lines.create,
+      }),
+    );
     const transfer = await import("@/app/api/v1/entries/transfer/route");
     const res = await transfer.POST(
       makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
@@ -422,6 +550,73 @@ describe("Accounts & Entries routes", () => {
     const entry = await res.json();
     // to.amount 使用了 convert 的返回（被 mock 为 70）
     expect(entry.lines[1].amount).toBe(70);
+  });
+
+  it("POST /entries/transfer rejects archived participants", async () => {
+    // 用例：任一账户归档时禁止转账，接口返回 409。
+    mockPrisma.account.findUnique
+      .mockResolvedValueOnce({
+        id: "from",
+        userId: "u1",
+        baseCurrency: "USD",
+        status: "ARCHIVED",
+      })
+      .mockResolvedValueOnce({
+        id: "to",
+        userId: "u1",
+        baseCurrency: "CNY",
+        status: "ACTIVE",
+      });
+    const route = await import("@/app/api/v1/entries/transfer/route");
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
+        from: { accountId: "from", amount: 10 },
+        to: { accountId: "to" },
+        occurredAt: new Date().toISOString(),
+      }),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("POST /entries/transfer stores attachment url on both lines", async () => {
+    // 用例：转账附件链接需同步写入双边流水。
+    mockPrisma.account.findUnique
+      .mockResolvedValueOnce({
+        id: "from2",
+        userId: "u1",
+        baseCurrency: "USD",
+        status: "ACTIVE",
+      })
+      .mockResolvedValueOnce({
+        id: "to2",
+        userId: "u1",
+        baseCurrency: "CNY",
+        status: "ACTIVE",
+      });
+    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockPrisma.txnEntry.create.mockResolvedValueOnce({
+      id: "entry-attach",
+      lines: [],
+    });
+    const route = await import("@/app/api/v1/entries/transfer/route");
+    const attachment = "https://files.example.com/transfer.pdf";
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
+        from: { accountId: "from2", amount: 10 },
+        to: { accountId: "to2" },
+        occurredAt: new Date().toISOString(),
+        attachmentUrl: attachment,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const args = mockPrisma.txnEntry.create.mock.calls.at(-1)?.[0] as {
+      data: { lines: { create: Array<{ attachmentUrl?: string }> } };
+    };
+    expect(
+      args.data.lines.create.every(
+        (line) => line.attachmentUrl === attachment,
+      ),
+    ).toBe(true);
   });
 });
 
@@ -458,10 +653,16 @@ describe("Entries transfer success case", () => {
     mockPrisma.account.findUnique
       .mockResolvedValueOnce({ id: "a", userId: "u1", baseCurrency: "CNY" })
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
-    mockPrisma.txnEntry.create.mockImplementation(async ({ data }: any) => ({
-      id: "e1",
-      lines: data.lines.create,
-    }));
+    mockPrisma.txnEntry.create.mockImplementation(
+      async ({
+        data,
+      }: {
+        data: { lines: { create: Array<Record<string, unknown>> } };
+      }) => ({
+        id: "e1",
+        lines: data.lines.create,
+      }),
+    );
     const transfer = await import("@/app/api/v1/entries/transfer/route");
     const res = await transfer.POST(
       makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
@@ -567,7 +768,7 @@ describe("Valuations routes", () => {
       txnLines: [],
       valuations: [{ totalValue: { toNumber: () => 120 } }],
     };
-    (mockPrisma.account.findUnique as any).mockResolvedValueOnce(acc);
+    mockPrisma.account.findUnique.mockResolvedValueOnce(acc);
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
       { params: { id: "a" } },
@@ -601,5 +802,25 @@ describe("Valuations routes", () => {
       }),
     );
     expect(res.status).toBe(400);
+  });
+
+  it("POST /valuations rejects archived account", async () => {
+    // 用例：归档账户禁止新增估值，返回 409。
+    const route = await import("@/app/api/v1/valuations/route");
+    mockPrisma.account.findUnique.mockResolvedValueOnce({
+      id: "archived",
+      userId: "u1",
+      accountType: "INVESTMENT",
+      baseCurrency: "CNY",
+      status: "ARCHIVED",
+    });
+    const res = await route.POST(
+      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+        accountId: "archived",
+        asOf: "2025-08-01",
+        totalValue: 120,
+      }),
+    );
+    expect(res.status).toBe(409);
   });
 });

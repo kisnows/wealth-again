@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { getLatestRates } from "@/server/services/fx";
 
 export async function GET(req: NextRequest) {
@@ -20,7 +20,10 @@ export async function GET(req: NextRequest) {
     items: items.map((item) => ({
       quote: item.quote,
       rate: item.rate,
-      asOf: item.asOf ? item.asOf.toISOString() : null,
+      effectiveFrom: item.effectiveFrom
+        ? item.effectiveFrom.toISOString()
+        : null,
+      effectiveTo: item.effectiveTo ? item.effectiveTo.toISOString() : null,
     })),
   });
 }
