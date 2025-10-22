@@ -24,7 +24,7 @@
 
 ## 前端开发约束
 
-- UI 库与样式：仅使用 shadcn/ui（置于 `components/ui`）和 Tailwind；新增组件通过 `pnpm dlx shadcn@latest add <component>`。
+- UI 库与样式：仅使用 shadcn/ui（置于 `components/ui`）和 Tailwind；新增组件通过 shadcn 的 mcp 服务或者直接使用 `pnpm dlx shadcn@latest add <component>`。
 - 数据请求：统一 SWR + `src/lib/utils/fetcher.ts`；写操作经 `src/lib/api/*` 函数导出；跨模块状态使用 Zustand（`src/lib/state/*`）。
 - 逻辑分层：业务逻辑/格式化放入 `src/lib/domain/*` 或 `src/lib/services/*`，UI 文件 <= 500 行；复用模块放 `components/modules/*`。
 - 表单体系：`react-hook-form` + `zod`，写操作附带 `Idempotency-Key`。
