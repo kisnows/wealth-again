@@ -21,6 +21,10 @@ import {
   PageHeader,
   PageSection,
 } from "@/components/modules/PageLayout";
+import DepositDialog from "@/components/modules/DepositDialog";
+import TransferDialog from "@/components/modules/TransferDialog";
+import ValuationFormDialog from "@/components/modules/ValuationFormDialog";
+import WithdrawDialog from "@/components/modules/WithdrawDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -359,7 +363,7 @@ export default function DashboardPage() {
               size="sm"
               variant="outline"
             >
-              <Link href="/reports/income">
+              <Link href="/income">
                 查看收入报表
                 <ArrowRightIcon className="h-4 w-4" />
               </Link>
@@ -408,49 +412,57 @@ export default function DashboardPage() {
       <PageSection
         testId="dashboard-ui-quick-actions"
         title="快速操作"
-        description="常用的入账、转账、收入回算等操作入口。"
+        description="常用的存取款、转账与估值维护入口。"
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Button
-            asChild
-            className="flex w-full items-center gap-2"
-            variant="outline"
-          >
-            <Link href="/entries/deposit">
-              <TrendingUpIcon className="h-4 w-4" />
-              存款
-            </Link>
-          </Button>
-          <Button
-            asChild
-            className="flex w-full items-center gap-2"
-            variant="outline"
-          >
-            <Link href="/entries/withdraw">
-              <TrendingDownIcon className="h-4 w-4" />
-              取款
-            </Link>
-          </Button>
-          <Button
-            asChild
-            className="flex w-full items-center gap-2"
-            variant="outline"
-          >
-            <Link href="/entries/transfer">
-              <ArrowRightIcon className="h-4 w-4" />
-              转账
-            </Link>
-          </Button>
-          <Button
-            asChild
-            className="flex w-full items-center gap-2"
-            variant="outline"
-          >
-            <Link href="/income?dialog=recalc">
-              <CalculatorIcon className="h-4 w-4" />
-              收入回算
-            </Link>
-          </Button>
+          <DepositDialog
+            trigger={(
+              <Button
+                className="flex w-full items-center gap-2"
+                data-testid="dashboard-ui-action-deposit"
+                variant="outline"
+              >
+                <TrendingUpIcon className="h-4 w-4" />
+                记录存入
+              </Button>
+            )}
+          />
+          <WithdrawDialog
+            trigger={(
+              <Button
+                className="flex w-full items-center gap-2"
+                data-testid="dashboard-ui-action-withdraw"
+                variant="outline"
+              >
+                <TrendingDownIcon className="h-4 w-4" />
+                记录取出
+              </Button>
+            )}
+          />
+          <TransferDialog
+            trigger={(
+              <Button
+                className="flex w-full items-center gap-2"
+                data-testid="dashboard-ui-action-transfer"
+                variant="outline"
+              >
+                <ArrowRightIcon className="h-4 w-4" />
+                发起转账
+              </Button>
+            )}
+          />
+          <ValuationFormDialog
+            trigger={(
+              <Button
+                className="flex w-full items-center gap-2"
+                data-testid="dashboard-ui-action-valuation"
+                variant="outline"
+              >
+                <CalculatorIcon className="h-4 w-4" />
+                记录估值
+              </Button>
+            )}
+          />
         </div>
       </PageSection>
     </PageContainer>

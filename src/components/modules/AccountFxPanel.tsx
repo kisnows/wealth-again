@@ -29,17 +29,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { createFxRate, useLatestFxRates } from "@/lib/api/fx";
+import { useUserPrefsStore } from "@/lib/state/user-prefs";
 
 type AccountFxPanelProps = {
   currencies: string[];
-  displayCurrency?: string | null;
+  testId?: string;
 };
 
 const BASE_CURRENCY = "USD";
 
 export default function AccountFxPanel({
   currencies,
-  displayCurrency,
+  testId = "accounts-ui-fx-panel",
 }: AccountFxPanelProps) {
   const [formCurrency, setFormCurrency] = useState<string>("");
   const [formRate, setFormRate] = useState<string>("");
@@ -62,6 +63,8 @@ export default function AccountFxPanel({
       setFormCurrency(effectiveCurrencies[0]);
     }
   }, [effectiveCurrencies, formCurrency]);
+
+  const displayCurrency = useUserPrefsStore((state) => state.displayCurrency);
 
   const { data, isLoading, error, mutate } =
     useLatestFxRates(effectiveCurrencies);
@@ -128,7 +131,7 @@ export default function AccountFxPanel({
   };
 
   return (
-    <Card data-testid="accounts-ui-fx-panel">
+    <Card data-testid={testId}>
       <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -140,11 +143,9 @@ export default function AccountFxPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">基础币种: {BASE_CURRENCY}</Badge>
-          {displayCurrencyUpper ? (
-            <Badge variant="secondary">展示币种: {displayCurrencyUpper}</Badge>
-          ) : (
-            <Badge variant="secondary">展示币种: 自动</Badge>
-          )}
+          <Badge variant="secondary">
+            展示币种: {displayCurrencyUpper ?? "自动（见展示偏好）"}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">

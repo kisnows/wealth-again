@@ -152,20 +152,20 @@ export async function GET(req: NextRequest) {
         const ssRule = await prisma.cityRuleSS.findFirst({
           where: {
             cityId: monthCityId,
-            startDate: { lte: monthDate },
-            OR: [{ endDate: null }, { endDate: { gt: monthDate } }],
+            effectiveFrom: { lte: monthDate },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
           },
-          orderBy: { startDate: "desc" },
+          orderBy: { effectiveFrom: "desc" },
         });
 
         // 获取公积金规则
         const hfRule = await prisma.cityRuleHF.findFirst({
           where: {
             cityId: monthCityId,
-            startDate: { lte: monthDate },
-            OR: [{ endDate: null }, { endDate: { gt: monthDate } }],
+            effectiveFrom: { lte: monthDate },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
           },
-          orderBy: { startDate: "desc" },
+          orderBy: { effectiveFrom: "desc" },
         });
 
         // 计算社保和公积金
@@ -261,20 +261,20 @@ export async function GET(req: NextRequest) {
         const priorSsRule = await prisma.cityRuleSS.findFirst({
           where: {
             cityId: priorMonthCityId,
-            startDate: { lte: priorMonthDate },
-            OR: [{ endDate: null }, { endDate: { gt: priorMonthDate } }],
+            effectiveFrom: { lte: priorMonthDate },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: priorMonthDate } }],
           },
-          orderBy: { startDate: "desc" },
+          orderBy: { effectiveFrom: "desc" },
         });
 
         // 获取历史公积金规则
         const priorHfRule = await prisma.cityRuleHF.findFirst({
           where: {
             cityId: priorMonthCityId,
-            startDate: { lte: priorMonthDate },
-            OR: [{ endDate: null }, { endDate: { gt: priorMonthDate } }],
+            effectiveFrom: { lte: priorMonthDate },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gt: priorMonthDate } }],
           },
-          orderBy: { startDate: "desc" },
+          orderBy: { effectiveFrom: "desc" },
         });
 
         // 获取历史税制配置

@@ -12,9 +12,9 @@
 
 ## 核心功能与路由
 
-- 主要路由：`/dashboard`（总览）、`/income/*`（收入管理与回算）、`/accounts`、`/entries/*`、`/rules/*`、`/reports/*`、`/settings`、`/signin`（`doc/ui-routing.md`）。
+- 主要路由：`/dashboard`（总览）、`/income/*`（收入管理与回算）、`/accounts`、`/entries/*`、`/rules/*`、`/settings`、`/signin`（详见 `doc/frontend-spec.md`）。
 - Income 子路由需覆盖工资变更、奖金、长期现金、股权、收入记录、年度回算；管理员工作台 `/admin/users`、`/admin/activity` 计划待补充。
-- 路由下的模块与数据源请对齐 `doc/ui-routing.md` 的组件划分与交互说明。
+- 路由下的模块与数据源请对齐 `doc/frontend-spec.md` 的组件划分与交互说明。
 
 ## 技术架构
 
@@ -31,7 +31,7 @@
 - 图表依赖 Recharts（暗色模式需校对配色）。
 - 所有的组件需要添加 `data-testid` 属性以方便测试, 命名规则为 领域-层级-描述, 例如 `data-testid="income-ui-overview"`。
 - 全局设置项（基准币种、展示币种、统计日期、城市、税务规则等）必须在 `/settings` 页面统一维护，其它页面只能读取现有值或提供跳转链接。
-- 收入域的统计视图统一通过时间线版 `IncomeAnalyticsPanel` 复用；`/income` 与 `/reports/income` 禁止出现额外的概览/表格实现。
+- 收入域的统计视图统一通过时间线版 `IncomeAnalyticsPanel` 复用；`/income` 是唯一收入中心，禁止额外的概览/表格实现。
 
 ## 数据模型与计算规则
 
@@ -49,7 +49,7 @@
 - `src/tests`：Vitest 测试（严格按照 `*.test.ts` 命名）。
 - `prisma/`：模型与迁移；本地使用 SQLite `dev.db`，生产切换 Postgres。
 - `doc/`：产品/技术文档；`public/`：静态资源。
-- 账户域页面须在 `/accounts` 内提供唯一的汇率面板（USD 作为中间价），支持查看/更新当前涉及的币种汇率，并同步服务层折算逻辑。
+- 全局币种、汇率、税务与城市规则在 `/settings` 页面集中维护，其它页面仅读取现有配置或提供跳转入口。
 
 ## 构建、测试与开发命令
 

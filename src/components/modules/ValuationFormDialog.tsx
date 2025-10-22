@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,13 +23,17 @@ import {
 import { type Account, postValuation, useAccounts } from "@/lib/api/accounts";
 import { toInputDatetimeValue } from "@/lib/utils/datetime";
 
+type ValuationFormDialogProps = {
+  defaultAccountId?: string;
+  onSuccess?: () => void;
+  trigger?: ReactNode;
+};
+
 export function ValuationFormDialog({
   defaultAccountId,
   onSuccess,
-}: {
-  defaultAccountId?: string;
-  onSuccess?: () => void;
-}) {
+  trigger,
+}: ValuationFormDialogProps) {
   const [open, setOpen] = useState(false);
   const { data: accounts, isLoading } = useAccounts();
   const buildInitialForm = () => ({
@@ -84,7 +88,11 @@ export function ValuationFormDialog({
   return (
     <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger asChild>
-        <Button variant="secondary">记录估值</Button>
+        {trigger ?? (
+          <Button data-testid="accounts-ui-trigger-valuation" variant="secondary">
+            记录估值
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent data-testid="accounts-ui-dialog-valuation">
         <DialogHeader>

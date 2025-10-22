@@ -120,15 +120,27 @@ export async function POST(req: NextRequest) {
     fxEffectiveAt:
       conversionResult.fxEffectiveAt?.toISOString() ?? fxAsOfDate.toISOString(),
     rateSnapshots: conversionResult.snapshots.map((snapshot) => ({
-      base: snapshot.base,
-      quote: snapshot.quote,
+      base: snapshot.baseCurrency,
+      quote: snapshot.quoteCurrency,
       rate: snapshot.rate,
-      effectiveFrom: snapshot.effectiveFrom.toISOString(),
+      capturedAt: snapshot.capturedAt.toISOString(),
+      effectiveFrom: snapshot.effectiveFrom?.toISOString() ?? null,
       effectiveTo: snapshot.effectiveTo?.toISOString() ?? null,
       id: snapshot.id ?? null,
+      sourceRateId: snapshot.sourceRateId,
     })),
     asOf: asOf ?? null,
   };
+  const normalizedFromCurrency = fromAccount.baseCurrency.toUpperCase();
+  const normalizedToCurrency = toAccount.baseCurrency.toUpperCase();
+  const fromSnapshot =
+    conversionResult.snapshots.find(
+      (snapshot) => snapshot.quoteCurrency === normalizedFromCurrency,
+    ) ?? null;
+  const toSnapshot =
+    conversionResult.snapshots.find(
+      (snapshot) => snapshot.quoteCurrency === normalizedToCurrency,
+    ) ?? null;
   const fromLineInput = {
     accountId: from.accountId,
     type: "TRANSFER",
@@ -141,6 +153,8 @@ export async function POST(req: NextRequest) {
     rateAtoUSD: conversionResult.rateAtoUsd,
     rateUSDtoB: conversionResult.rateUsdToB,
     fxEffectiveAt: conversionResult.fxEffectiveAt ?? fxAsOfDate,
+    fxSnapshotId: fromSnapshot?.id ?? null,
+    fxAppliedRate: fromSnapshot?.rate ?? 1,
     principalDelta: -absoluteFromAmount,
     valuationDelta: -absoluteFromAmount,
     note,
@@ -161,6 +175,8 @@ export async function POST(req: NextRequest) {
     rateAtoUSD: conversionResult.rateAtoUsd,
     rateUSDtoB: conversionResult.rateUsdToB,
     fxEffectiveAt: conversionResult.fxEffectiveAt ?? fxAsOfDate,
+    fxSnapshotId: toSnapshot?.id ?? null,
+    fxAppliedRate: toSnapshot?.rate ?? 1,
     principalDelta: Math.abs(toAmount),
     valuationDelta: Math.abs(toAmount),
     note,
@@ -174,6 +190,8 @@ export async function POST(req: NextRequest) {
       userId: userId,
       type: "TRANSFER",
       occurredAt: occurredAtDate,
+      fxSnapshotId: fromSnapshot?.id ?? toSnapshot?.id ?? null,
+      fxAppliedRate: conversionResult.effectiveRate,
       note,
       meta: JSON.stringify(metaPayload),
       lines: {

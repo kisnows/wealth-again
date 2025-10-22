@@ -4,16 +4,23 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-async function upsertTax(country, year) {
+async function upsertTax(country, year, currency = "CNY") {
+  const effectiveFrom = new Date(Date.UTC(year, 0, 1));
   const cfg = await prisma.taxConfig.upsert({
     where: { country_taxYear: { country, taxYear: year } },
     update: {
+      currency,
+      effectiveFrom,
+      effectiveTo: null,
       standardDeduction: 5000,
       specialAdditionalDeduction: 0,
     },
     create: {
       country,
       taxYear: year,
+      currency,
+      effectiveFrom,
+      effectiveTo: null,
       standardDeduction: 5000,
       specialAdditionalDeduction: 0,
     },
@@ -40,10 +47,16 @@ async function upsertTax(country, year) {
         threshold: b.threshold,
         taxRate: b.rate,
         quickDeduction: b.quick,
+        currency,
+        effectiveFrom,
+        effectiveTo: null,
       },
       create: {
         country,
         taxYear: year,
+        currency,
+        effectiveFrom,
+        effectiveTo: null,
         position: b.position,
         threshold: b.threshold,
         taxRate: b.rate,
@@ -70,6 +83,7 @@ async function seed() {
       password: "hashed",
       name: "Demo",
       baseCurrency: "CNY",
+       displayCurrency: "CNY",
       currentCityId: hz.id,
     },
   });
@@ -94,17 +108,31 @@ async function seed() {
   await prisma.incomeChange.deleteMany({ where: { userId: user.id } });
   await prisma.userAnnualDeduction.deleteMany({ where: { userId: user.id } });
   await prisma.fxRate.deleteMany({ where: { base: "USD" } });
+  await prisma.fxSnapshot.deleteMany({ where: { baseCurrency: "USD" } });
 
   // --- 城市规则 ---
   await prisma.cityRuleSS.upsert({
     where: {
-      cityId_startDate: { cityId: hz.id, startDate: new Date("2023-01-01") },
+      cityId_effectiveFrom: {
+        cityId: hz.id,
+        effectiveFrom: new Date("2023-01-01"),
+      },
     },
-    update: {},
+    update: {
+      currency: "CNY",
+      effectiveTo: new Date("2024-01-01"),
+      baseMin: 4462,
+      baseMax: 24060,
+      ratePension: 0.08,
+      rateMedical: 0.02,
+      rateUnemployment: 0.005,
+      fixedMedicalPersonal: null,
+    },
     create: {
       cityId: hz.id,
-      startDate: new Date("2023-01-01"),
-      endDate: new Date("2024-01-01"),
+      currency: "CNY",
+      effectiveFrom: new Date("2023-01-01"),
+      effectiveTo: new Date("2024-01-01"),
       baseMin: 4462,
       baseMax: 24060,
       ratePension: 0.08,
@@ -114,13 +142,26 @@ async function seed() {
   });
   await prisma.cityRuleSS.upsert({
     where: {
-      cityId_startDate: { cityId: hz.id, startDate: new Date("2024-01-01") },
+      cityId_effectiveFrom: {
+        cityId: hz.id,
+        effectiveFrom: new Date("2024-01-01"),
+      },
     },
-    update: {},
+    update: {
+      currency: "CNY",
+      effectiveTo: new Date("2025-01-01"),
+      baseMin: 4812,
+      baseMax: 24930,
+      ratePension: 0.08,
+      rateMedical: 0.02,
+      rateUnemployment: 0.005,
+      fixedMedicalPersonal: null,
+    },
     create: {
       cityId: hz.id,
-      startDate: new Date("2024-01-01"),
-      endDate: new Date("2025-01-01"),
+      currency: "CNY",
+      effectiveFrom: new Date("2024-01-01"),
+      effectiveTo: new Date("2025-01-01"),
       baseMin: 4812,
       baseMax: 24930,
       ratePension: 0.08,
@@ -130,13 +171,26 @@ async function seed() {
   });
   await prisma.cityRuleSS.upsert({
     where: {
-      cityId_startDate: { cityId: hz.id, startDate: new Date("2025-01-01") },
+      cityId_effectiveFrom: {
+        cityId: hz.id,
+        effectiveFrom: new Date("2025-01-01"),
+      },
     },
-    update: {},
+    update: {
+      currency: "CNY",
+      effectiveTo: null,
+      baseMin: 4812,
+      baseMax: 24930,
+      ratePension: 0.08,
+      rateMedical: 0.02,
+      rateUnemployment: 0.005,
+      fixedMedicalPersonal: 3,
+    },
     create: {
       cityId: hz.id,
-      startDate: new Date("2025-01-01"),
-      endDate: null,
+      currency: "CNY",
+      effectiveFrom: new Date("2025-01-01"),
+      effectiveTo: null,
       baseMin: 4812,
       baseMax: 24930,
       ratePension: 0.08,
@@ -148,13 +202,23 @@ async function seed() {
 
   await prisma.cityRuleHF.upsert({
     where: {
-      cityId_startDate: { cityId: hz.id, startDate: new Date("2023-07-01") },
+      cityId_effectiveFrom: {
+        cityId: hz.id,
+        effectiveFrom: new Date("2023-07-01"),
+      },
     },
-    update: {},
+    update: {
+      currency: "CNY",
+      effectiveTo: new Date("2024-07-01"),
+      baseMin: 2280,
+      baseMax: 38390,
+      rateEmployee: 0.12,
+    },
     create: {
       cityId: hz.id,
-      startDate: new Date("2023-07-01"),
-      endDate: new Date("2024-07-01"),
+      currency: "CNY",
+      effectiveFrom: new Date("2023-07-01"),
+      effectiveTo: new Date("2024-07-01"),
       baseMin: 2280,
       baseMax: 38390,
       rateEmployee: 0.12,
@@ -162,13 +226,23 @@ async function seed() {
   });
   await prisma.cityRuleHF.upsert({
     where: {
-      cityId_startDate: { cityId: hz.id, startDate: new Date("2024-07-01") },
+      cityId_effectiveFrom: {
+        cityId: hz.id,
+        effectiveFrom: new Date("2024-07-01"),
+      },
     },
-    update: {},
+    update: {
+      currency: "CNY",
+      effectiveTo: new Date("2025-07-01"),
+      baseMin: 2490,
+      baseMax: 39530,
+      rateEmployee: 0.12,
+    },
     create: {
       cityId: hz.id,
-      startDate: new Date("2024-07-01"),
-      endDate: new Date("2025-07-01"),
+      currency: "CNY",
+      effectiveFrom: new Date("2024-07-01"),
+      effectiveTo: new Date("2025-07-01"),
       baseMin: 2490,
       baseMax: 39530,
       rateEmployee: 0.12,
@@ -176,13 +250,23 @@ async function seed() {
   });
   await prisma.cityRuleHF.upsert({
     where: {
-      cityId_startDate: { cityId: hz.id, startDate: new Date("2025-07-01") },
+      cityId_effectiveFrom: {
+        cityId: hz.id,
+        effectiveFrom: new Date("2025-07-01"),
+      },
     },
-    update: {},
+    update: {
+      currency: "CNY",
+      effectiveTo: null,
+      baseMin: 2490,
+      baseMax: 40694,
+      rateEmployee: 0.12,
+    },
     create: {
       cityId: hz.id,
-      startDate: new Date("2025-07-01"),
-      endDate: null,
+      currency: "CNY",
+      effectiveFrom: new Date("2025-07-01"),
+      effectiveTo: null,
       baseMin: 2490,
       baseMax: 40694,
       rateEmployee: 0.12,
@@ -344,6 +428,8 @@ async function seed() {
     },
   });
 
+  const crossCurrencyAt = new Date("2025-10-12T23:37:00Z");
+
   const usdToCny = await prisma.fxRate.create({
     data: {
       base: "USD",
@@ -351,6 +437,19 @@ async function seed() {
       rate: 7,
       effectiveFrom: new Date("2025-10-12T08:00:00Z"),
       effectiveTo: null,
+    },
+  });
+
+  const usdToCnySnapshot = await prisma.fxSnapshot.create({
+    data: {
+      baseCurrency: "USD",
+      quoteCurrency: "CNY",
+      rate: 7,
+      capturedAt: crossCurrencyAt,
+      sourceRateId: usdToCny.id,
+      effectiveFrom: usdToCny.effectiveFrom,
+      effectiveTo: usdToCny.effectiveTo,
+      createdBy: "seed",
     },
   });
 
@@ -436,13 +535,14 @@ async function seed() {
   });
 
   // 跨币种转账 USD -> CNY
-  const crossCurrencyAt = new Date("2025-10-12T23:37:00Z");
   await prisma.txnEntry.create({
     data: {
       userId: user.id,
       type: "TRANSFER",
       occurredAt: crossCurrencyAt,
       fxRateId: usdToCny.id,
+      fxSnapshotId: usdToCnySnapshot.id,
+      fxAppliedRate: usdToCnySnapshot.rate,
       note: "外汇兑入 A 股账户",
       meta: JSON.stringify({
         fromAmount: 100,
@@ -462,6 +562,7 @@ async function seed() {
             effectiveFrom: usdToCny.effectiveFrom.toISOString(),
             effectiveTo: null,
             id: usdToCny.id,
+            snapshotId: usdToCnySnapshot.id,
           },
         ],
         asOf: crossCurrencyAt.toISOString(),
@@ -479,6 +580,8 @@ async function seed() {
             viaCurrency: "USD",
             rateAtoUSD: 1,
             rateUSDtoB: 7,
+            fxSnapshotId: usdToCnySnapshot.id,
+            fxAppliedRate: usdToCnySnapshot.rate,
             fxEffectiveAt: crossCurrencyAt,
             principalDelta: -100,
             valuationDelta: -100,
@@ -494,6 +597,8 @@ async function seed() {
             viaCurrency: "USD",
             rateAtoUSD: 1,
             rateUSDtoB: 7,
+            fxSnapshotId: usdToCnySnapshot.id,
+            fxAppliedRate: usdToCnySnapshot.rate,
             fxEffectiveAt: crossCurrencyAt,
             principalDelta: 700,
             valuationDelta: 700,

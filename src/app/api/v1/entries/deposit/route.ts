@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
       type: "DEPOSIT",
       amount: depositAmount,
       currency: account.baseCurrency,
+      fxSnapshotId: null,
+      fxAppliedRate: 1,
       principalDelta: depositAmount,
       valuationDelta: depositAmount,
       note,
@@ -67,6 +69,8 @@ export async function POST(req: NextRequest) {
         userId: user.id,
         type: "DEPOSIT",
         occurredAt: occurredAtDate,
+        fxSnapshotId: null,
+        fxAppliedRate: 1,
         note,
         lines: {
           create: lineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
@@ -94,6 +98,11 @@ export async function POST(req: NextRequest) {
       const newValue = previousValue + depositAmount;
       const snapshotCurrency = latestSnapshot?.currency ?? account.baseCurrency;
       const snapshotFxRateId = latestSnapshot?.fxRateId ?? null;
+       const snapshotFxSnapshotId = latestSnapshot?.fxSnapshotId ?? null;
+       const snapshotFxAppliedRate =
+        latestSnapshot?.fxAppliedRate != null
+          ? Number(latestSnapshot.fxAppliedRate)
+          : 1;
       const snapshotNote = latestSnapshot?.note ?? null;
       await tx.valuationSnapshot.upsert({
         where: {
@@ -103,6 +112,8 @@ export async function POST(req: NextRequest) {
           totalValue: newValue,
           currency: snapshotCurrency,
           fxRateId: snapshotFxRateId,
+          fxSnapshotId: snapshotFxSnapshotId,
+          fxAppliedRate: snapshotFxAppliedRate,
           note: snapshotNote,
         },
         create: {
@@ -111,6 +122,8 @@ export async function POST(req: NextRequest) {
           totalValue: newValue,
           currency: snapshotCurrency,
           fxRateId: snapshotFxRateId,
+          fxSnapshotId: snapshotFxSnapshotId,
+          fxAppliedRate: snapshotFxAppliedRate,
           note: note ?? snapshotNote,
         },
       });

@@ -1,26 +1,37 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import AccountTable from "@/components/modules/AccountTable";
-import AccountFxPanel from "@/components/modules/AccountFxPanel";
 import CreateAccountDialog from "@/components/modules/CreateAccountDialog";
+import DepositDialog from "@/components/modules/DepositDialog";
 import TransferDialog from "@/components/modules/TransferDialog";
 import ValuationFormDialog from "@/components/modules/ValuationFormDialog";
+import WithdrawDialog from "@/components/modules/WithdrawDialog";
+import { AccountsSummaryTable } from "@/components/modules/accounts/AccountsSummaryTable";
 import {
   PageContainer,
   PageHeader,
   PageSection,
 } from "@/components/modules/PageLayout";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/lib/api/accounts";
 import { useAccountsSummary } from "@/lib/api/reports";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
 
 const SUMMARY_CARDS = [
-  { key: "assets", label: "资产总额" },
-  { key: "liabilities", label: "负债总额" },
-  { key: "net", label: "净资产" },
+  { key: "assets", label: "资产总额", badge: { label: "资产", variant: "secondary" as const } },
+  { key: "liabilities", label: "负债总额", badge: { label: "负债", variant: "outline" as const } },
+  { key: "net", label: "净资产", badge: { label: "净值", variant: "default" as const } },
 ] as const;
 
 function formatAmount(value: number, currency: string | null | undefined) {
@@ -75,19 +86,6 @@ export default function AccountsPage() {
     );
   }, [summaries, summaryData?.totals, displayCurrency]);
   const netWorth = totals.netWorth ?? totals.assets - totals.liabilities;
-  const currencyCodes = useMemo(() => {
-    const codes = new Set<string>();
-    (accountList ?? []).forEach((account) => {
-      if (account.baseCurrency) codes.add(account.baseCurrency.toUpperCase());
-    });
-    summaries.forEach((summary) => {
-      if (summary.currency) codes.add(summary.currency.toUpperCase());
-      if (summary.valuationCurrency) {
-        codes.add(summary.valuationCurrency.toUpperCase());
-      }
-    });
-    return Array.from(codes).sort();
-  }, [accountList, summaries]);
   const totalsCurrency =
     summaryData?.displayCurrency ??
     displayCurrency ??
@@ -98,10 +96,32 @@ export default function AccountsPage() {
     <PageContainer padding="md" testId="accounts-ui-page">
       <PageHeader
         actions={
-          <div className="flex flex-wrap gap-2" data-testid="accounts-ui-actions">
-            <CreateAccountDialog />
-            <TransferDialog />
-            <ValuationFormDialog />
+          <div className="flex flex-wrap items-center gap-2" data-testid="accounts-ui-actions">
+            <div data-testid="accounts-ui-action-create">
+              <CreateAccountDialog />
+            </div>
+            <div data-testid="accounts-ui-action-deposit">
+              <DepositDialog />
+            </div>
+            <div data-testid="accounts-ui-action-withdraw">
+              <WithdrawDialog />
+            </div>
+            <div data-testid="accounts-ui-action-transfer">
+              <TransferDialog />
+            </div>
+            <div data-testid="accounts-ui-action-valuation">
+              <ValuationFormDialog />
+            </div>
+            <Button
+              asChild
+              data-testid="accounts-ui-action-settings"
+              size="sm"
+              variant="outline"
+            >
+              <Link href="/settings">
+                管理全局设置
+              </Link>
+            </Button>
           </div>
         }
         description="快速浏览资产、负债与最新估值，支持一键入账与估值记录。"
@@ -110,69 +130,90 @@ export default function AccountsPage() {
         title="账户中心"
       />
 
-      <AccountFxPanel
-        currencies={currencyCodes}
-        displayCurrency={displayCurrency ?? null}
-      />
-
       <PageSection
         bleed
-        contentClassName="bg-transparent p-0 shadow-none"
-        testId="accounts-ui-summary"
+        className="border-none bg-transparent shadow-none"
+        contentClassName="border-none bg-transparent p-0 shadow-none"
+        description="快速浏览核心指标与账户估值细节，所有金额按当前展示币种折算。"
+        testId="accounts-ui-overview"
+        title="账户概览"
       >
-        <div className="grid gap-4 md:grid-cols-3">
-          {SUMMARY_CARDS.map((card) => {
-            const value =
-              card.key === "assets"
-                ? totals.assets
-                : card.key === "liabilities"
-                  ? totals.liabilities
-                  : netWorth;
-            const badge =
-              card.key === "liabilities"
-                ? { variant: "outline" as const, label: "负债" }
-                : card.key === "assets"
-                  ? { variant: "secondary" as const, label: "资产" }
-                  : undefined;
-            return (
-              <Card
-                className="border border-border/60 bg-card/90"
-                data-testid={`accounts-ui-summary-card-${card.key}`}
-                key={card.key}
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-sm font-medium text-muted-foreground">
-                    <span>{card.label}</span>
-                    {badge ? (
-                      <Badge className="text-xs" variant={badge.variant}>
-                        {badge.label}
-                      </Badge>
-                    ) : null}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-semibold text-foreground">
-                    {formatAmount(
-                      value,
-                      totalsCurrency,
-                    )}
-                  </p>
-                  {card.key === "assets" && totals.archived > 0 ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      含已归档估值 {formatAmount(
-                        totals.archived,
-                        totalsCurrency,
-                      )}
-                    </p>
-                  ) : null}
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,380px)_minmax(0,1.35fr)]">
+          <Card className="h-full border-border/70 bg-card/95 shadow-sm" data-testid="accounts-ui-summary-card">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold text-foreground">
+                关键指标
+              </CardTitle>
+              <CardDescription className="text-xs">
+                汇总金额按 {totalsCurrency} 折算，实时基于最新估值。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <dl className="divide-y divide-border/60">
+                {SUMMARY_CARDS.map((card) => {
+                  const value =
+                    card.key === "assets"
+                      ? totals.assets
+                      : card.key === "liabilities"
+                        ? totals.liabilities
+                        : netWorth;
+                  return (
+                    <div
+                      className="flex items-center justify-between gap-3 px-4 py-3"
+                      data-testid={`accounts-ui-summary-card-${card.key}`}
+                      key={card.key}
+                    >
+                      <div className="space-y-1">
+                        <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
+                          {card.label}
+                        </dt>
+                        <dd className="text-xl font-semibold leading-tight text-foreground">
+                          {formatAmount(value, totalsCurrency)}
+                        </dd>
+                      </div>
+                      {card.badge ? (
+                        <Badge className="text-[11px]" variant={card.badge.variant}>
+                          {card.badge.label}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </dl>
+            </CardContent>
+            {totals.archived > 0 ? (
+              <CardFooter className="border-t border-border/60 px-4 py-2">
+                <p className="text-xs text-muted-foreground">
+                  含已归档估值 {formatAmount(totals.archived, totalsCurrency)}
+                </p>
+              </CardFooter>
+            ) : null}
+          </Card>
+
+          <Card
+            className="h-full border-border/70 bg-card/95 shadow-sm"
+            data-testid="accounts-ui-summary-table-card"
+          >
+            <CardHeader className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold text-foreground">
+                  账户估值一览
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  按本金、估值、收益与 ROI 对比主要账户，支持悬停查看原币种。
+                </CardDescription>
+              </div>
+              <Badge variant="outline">展示币种: {totalsCurrency}</Badge>
+            </CardHeader>
+            <CardContent className="overflow-x-auto px-0">
+              <AccountsSummaryTable
+                displayCurrency={displayCurrency ?? null}
+                isLoading={loadingSummary}
+                items={summaries}
+              />
+            </CardContent>
+          </Card>
         </div>
-        <p className="text-xs text-muted-foreground">
-          汇总金额按展示币种 {totalsCurrency} 折算；下方账户卡片同时展示原币种与折算值。
-        </p>
       </PageSection>
 
       {hasError ? (
@@ -183,10 +224,11 @@ export default function AccountsPage() {
 
       <PageSection
         bleed
+        className="border-none bg-transparent shadow-none"
         contentClassName="border-none bg-transparent p-0 shadow-none"
-        description="支持快捷操作与估值维护，按当前偏好币种展示。"
+        description="支持过滤、快捷操作与估值维护，列表按当前展示币种折算并保留原币种信息。"
         testId="accounts-ui-table"
-        title="账户列表"
+        title="账户详情"
       >
         <AccountTable
           accounts={accountList ?? []}

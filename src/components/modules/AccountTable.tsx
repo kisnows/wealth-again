@@ -255,7 +255,7 @@ export function AccountTable({
           ) : null}
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2" data-testid="accounts-ui-list-grid">
           {filteredAccounts.map((account) => (
             <AccountCard
               account={account}

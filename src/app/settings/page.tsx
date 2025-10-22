@@ -6,8 +6,13 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import AccountFxPanel from "@/components/modules/AccountFxPanel";
 import CitySelect from "@/components/modules/CitySelect";
-import { PageContainer, PageHeader } from "@/components/modules/PageLayout";
+import {
+  PageContainer,
+  PageHeader,
+  PageSection,
+} from "@/components/modules/PageLayout";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -45,12 +50,12 @@ import { useAnnualDeductions } from "@/lib/api/income";
 import {
   type CityChangeItem,
   createCityChange,
-  updateBaseCurrency,
   useCityChanges,
   useCurrentUser,
 } from "@/lib/api/user";
 import { formatMoney } from "@/lib/domain/money";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
+import { useAccountsSummary } from "@/lib/api/reports";
 
 const countryLabels: Record<string, string> = {
   CN: "中国",
@@ -138,13 +143,13 @@ export default function SettingsPage() {
     isLoading: cityChangeLoading,
     error: cityChangeError,
   } = useCityChanges();
+  const { data: accountsSummaryData } = useAccountsSummary();
   const {
     data: deductionData,
     isLoading: deductionLoading,
     error: deductionError,
   } = useAnnualDeductions();
 
-  const [currencySaving, setCurrencySaving] = useState(false);
   const [citySubmitting, setCitySubmitting] = useState(false);
   const {
     displayCurrency,
@@ -152,6 +157,23 @@ export default function SettingsPage() {
     setDisplayCurrency,
     setAsOfDate,
   } = useUserPrefsStore();
+
+  const fxCurrencies = useMemo(() => {
+    const codes = new Set<string>();
+    const addCode = (code?: string | null) => {
+      if (!code) return;
+      const upper = code.toUpperCase();
+      if (upper.length === 0) return;
+      codes.add(upper);
+    };
+    accountsSummaryData?.items.forEach((item) => {
+      addCode(item.currency);
+      addCode(item.valuationCurrency);
+    });
+    addCode(user?.baseCurrency);
+    addCode(displayCurrency ?? undefined);
+    return Array.from(codes).sort();
+  }, [accountsSummaryData?.items, user?.baseCurrency, displayCurrency]);
 
   const annualDeductions = deductionData?.items ?? [];
   const defaultEffectiveMonth = useMemo(() => getNextMonthValue(), []);
@@ -184,20 +206,6 @@ export default function SettingsPage() {
     toast.success(
       normalized ? `统计日期已更新至 ${trimmed}` : "统计日期偏好已清除",
     );
-  };
-
-  const handleBaseCurrencyUpdate = async (currency: string) => {
-    if (!user || currency === user.baseCurrency) return;
-    setCurrencySaving(true);
-    try {
-      await updateBaseCurrency(currency);
-      toast.success("基础币种已更新");
-    } catch (error) {
-      console.error("Update base currency error:", error);
-      toast.error(extractErrorMessage(error, "更新失败，请稍后重试"));
-    } finally {
-      setCurrencySaving(false);
-    }
   };
 
   const onSubmitCityChange = async (values: CityChangeFormValues) => {
@@ -242,159 +250,163 @@ export default function SettingsPage() {
         title="用户设置"
       />
 
-      <Card data-testid="settings-ui-preferences">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5" />
-            展示偏好
-          </CardTitle>
-          <CardDescription>
-            统一设置展示币种与统计日期，其他页面仅以只读方式引用这些值。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-2">
-            <Label htmlFor="settings-pref-display">展示币种</Label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select
-                data-testid="settings-ui-pref-display"
-                onValueChange={handleDisplayCurrencyPreference}
-                value={displayCurrency ?? undefined}
-              >
-                <SelectTrigger id="settings-pref-display">
-                  <SelectValue placeholder="请选择展示币种" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                  <SelectItem value="USD">美元 (USD)</SelectItem>
-                  <SelectItem value="EUR">欧元 (EUR)</SelectItem>
-                  <SelectItem value="HKD">港币 (HKD)</SelectItem>
-                  <SelectItem value="JPY">日元 (JPY)</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                data-testid="settings-ui-pref-display-reset"
-                onClick={() => {
-                  if (displayCurrency == null) return;
-                  setDisplayCurrency(null);
-                  toast.success("展示币种偏好已恢复为自动模式");
-                }}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                恢复自动
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              选择具体币种后，账户和报表页面会按 USD 中间价折算展示金额；选择自动则保留原币种。
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="settings-pref-asof">统计日期（As-of）</Label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                className="w-full md:max-w-[220px]"
-                data-testid="settings-ui-pref-asof"
-                id="settings-pref-asof"
-                onChange={(event) => handleAsOfDateUpdate(event.target.value)}
-                type="date"
-                value={asOfDate ?? ""}
-              />
-              {asOfDate ? (
-                <Button
-                  data-testid="settings-ui-pref-asof-clear"
-                  onClick={() => handleAsOfDateUpdate("")}
-                  size="sm"
-                  variant="outline"
-                >
-                  清除日期
-                </Button>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              用于 Dashboard 与报表聚合的统计截止日期，留空表示使用最新数据。
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card data-testid="settings-ui-base">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            基础设置
-          </CardTitle>
-          <CardDescription>管理基础币种与当前工作城市，便于收入回算匹配规则。</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>基础币种</Label>
-            {user ? (
-              <Select
-                disabled={currencySaving}
-                onValueChange={handleBaseCurrencyUpdate}
-                value={user.baseCurrency}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择基础币种" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                  <SelectItem value="USD">美元 (USD)</SelectItem>
-                  <SelectItem value="EUR">欧元 (EUR)</SelectItem>
-                  <SelectItem value="HKD">港币 (HKD)</SelectItem>
-                  <SelectItem value="JPY">日元 (JPY)</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Select disabled>
-                <SelectTrigger>
-                  <SelectValue placeholder="加载中..." />
-                </SelectTrigger>
-              </Select>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>当前工作城市</Label>
-            <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-              {buildCityName(cityChangeData?.currentCity)}
-            </div>
-            {upcomingChange && (
-              <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 p-3 text-xs text-primary">
-                {monthLabel(upcomingChange.effectiveMonth)} 将迁移至{" "}
-                {buildCityName(upcomingChange.toCity)}
+      <PageSection
+        description="统一维护展示偏好、统计截止日期，并查看系统回算币种，其他页面仅作引用。"
+        testId="settings-ui-section-profile"
+        title="展示偏好与基础设置"
+      >
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card data-testid="settings-ui-preferences">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings2 className="h-5 w-5" />
+                展示偏好
+              </CardTitle>
+              <CardDescription>
+                仅在此处设置展示币种与统计日期，避免其他页面出现重复入口。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="settings-pref-display">展示币种</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    data-testid="settings-ui-pref-display"
+                    onValueChange={handleDisplayCurrencyPreference}
+                    value={displayCurrency ?? undefined}
+                  >
+                    <SelectTrigger id="settings-pref-display">
+                      <SelectValue placeholder="请选择展示币种" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CNY">人民币 (CNY)</SelectItem>
+                      <SelectItem value="USD">美元 (USD)</SelectItem>
+                      <SelectItem value="EUR">欧元 (EUR)</SelectItem>
+                      <SelectItem value="HKD">港币 (HKD)</SelectItem>
+                      <SelectItem value="JPY">日元 (JPY)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    data-testid="settings-ui-pref-display-reset"
+                    onClick={() => {
+                      if (displayCurrency == null) return;
+                      setDisplayCurrency(null);
+                      toast.success("展示币种偏好已恢复为自动模式");
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    恢复自动
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  选择具体币种后，账户与报表均按 USD 中间价折算；恢复自动则保留原币种。
+                </p>
               </div>
-            )}
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label>当前用户 ID</Label>
-            <div className="flex items-center justify-between rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-              <code className="break-all font-mono text-xs text-foreground/80">
-                {user?.id ?? "未获取到用户信息"}
-              </code>
-              <Button
-                disabled={!user?.id}
-                onClick={async () => {
-                  if (!user?.id) return;
-                  try {
-                    await navigator.clipboard.writeText(user.id);
-                    toast.success("用户 ID 已复制");
-                  } catch (_error) {
-                    toast.error("复制失败，请手动选择复制");
-                  }
-                }}
-                size="sm"
-                variant="outline"
-              >
-                复制
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="space-y-2">
+                <Label htmlFor="settings-pref-asof">统计日期（As-of）</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    className="w-full md:max-w-[220px]"
+                    data-testid="settings-ui-pref-asof"
+                    id="settings-pref-asof"
+                    onChange={(event) => handleAsOfDateUpdate(event.target.value)}
+                    type="date"
+                    value={asOfDate ?? ""}
+                  />
+                  {asOfDate ? (
+                    <Button
+                      data-testid="settings-ui-pref-asof-clear"
+                      onClick={() => handleAsOfDateUpdate("")}
+                      size="sm"
+                      variant="outline"
+                    >
+                      清除日期
+                    </Button>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  用于 Dashboard 与报表聚合的统计截止日期，留空时以最新数据为准。
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card data-testid="settings-ui-base">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                基础设置
+              </CardTitle>
+              <CardDescription>
+                管理当前工作城市，并查看系统统一使用的回算币种与用户标识。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label>系统回算币种</Label>
+                <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                  {user?.baseCurrency ?? "CNY"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  当前收入、社保、公积金等回算均使用该币种折算，暂不支持按历史阶段切换。如需变更，请联系管理员或等待多币种口径支持。
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>当前工作城市</Label>
+                <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                  {buildCityName(cityChangeData?.currentCity)}
+                </div>
+                {upcomingChange && (
+                  <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 p-3 text-xs text-primary">
+                    {monthLabel(upcomingChange.effectiveMonth)} 将迁移至{" "}
+                    {buildCityName(upcomingChange.toCity)}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>当前用户 ID</Label>
+                <div className="flex items-center justify-between rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                  <code className="break-all font-mono text-xs text-foreground/80">
+                    {user?.id ?? "未获取到用户信息"}
+                  </code>
+                  <Button
+                    disabled={!user?.id}
+                    onClick={async () => {
+                      if (!user?.id) return;
+                      try {
+                        await navigator.clipboard.writeText(user.id);
+                        toast.success("用户 ID 已复制");
+                      } catch (_error) {
+                        toast.error("复制失败，请手动选择复制");
+                      }
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    复制
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </PageSection>
 
-      <Card data-testid="settings-ui-city-change">
+      <PageSection
+        description="统一维护涉及币种的 USD 中间价，更新后会刷新账户与报表展示。"
+        testId="settings-ui-section-fx"
+        title="汇率维护"
+      >
+        <AccountFxPanel currencies={fxCurrencies} testId="settings-ui-fx-panel" />
+      </PageSection>
+
+      <PageSection
+        description="记录实际城市迁移计划，便于按生效月份切换社保、公积金与个税规则。"
+        testId="settings-ui-section-city"
+        title="城市迁移"
+      >
+        <Card data-testid="settings-ui-city-change">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
@@ -518,73 +530,80 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </PageSection>
 
-      <Card data-testid="settings-ui-deductions">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5" />
-            年度专项附加扣除
-          </CardTitle>
-          <CardDescription>
-            用于个税回算的年度专项附加扣除额度，系统会按月均摊
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {deductionError ? (
-            <div className="flex items-center justify-center py-6 text-destructive">
-              数据加载失败，请稍后重试
-            </div>
-          ) : deductionLoading ? (
-            <div className="flex items-center justify-center py-6 text-muted-foreground">
-              加载专项扣除数据...
-            </div>
-          ) : annualDeductions.length === 0 ? (
-            <div className="py-10 text-center text-muted-foreground">
-              <p className="mb-2 text-lg font-medium">暂无专项扣除记录</p>
-              <p className="text-sm">
-                请联系管理员或在导入流程中补充年度专项附加扣除。
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>税年</TableHead>
-                  <TableHead className="text-right">年度额度</TableHead>
-                  <TableHead className="text-right">月度均摊</TableHead>
-                  <TableHead>分摊方式</TableHead>
-                  <TableHead>备注</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {annualDeductions.map((deduction) => {
-                  const monthly = deduction.annualAmount / 12;
-                  return (
-                    <TableRow key={deduction.id}>
-                      <TableCell>{deduction.taxYear}</TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatMoney(
-                          deduction.annualAmount,
-                          user?.baseCurrency || "CNY",
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatMoney(monthly, user?.baseCurrency || "CNY")}
-                      </TableCell>
-                      <TableCell>
-                        {deduction.allocationRule === "ONCE"
-                          ? "一次性扣除"
-                          : "平均分摊"}
-                      </TableCell>
-                      <TableCell>{deduction.note || "-"}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <PageSection
+        description="维护年度专项附加扣除额度，保证累计预扣与回算一致。"
+        testId="settings-ui-section-deductions"
+        title="年度专项附加扣除"
+      >
+        <Card data-testid="settings-ui-deductions">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              年度专项附加扣除
+            </CardTitle>
+            <CardDescription>
+              用于个税回算的年度专项附加扣除额度，系统会按月均摊
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {deductionError ? (
+              <div className="flex items-center justify-center py-6 text-destructive">
+                数据加载失败，请稍后重试
+              </div>
+            ) : deductionLoading ? (
+              <div className="flex items-center justify-center py-6 text-muted-foreground">
+                加载专项扣除数据...
+              </div>
+            ) : annualDeductions.length === 0 ? (
+              <div className="py-10 text-center text-muted-foreground">
+                <p className="mb-2 text-lg font-medium">暂无专项扣除记录</p>
+                <p className="text-sm">
+                  请联系管理员或在导入流程中补充年度专项附加扣除。
+                </p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>税年</TableHead>
+                    <TableHead className="text-right">年度额度</TableHead>
+                    <TableHead className="text-right">月度均摊</TableHead>
+                    <TableHead>分摊方式</TableHead>
+                    <TableHead>备注</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {annualDeductions.map((deduction) => {
+                    const monthly = deduction.annualAmount / 12;
+                    return (
+                      <TableRow key={deduction.id}>
+                        <TableCell>{deduction.taxYear}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatMoney(
+                            deduction.annualAmount,
+                            user?.baseCurrency || "CNY",
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatMoney(monthly, user?.baseCurrency || "CNY")}
+                        </TableCell>
+                        <TableCell>
+                          {deduction.allocationRule === "ONCE"
+                            ? "一次性扣除"
+                            : "平均分摊"}
+                        </TableCell>
+                        <TableCell>{deduction.note || "-"}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </PageSection>
     </PageContainer>
   );
 }

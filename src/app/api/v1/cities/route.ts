@@ -6,6 +6,9 @@ import { getUserFromRequest } from "@/server/utils/auth";
 type SocialSecurityRulePayload = {
   startDate?: string;
   endDate?: string | null;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  currency?: string | null;
   baseMin?: number;
   baseMax?: number;
   ratePension?: number;
@@ -17,6 +20,9 @@ type SocialSecurityRulePayload = {
 type HousingFundRulePayload = {
   startDate?: string;
   endDate?: string | null;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  currency?: string | null;
   baseMin?: number;
   baseMax?: number;
   rateEmployee?: number;
@@ -154,9 +160,15 @@ async function ensureTaxConfig(country: string) {
       for (const bracket of defaultConfigs.brackets) {
         await prisma.taxBracket.create({
           data: {
-            ...bracket,
             country,
             taxYear: currentYear,
+            currency: defaultConfigs.config.currency,
+            effectiveFrom: defaultConfigs.config.effectiveFrom,
+            effectiveTo: defaultConfigs.config.effectiveTo,
+            position: bracket.position,
+            threshold: bracket.threshold,
+            taxRate: bracket.taxRate,
+            quickDeduction: bracket.quickDeduction,
           },
         });
       }
@@ -169,13 +181,15 @@ async function createSocialSecurityRule(
   cityId: string,
   rules: SocialSecurityRulePayload,
 ) {
-  const startDate = new Date(rules.startDate || new Date());
+  const { effectiveFrom, effectiveTo } = resolveEffectiveRange(rules);
+  const currency = resolveCurrency(rules.currency);
 
   await prisma.cityRuleSS.create({
     data: {
       cityId,
-      startDate,
-      endDate: rules.endDate ? new Date(rules.endDate) : null,
+      currency,
+      effectiveFrom,
+      effectiveTo,
       baseMin: rules.baseMin || 0,
       baseMax: rules.baseMax || 999999,
       ratePension: rules.ratePension || 0.08,
@@ -191,13 +205,15 @@ async function createHousingFundRule(
   cityId: string,
   rules: HousingFundRulePayload,
 ) {
-  const startDate = new Date(rules.startDate || new Date());
+  const { effectiveFrom, effectiveTo } = resolveEffectiveRange(rules);
+  const currency = resolveCurrency(rules.currency);
 
   await prisma.cityRuleHF.create({
     data: {
       cityId,
-      startDate,
-      endDate: rules.endDate ? new Date(rules.endDate) : null,
+      currency,
+      effectiveFrom,
+      effectiveTo,
       baseMin: rules.baseMin || 0,
       baseMax: rules.baseMax || 999999,
       rateEmployee: rules.rateEmployee || 0.12,
@@ -210,11 +226,17 @@ function getDefaultTaxConfig(
   country: string,
   taxYear: number,
 ): TaxConfigTemplate | undefined {
+  const currency = country === "US" ? "USD" : "CNY";
+  const effectiveFrom = new Date(Date.UTC(taxYear, 0, 1));
+  const effectiveTo: Date | null = null;
   const configs: Record<string, TaxConfigTemplate> = {
     CN: {
       config: {
         country,
         taxYear,
+        currency,
+        effectiveFrom,
+        effectiveTo,
         standardDeduction: 5000,
         specialAdditionalDeduction: 0,
       },
@@ -247,6 +269,9 @@ function getDefaultTaxConfig(
       config: {
         country,
         taxYear,
+        currency,
+        effectiveFrom,
+        effectiveTo,
         standardDeduction: 13850, // 2023 standard deduction for single filers
         specialAdditionalDeduction: 0,
       },
@@ -279,4 +304,36 @@ function getDefaultTaxConfig(
   };
 
   return configs[country] || null;
+}
+
+type RangePayload = {
+  startDate?: string;
+  endDate?: string | null;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+};
+
+function resolveEffectiveRange(
+  payload: RangePayload,
+): { effectiveFrom: Date; effectiveTo: Date | null } {
+  const fromStr = payload.effectiveFrom ?? payload.startDate;
+  if (!fromStr) throw new Error("effectiveFrom required");
+  const effectiveFrom = new Date(fromStr);
+  if (Number.isNaN(effectiveFrom.getTime())) {
+    throw new Error("invalid effectiveFrom");
+  }
+  const toStr =
+    payload.effectiveTo !== undefined ? payload.effectiveTo : payload.endDate;
+  if (!toStr) return { effectiveFrom, effectiveTo: null };
+  const effectiveTo = new Date(toStr);
+  if (Number.isNaN(effectiveTo.getTime())) {
+    throw new Error("invalid effectiveTo");
+  }
+  return { effectiveFrom, effectiveTo };
+}
+
+function resolveCurrency(currency?: string | null): string {
+  if (!currency) return "CNY";
+  const code = currency.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : "CNY";
 }

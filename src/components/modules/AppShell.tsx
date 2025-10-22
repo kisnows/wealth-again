@@ -1,11 +1,5 @@
 "use client";
-import {
-  BarChart3,
-  BookMarked,
-  Layers3,
-  LayoutDashboard,
-  Wallet,
-} from "lucide-react";
+import { BookMarked, Layers3, LayoutDashboard, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -36,11 +30,6 @@ export default function AppShell({ children }: Props) {
       href: "/income",
       label: "收入",
       icon: <Layers3 className="h-4 w-4" />,
-    },
-    {
-      href: "/reports",
-      label: "报表",
-      icon: <BarChart3 className="h-4 w-4" />,
     },
     {
       href: "/rules/tax",

@@ -348,11 +348,23 @@ export async function recalcIncome({
       cityId: string;
     } | null> = new Array(12).fill(null);
 
-    const taxConfig = await prisma.taxConfig.findUnique({
-      where: {
-        country_taxYear: { country: representativeCity.country, taxYear },
-      },
-    });
+    const taxConfig =
+      (await prisma.taxConfig.findFirst({
+        where: {
+          country: representativeCity.country,
+          effectiveFrom: { lte: new Date(Date.UTC(taxYear, 11, 31)) },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gt: new Date(Date.UTC(taxYear, 0, 1)) } },
+          ],
+        },
+        orderBy: { effectiveFrom: "desc" },
+      })) ??
+      (await prisma.taxConfig.findUnique({
+        where: {
+          country_taxYear: { country: representativeCity.country, taxYear },
+        },
+      }));
     if (!taxConfig) continue;
     const standard = Number(taxConfig.standardDeduction || 0);
     const configSpecial = Number(taxConfig.specialAdditionalDeduction || 0);
@@ -442,18 +454,18 @@ export async function recalcIncome({
       const ssRule = await prisma.cityRuleSS.findFirst({
         where: {
           cityId: monthCityId,
-          startDate: { lte: monthDate },
-          OR: [{ endDate: null }, { endDate: { gt: monthDate } }],
+          effectiveFrom: { lte: monthDate },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
         },
-        orderBy: { startDate: "desc" },
+        orderBy: { effectiveFrom: "desc" },
       });
       const hfRule = await prisma.cityRuleHF.findFirst({
         where: {
           cityId: monthCityId,
-          startDate: { lte: monthDate },
-          OR: [{ endDate: null }, { endDate: { gt: monthDate } }],
+          effectiveFrom: { lte: monthDate },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
         },
-        orderBy: { startDate: "desc" },
+        orderBy: { effectiveFrom: "desc" },
       });
 
       const ssBase =

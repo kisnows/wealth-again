@@ -145,9 +145,21 @@ async function getTaxBaseline(
   const key = `${country}-${year}`;
   const cached = cache.get(key);
   if (cached) return cached;
-  const config = await prisma.taxConfig.findUnique({
-    where: { country_taxYear: { country, taxYear: year } },
-  });
+  const config =
+    (await prisma.taxConfig.findFirst({
+      where: {
+        country,
+        effectiveFrom: { lte: new Date(Date.UTC(year, 11, 31)) },
+        OR: [
+          { effectiveTo: null },
+          { effectiveTo: { gt: new Date(Date.UTC(year, 0, 1)) } },
+        ],
+      },
+      orderBy: { effectiveFrom: "desc" },
+    })) ??
+    (await prisma.taxConfig.findUnique({
+      where: { country_taxYear: { country, taxYear: year } },
+    }));
   const standardValue = toNumber(config?.standardDeduction);
   const standard = standardValue > 0 ? standardValue : 5000;
   const special = toNumber(config?.specialAdditionalDeduction);
@@ -299,18 +311,18 @@ async function computeForecastMeta(
   const ssRule = await prisma.cityRuleSS.findFirst({
     where: {
       cityId,
-      startDate: { lte: monthDate },
-      OR: [{ endDate: null }, { endDate: { gt: monthDate } }],
+      effectiveFrom: { lte: monthDate },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
     },
-    orderBy: { startDate: "desc" },
+    orderBy: { effectiveFrom: "desc" },
   });
   const hfRule = await prisma.cityRuleHF.findFirst({
     where: {
       cityId,
-      startDate: { lte: monthDate },
-      OR: [{ endDate: null }, { endDate: { gt: monthDate } }],
+      effectiveFrom: { lte: monthDate },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
     },
-    orderBy: { startDate: "desc" },
+    orderBy: { effectiveFrom: "desc" },
   });
 
   const gross = salary + bonus + ltc + equity;

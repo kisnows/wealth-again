@@ -9,11 +9,106 @@ type FxRateRecord = {
   effectiveTo: Date | null;
 };
 
+type FxSnapshotRecord = {
+  id: string;
+  baseCurrency: string;
+  quoteCurrency: string;
+  rate: number | { toNumber: () => number };
+  capturedAt: Date;
+  sourceRateId: string | null;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+};
+
+type FxSnapshotInfo = {
+  id: string;
+  baseCurrency: string;
+  quoteCurrency: string;
+  rate: number;
+  capturedAt: Date;
+  sourceRateId: string | null;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+};
+
 const fxRateClient = prisma.fxRate as unknown as {
   findFirst: (args: unknown) => Promise<FxRateRecord | null>;
   findMany: (args: unknown) => Promise<FxRateRecord[]>;
 };
+const fxSnapshotClient = prisma.fxSnapshot as unknown as {
+  findFirst: (args: unknown) => Promise<FxSnapshotRecord | null>;
+  create: (args: unknown) => Promise<FxSnapshotRecord>;
+};
 const USD = "USD";
+
+function toRateValue(value: number | { toNumber: () => number }): number {
+  return typeof value === "number" ? value : value.toNumber();
+}
+
+function mapSnapshot(record: FxSnapshotRecord): FxSnapshotInfo {
+  return {
+    id: record.id,
+    baseCurrency: record.baseCurrency,
+    quoteCurrency: record.quoteCurrency,
+    rate: toRateValue(record.rate),
+    capturedAt: record.capturedAt,
+    sourceRateId: record.sourceRateId,
+    effectiveFrom: record.effectiveFrom,
+    effectiveTo: record.effectiveTo,
+  };
+}
+
+export async function ensureFxSnapshot({
+  base,
+  quote,
+  asOf,
+  createdBy,
+  allowMissing = false,
+}: {
+  base: string;
+  quote: string;
+  asOf?: Date;
+  createdBy?: string;
+  allowMissing?: boolean;
+}): Promise<FxSnapshotInfo | null> {
+  const normalizedBase = base.toUpperCase();
+  const normalizedQuote = quote.toUpperCase();
+  if (normalizedBase === normalizedQuote) return null;
+  const asOfDate = asOf ?? new Date();
+  const rateRecord = await getFxRate({
+    base: normalizedBase,
+    quote: normalizedQuote,
+    asOf: asOfDate,
+  });
+  if (!rateRecord) {
+    if (allowMissing) return null;
+    throw new Error("rate missing");
+  }
+
+  const existing = await fxSnapshotClient.findFirst({
+    where: {
+      baseCurrency: normalizedBase,
+      quoteCurrency: normalizedQuote,
+      sourceRateId: rateRecord.id,
+      capturedAt: asOfDate,
+    },
+  });
+  if (existing) return mapSnapshot(existing);
+
+  const created = await fxSnapshotClient.create({
+    data: {
+      baseCurrency: normalizedBase,
+      quoteCurrency: normalizedQuote,
+      rate: toRateValue(rateRecord.rate),
+      capturedAt: asOfDate,
+      sourceRateId: rateRecord.id,
+      effectiveFrom: rateRecord.effectiveFrom,
+      effectiveTo: rateRecord.effectiveTo,
+      createdBy: createdBy ?? "system",
+    },
+  });
+  return mapSnapshot(created);
+}
 
 export async function getFxRate(params: {
   base: string;
@@ -73,7 +168,7 @@ export async function getLatestRates(
     const quote = row.quote.toUpperCase();
     if (!latest.has(quote)) {
       latest.set(quote, {
-        rate: typeof row.rate === "number" ? row.rate : row.rate.toNumber(),
+        rate: toRateValue(row.rate),
         effectiveFrom: row.effectiveFrom,
         effectiveTo: row.effectiveTo ?? null,
       });
@@ -90,19 +185,10 @@ export async function getLatestRates(
   });
 }
 
-type FxSnapshot = {
-  id?: string;
-  base: string;
-  quote: string;
-  rate: number;
-  effectiveFrom: Date;
-  effectiveTo: Date | null;
-};
-
 type ResolvedRate = {
   usdToCurrency: number;
   currencyToUsd: number;
-  snapshot: FxSnapshot | null;
+  snapshot: FxSnapshotInfo | null;
 };
 
 async function resolveUsdRate(
@@ -117,30 +203,25 @@ async function resolveUsdRate(
       snapshot: null,
     };
   }
-  const record = await getFxRate({ base: USD, quote: currency, asOf });
-  if (!record) {
-    if (allowMissing) {
-      return {
-        usdToCurrency: 1,
-        currencyToUsd: 1,
-        snapshot: null,
-      };
-    }
-    throw new Error("rate missing");
+  const asOfDate = asOf ?? new Date();
+  const snapshot = await ensureFxSnapshot({
+    base: USD,
+    quote: currency,
+    asOf: asOfDate,
+    allowMissing,
+  });
+  if (!snapshot) {
+    return {
+      usdToCurrency: 1,
+      currencyToUsd: 1,
+      snapshot: null,
+    };
   }
-  const rate =
-    typeof record.rate === "number" ? record.rate : record.rate.toNumber();
+  const rate = snapshot.rate;
   return {
     usdToCurrency: rate,
     currencyToUsd: rate === 0 ? 0 : 1 / rate,
-    snapshot: {
-      id: record.id,
-      base: record.base,
-      quote: record.quote,
-      rate,
-      effectiveFrom: record.effectiveFrom,
-      effectiveTo: record.effectiveTo ?? null,
-    },
+    snapshot,
   };
 }
 
@@ -156,7 +237,7 @@ export async function convert(
   rateAtoUsd: number;
   rateUsdToB: number;
   fxEffectiveAt: Date | null;
-  snapshots: FxSnapshot[];
+  snapshots: FxSnapshotInfo[];
 }> {
   const normalizedFrom = from.toUpperCase();
   const normalizedTo = to.toUpperCase();
@@ -177,7 +258,7 @@ export async function convert(
   const toInfo = await resolveUsdRate(normalizedTo, asOf, normalizedTo === USD);
   const amountInUsd = amount * fromInfo.currencyToUsd;
   const converted = amountInUsd * toInfo.usdToCurrency;
-  const snapshots = [] as FxSnapshot[];
+  const snapshots = [] as FxSnapshotInfo[];
   if (fromInfo.snapshot) snapshots.push(fromInfo.snapshot);
   if (
     toInfo.snapshot &&
@@ -185,12 +266,14 @@ export async function convert(
   ) {
     if (
       !fromInfo.snapshot ||
-      fromInfo.snapshot.quote !== toInfo.snapshot.quote
+      fromInfo.snapshot.quoteCurrency !== toInfo.snapshot.quoteCurrency
     ) {
       snapshots.push(toInfo.snapshot);
     }
   }
   const fxEffectiveAt =
+    toInfo.snapshot?.capturedAt ??
+    fromInfo.snapshot?.capturedAt ??
     toInfo.snapshot?.effectiveFrom ??
     fromInfo.snapshot?.effectiveFrom ??
     asOfDate;

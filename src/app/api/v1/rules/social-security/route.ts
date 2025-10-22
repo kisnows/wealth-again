@@ -12,7 +12,7 @@ import {
  * - 查询指定城市在某日期生效的社保规则。
  * PUT /api/v1/rules/social-security
  * - 批量 upsert 社保规则。
- * - 入参: Array<{ city: string|id, startDate: ISO, endDate?: ISO, baseMin, baseMax, ratePension, rateMedical, rateUnemployment, fixedMedicalPersonal?: number }>
+ * - 入参: Array<{ city: string|id, effectiveFrom: ISO, effectiveTo?: ISO, currency?: string, baseMin, baseMax, ratePension, rateMedical, rateUnemployment, fixedMedicalPersonal?: number }>
  */
 
 export async function GET(req: NextRequest) {
@@ -28,10 +28,10 @@ export async function GET(req: NextRequest) {
   const rule = await prisma.cityRuleSS.findFirst({
     where: {
       cityId: city.id,
-      startDate: { lte: onDate },
-      OR: [{ endDate: null }, { endDate: { gt: onDate } }],
+      effectiveFrom: { lte: onDate },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: onDate } }],
     },
-    orderBy: { startDate: "desc" },
+    orderBy: { effectiveFrom: "desc" },
   });
   if (!rule) return NextResponse.json({ error: "No rule" }, { status: 404 });
   return NextResponse.json(rule);
@@ -70,8 +70,21 @@ export async function PUT(req: Request) {
     const existing = await prisma.cityRuleSS.findMany({
       where: { cityId: city.id },
     });
-    const ns = new Date(it.startDate);
-    const ne: Date | null = it.endDate ? new Date(it.endDate) : null;
+    let effectiveFrom: Date;
+    let effectiveTo: Date | null;
+    try {
+      ({ effectiveFrom, effectiveTo } = resolveEffectiveRange(it));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "invalid effective range";
+      return NextResponse.json(
+        { error: message, city: city.id },
+        { status: 400 },
+      );
+    }
+    const currency = resolveCurrency(it.currency);
+    const ns = effectiveFrom;
+    const ne = effectiveTo;
     const overlap = existing.some((r) => isOverlap(r, ns, ne));
     if (overlap)
       return NextResponse.json(
@@ -80,13 +93,14 @@ export async function PUT(req: Request) {
       );
     await prisma.cityRuleSS.upsert({
       where: {
-        cityId_startDate: {
+        cityId_effectiveFrom: {
           cityId: city.id,
-          startDate: new Date(it.startDate),
+          effectiveFrom: ns,
         },
       },
       update: {
-        endDate: it.endDate ? new Date(it.endDate) : null,
+        currency,
+        effectiveTo: ne,
         baseMin: it.baseMin,
         baseMax: it.baseMax,
         ratePension: it.ratePension,
@@ -96,8 +110,9 @@ export async function PUT(req: Request) {
       },
       create: {
         cityId: city.id,
-        startDate: new Date(it.startDate),
-        endDate: it.endDate ? new Date(it.endDate) : null,
+        currency,
+        effectiveFrom: ns,
+        effectiveTo: ne,
         baseMin: it.baseMin,
         baseMax: it.baseMax,
         ratePension: it.ratePension,
@@ -117,12 +132,43 @@ function isOverlap(
   nextStart: Date,
   nextEnd: Date | null,
 ): boolean {
-  const existingStart = new Date(rule.startDate);
-  const existingEnd = rule.endDate ? new Date(rule.endDate) : null;
+  const existingStart = new Date(rule.effectiveFrom);
+  const existingEnd = rule.effectiveTo ? new Date(rule.effectiveTo) : null;
   return (
     (nextEnd === null || existingStart < nextEnd) &&
     (existingEnd === null || nextStart < existingEnd)
   );
+}
+
+type RuleInput = {
+  startDate?: string;
+  endDate?: string | null;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  currency?: string | null;
+};
+
+function resolveEffectiveRange(
+  rule: RuleInput,
+): { effectiveFrom: Date; effectiveTo: Date | null } {
+  const fromStr = rule.effectiveFrom ?? rule.startDate;
+  if (!fromStr) throw new Error("effectiveFrom required");
+  const effectiveFrom = new Date(fromStr);
+  if (Number.isNaN(effectiveFrom.getTime()))
+    throw new Error("invalid effectiveFrom");
+  const toStr =
+    rule.effectiveTo !== undefined ? rule.effectiveTo : rule.endDate;
+  if (!toStr) return { effectiveFrom, effectiveTo: null };
+  const effectiveTo = new Date(toStr);
+  if (Number.isNaN(effectiveTo.getTime()))
+    throw new Error("invalid effectiveTo");
+  return { effectiveFrom, effectiveTo };
+}
+
+function resolveCurrency(currency?: string | null): string {
+  if (!currency) return "CNY";
+  const trimmed = currency.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(trimmed) ? trimmed : "CNY";
 }
 
 async function resolveCity(

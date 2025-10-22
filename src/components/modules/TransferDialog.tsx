@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,15 +23,19 @@ import {
 import { postTransfer, useAccounts } from "@/lib/api/accounts";
 import { toInputDatetimeValue } from "@/lib/utils/datetime";
 
+type TransferDialogProps = {
+  defaultFromId?: string;
+  defaultToId?: string;
+  onSuccess?: () => void;
+  trigger?: ReactNode;
+};
+
 export function TransferDialog({
   defaultFromId,
   defaultToId,
   onSuccess,
-}: {
-  defaultFromId?: string;
-  defaultToId?: string;
-  onSuccess?: () => void;
-}) {
+  trigger,
+}: TransferDialogProps) {
   const [open, setOpen] = useState(false);
   const { data: accounts, isLoading } = useAccounts();
   const accountOptions = useMemo(
@@ -82,7 +86,11 @@ export function TransferDialog({
   return (
     <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger asChild>
-        <Button variant="default">跨/同币种转账</Button>
+        {trigger ?? (
+          <Button data-testid="accounts-ui-trigger-transfer" variant="default">
+            跨/同币种转账
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent data-testid="accounts-ui-dialog-transfer">
         <DialogHeader>
