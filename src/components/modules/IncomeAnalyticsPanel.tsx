@@ -446,6 +446,43 @@ export default function IncomeAnalyticsPanel({
                   </TableHeader>
                   <TableBody>
                     {processed.items.map((item) => {
+                      const originalCurrency =
+                        item.sourceCurrency && item.sourceCurrency.length > 0
+                          ? item.sourceCurrency
+                          : item.recordCurrency;
+                      const recordCurrency = item.recordCurrency;
+                      const displayCurrency = item.displayCurrency ?? processed.currency;
+                      const formatRate = (value: number) => {
+                        if (!Number.isFinite(value) || value === 0) return "-";
+                        if (value >= 100) return value.toFixed(2);
+                        if (value >= 1) return value.toFixed(4);
+                        return value.toFixed(6);
+                      };
+                      const formatDate = (value: string | null) => {
+                        if (!value) return null;
+                        const date = new Date(value);
+                        if (Number.isNaN(date.getTime())) return null;
+                        return date.toISOString().slice(0, 10);
+                      };
+                      const detailLines: string[] = [];
+                      if (originalCurrency && originalCurrency !== recordCurrency) {
+                        const parts = [
+                          `原币 ${originalCurrency} → 计算 ${recordCurrency}`,
+                        ];
+                        if (item.fxAppliedRate && Math.abs(item.fxAppliedRate - 1) > 1e-6) {
+                          parts.push(`汇率 ${formatRate(item.fxAppliedRate)}`);
+                        }
+                        const captured = formatDate(item.fxSnapshotCapturedAt ?? null);
+                        if (captured) {
+                          parts.push(`快照 ${captured}`);
+                        }
+                        detailLines.push(parts.join(" · "));
+                      }
+                      if (displayCurrency && displayCurrency !== recordCurrency) {
+                        detailLines.push(
+                          `展示 ${displayCurrency}（1 ${recordCurrency} ≈ ${formatRate(item.displayRate)} ${displayCurrency}）`,
+                        );
+                      }
                       const monthText = monthLabel(item.month);
                       return (
                         <TableRow
@@ -470,6 +507,15 @@ export default function IncomeAnalyticsPanel({
                               <Badge className="ml-2" variant="secondary">
                                 人工调整
                               </Badge>
+                            ) : null}
+                            {detailLines.length ? (
+                              <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                                {detailLines.map((line, index) => (
+                                  <div key={`${item.monthDate}-detail-${index}`}>
+                                    {line}
+                                  </div>
+                                ))}
+                              </div>
                             ) : null}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">

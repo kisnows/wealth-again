@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 使用指定城市或用户当前城市
-    const currency = userRecord.baseCurrency;
+    const currency = userRecord.displayCurrency ?? "CNY";
 
     // 获取时间范围内的月份列表
     const months = getMonthsBetween(startDate, endDate);

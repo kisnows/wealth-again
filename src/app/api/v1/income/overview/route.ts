@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
         monthlyAverage: 0,
         yearOverYearGrowth: 0,
         monthsCount: 0,
-        currency: userRecord.baseCurrency,
+        currency: userRecord.displayCurrency ?? "CNY",
         period: `${startDate} 至 ${endDate}`,
       });
     }
@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
       monthlyAverage,
       yearOverYearGrowth,
       monthsCount,
-      currency: userRecord.baseCurrency,
+      currency: userRecord.displayCurrency ?? "CNY",
       period: `${startDate} 至 ${endDate}`,
     };
 

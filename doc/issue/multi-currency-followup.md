@@ -42,13 +42,12 @@
   - 更新 meta 中的 `rateSnapshots` 结构（当前对 `capturedAt` 有日期假设）。
 - [ ] `/api/v1/valuations`：引入 `fxSnapshotId` / `fxAppliedRate` 字段，兼容回填脚本。
 - [ ] `/api/v1/reports/accounts/summary`：目前服务层已更新，但测试 mock 仍期待旧字段，需要同步修正（见下文）。
-- [ ] `/api/v1/settings/*`：尚未落地基础币种二次确认流程，需新建 `PUT /api/settings/base-currency` 并触发异步任务。
+- [x] `/api/v1/settings/*`：仅保留展示币种偏好设置，基础币种相关功能已取消。
 
 #### 3. 前端（Next.js App Router）
 - [ ] `/settings`
   - [x] 展示币种偏好持久化到用户表，支持全局 SWR 同步与 Dashboard/Income 刷新。
-  - [ ] 展示基础币种与展示币种的区别，新增双重确认弹窗（`data-testid="settings-ui-base-currency-dialog"`）。
-  - [ ] 操作成功后提示异步重算进度（可轮询 `rebaseDisplayAmounts` 任务占位 API）。
+  - [ ] （已移除基础币种概念，无需额外配置）。
 - [ ] `/income/*`
   - [x] 与 `IncomeAnalyticsPanel` 联动，显示记录币种、快照信息以及折算后的展示金额。
   - [ ] 表单写入时补充 `sourceCurrency` / `fxSnapshotId`。
@@ -67,10 +66,10 @@
   - 新增 `src/tests/accounts.summary.service.test.ts`：覆盖快照桥接、缓存命中等逻辑。
 
 #### 5. 文档与运维
-- [ ] 更新 `doc/frontend-spec.md` 与 `doc/tech.md`，说明快照使用规范、基础币种修改流程及风险提示。
+- [ ] 更新 `doc/frontend-spec.md` 与 `doc/tech.md`，说明多币种快照使用规范及展示币种偏好处理。
 - [ ] 在 `doc/README.md` 的索引中链接本跟进文档，标注 2025-02-18 状态。
 - [ ] 准备迁移演练说明：记录执行顺序（`migrate deploy` → `seed` → `scripts/backfill-fx-snapshots.cjs`）、预期输出及回滚策略。
-- [ ] 基础币种修改后需触发的异步任务（`rebaseDisplayAmounts`）尚未实现，需要设计任务表结构及失败告警流程。
+- [ ] 基础币种修改后触发异步任务（已下线，后续若恢复需重新设计）。
 
 ---
 
@@ -116,10 +115,10 @@
 
 1. **修复服务层/测试桩** → 让 `pnpm test`、`pnpm lint` 通过，保障已有功能稳定。
 2. **完成收入域改造**（`income.ts` + Route Handlers + 前端时间线），确保多币种累计预扣逻辑正确。
-3. **落地基础币种二次确认**，补齐 `/settings` UI 与后台任务。
+3. **（已取消）基础币种二次确认**：当前系统仅保留展示币种偏好，无需处理。
 4. **更新文档与运维脚本**，准备生产迁移演练。
 
-如需进一步拆分任务，可基于本文各小节新增 issue 或 TODO，并在 `doc/issue/multi-currency-rules.md` 打勾更新进度。
+如需进一步拆分任务，可基于本文各小节新增 issue 或 TODO，并在本文内同步更新进度。
 
 ---
 

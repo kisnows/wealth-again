@@ -58,11 +58,12 @@ export async function POST(req: Request) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
+  const normalizedCurrency = currency.toUpperCase();
   const created = await prisma.bonusPlan.create({
     data: {
       userId,
       amount,
-      currency,
+      currency: normalizedCurrency,
       taxMethod,
       effectiveDate: new Date(effectiveDate),
     },

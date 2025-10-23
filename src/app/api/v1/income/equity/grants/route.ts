@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     data: {
       userId,
       totalUnits,
-      currency,
+      currency: currency.toUpperCase(),
       startVestDate: new Date(startVestDate),
       vestPeriods,
       vestInterval,

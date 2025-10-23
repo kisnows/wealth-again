@@ -43,7 +43,6 @@ describe("Income service · recalcIncome", () => {
     mockPrisma.user.findMany.mockResolvedValue([
       {
         id: "u-income",
-        baseCurrency: "CNY",
         currentCityId: "hz",
         currentCity: { country: "CN" },
       },
@@ -228,7 +227,6 @@ describe("Income service · recalcIncome", () => {
     mockPrisma.user.findMany.mockResolvedValue([
       {
         id: "u1",
-        baseCurrency: "CNY",
         currentCityId: "hz",
         currentCity: { country: "CN" },
       },

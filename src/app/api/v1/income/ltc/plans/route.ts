@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     data: {
       userId,
       totalAmount,
-      currency,
+      currency: currency.toUpperCase(),
       startDate: new Date(startDate),
       periods,
       recurrence,

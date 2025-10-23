@@ -318,7 +318,6 @@ describe("Income basic endpoints", () => {
     mockPrisma.user.findMany.mockResolvedValueOnce([
       {
         id: "u1",
-        baseCurrency: "CNY",
         currentCityId: "c1",
         currentCity: { country: "CN" },
       },

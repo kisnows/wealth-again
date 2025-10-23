@@ -18,25 +18,37 @@ beforeEach(() => {
 });
 
 describe("用户资料 API", () => {
-  it("允许更新基础币种", async () => {
+  it("允许更新姓名", async () => {
     const route = await import("@/app/api/v1/user/profile/route");
     mockPrisma.user.update.mockResolvedValueOnce({
       id: "u1",
       email: "demo@example.com",
-      baseCurrency: "USD",
       currentCityId: "c1",
+      name: "Tester",
+      displayCurrency: "USD",
     });
 
     const res = await route.PATCH(
       makeJsonRequest("http://localhost/api/v1/user/profile", "PATCH", {
-        baseCurrency: "USD",
+        name: "Tester",
       }),
     );
 
     expect(res.status).toBe(200);
     const payload = await res.json();
-    expect(payload.baseCurrency).toBe("USD");
+    expect(payload.name).toBe("Tester");
     expect(mockPrisma.user.update).toHaveBeenCalled();
+  });
+
+  it("拒绝更新基础币种", async () => {
+    const route = await import("@/app/api/v1/user/profile/route");
+    const res = await route.PATCH(
+      makeJsonRequest("http://localhost/api/v1/user/profile", "PATCH", {
+        baseCurrency: "USD",
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 
   it("拒绝通过资料接口修改城市", async () => {

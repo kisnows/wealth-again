@@ -68,7 +68,13 @@ export type IncomeTimelineItem = {
   monthDate: string;
   month: string;
   currency: string;
+  recordCurrency: string;
   sourceCurrency?: string | null;
+  displayCurrency: string;
+  displayRate: number;
+  fxSnapshotId: string | null;
+  fxSnapshotCapturedAt: string | null;
+  fxAppliedRate: number;
   cityId: string | null;
   gross: number;
   bonus: number;

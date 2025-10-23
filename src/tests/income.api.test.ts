@@ -222,6 +222,7 @@ describe("Income basic endpoints", () => {
           monthDate: "2025-01-01T00:00:00.000Z",
           month: "2025-01",
           currency: "CNY",
+          recordCurrency: "CNY",
           cityId: "hz",
           gross: 20000,
           bonus: 0,
@@ -239,12 +240,19 @@ describe("Income basic endpoints", () => {
           source: "system",
           isForecast: false,
           manualNote: "手动备注",
+          sourceCurrency: "CNY",
+          fxSnapshotId: "snap-jan",
+          fxSnapshotCapturedAt: "2025-01-01T00:00:00.000Z",
+          fxAppliedRate: 1,
+          displayCurrency: "CNY",
+          displayRate: 1,
         },
         {
           recordId: null,
           monthDate: "2025-02-01T00:00:00.000Z",
           month: "2025-02",
           currency: "CNY",
+          recordCurrency: "CNY",
           cityId: "hz",
           gross: 20000,
           bonus: 5000,
@@ -262,6 +270,12 @@ describe("Income basic endpoints", () => {
           source: "forecast",
           isForecast: true,
           manualNote: null,
+          sourceCurrency: "CNY",
+          fxSnapshotId: null,
+          fxSnapshotCapturedAt: null,
+          fxAppliedRate: 1,
+          displayCurrency: "CNY",
+          displayRate: 1,
         },
       ],
       summary: {
@@ -441,10 +455,9 @@ describe("Income basic endpoints", () => {
     ).toBe(400);
 
     // 场景C：回算成功路径（提供最小规则/税制数据）
-    mockPrisma.user.findMany.mockResolvedValueOnce([
+  mockPrisma.user.findMany.mockResolvedValueOnce([
       {
         id: "u1",
-        baseCurrency: "CNY",
         currentCityId: "c1",
         currentCity: { country: "CN" },
       },
@@ -530,7 +543,6 @@ describe("Income basic endpoints", () => {
     mockPrisma.user.findMany.mockResolvedValueOnce([
       {
         id: "u1",
-        baseCurrency: "CNY",
         currentCityId: "c1",
         currentCity: { country: "CN" },
       },

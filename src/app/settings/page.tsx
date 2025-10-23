@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calculator, Calendar, MapPin, Settings2 } from "lucide-react";
+import {  Calculator, Calendar, MapPin, Settings2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -171,10 +171,9 @@ export default function SettingsPage() {
       addCode(item.currency);
       addCode(item.valuationCurrency);
     });
-    addCode(user?.baseCurrency);
     addCode(displayCurrency ?? undefined);
     return Array.from(codes).sort();
-  }, [accountsSummaryData?.items, user?.baseCurrency, displayCurrency]);
+  }, [accountsSummaryData?.items, displayCurrency]);
 
   const annualDeductions = deductionData?.items ?? [];
   const defaultEffectiveMonth = useMemo(() => getNextMonthValue(), []);
@@ -362,19 +361,10 @@ export default function SettingsPage() {
                 基础设置
               </CardTitle>
               <CardDescription>
-                管理当前工作城市，并查看系统统一使用的回算币种与用户标识。
+                查看当前工作城市与用户标识，便于后续回算与导出操作。
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
-                <Label>系统回算币种</Label>
-                <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                  {user?.baseCurrency ?? "CNY"}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  当前收入、社保、公积金等回算均使用该币种折算，暂不支持按历史阶段切换。如需变更，请联系管理员或等待多币种口径支持。
-                </p>
-              </div>
               <div className="space-y-2">
                 <Label>当前工作城市</Label>
                 <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
@@ -606,11 +596,11 @@ export default function SettingsPage() {
                         <TableCell className="text-right font-mono">
                           {formatMoney(
                             deduction.annualAmount,
-                            user?.baseCurrency || "CNY",
+                            displayCurrency ?? "CNY",
                           )}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {formatMoney(monthly, user?.baseCurrency || "CNY")}
+                          {formatMoney(monthly, displayCurrency ?? "CNY")}
                         </TableCell>
                         <TableCell>
                           {deduction.allocationRule === "ONCE"
@@ -627,6 +617,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </PageSection>
+
     </PageContainer>
   );
 }

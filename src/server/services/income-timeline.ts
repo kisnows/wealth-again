@@ -22,6 +22,7 @@ export type TimelineItem = {
   monthDate: string;
   month: string;
   currency: string;
+  recordCurrency: string;
   sourceCurrency: string | null;
   cityId: string | null;
   gross: number;
@@ -41,6 +42,11 @@ export type TimelineItem = {
   isForecast: boolean;
   manualNet: number | null;
   manualNote: string | null;
+  fxSnapshotId: string | null;
+  fxSnapshotCapturedAt: string | null;
+  fxAppliedRate: number;
+  displayCurrency: string;
+  displayRate: number;
 };
 
 type TimelineTotals = {
@@ -159,17 +165,13 @@ async function convertTimelineItemCurrency(
   targetCurrency: string,
   cache: Map<string, ConversionCacheValue>,
 ) {
-  const sourceCurrency = normalizeCurrency(item.currency);
-  if (sourceCurrency === targetCurrency) {
-    return {
-      ...item,
-      currency: targetCurrency,
-      sourceCurrency: item.sourceCurrency ?? sourceCurrency,
-    };
+  const currentDisplay = normalizeCurrency(item.displayCurrency);
+  if (currentDisplay === targetCurrency) {
+    return { ...item, currency: targetCurrency };
   }
   const { rate } = await ensureConversionRate(
     cache,
-    sourceCurrency,
+    currentDisplay,
     targetCurrency,
     new Date(item.monthDate),
   );
@@ -178,7 +180,8 @@ async function convertTimelineItemCurrency(
   return {
     ...item,
     currency: targetCurrency,
-    sourceCurrency: item.sourceCurrency ?? sourceCurrency,
+    displayCurrency: targetCurrency,
+    displayRate: item.displayRate * rate,
     gross: apply(item.gross),
     bonus: apply(item.bonus),
     ltcIncome: apply(item.ltcIncome),
@@ -269,22 +272,31 @@ type ForecastMeta = {
 };
 
 function toTimelineItem(record: IncomeRecord): TimelineItem {
-  const currency = record.currency || "CNY";
+  const recordCurrency = record.currency || "CNY";
   const sourceCurrency =
     record.sourceCurrency && record.sourceCurrency.length > 0
       ? record.sourceCurrency
-      : currency;
+      : recordCurrency;
   const manualNet =
     record.manualNet !== null && record.manualNet !== undefined
       ? toNumber(record.manualNet)
       : null;
   const displayNet =
     manualNet !== null ? manualNet : toNumber(record.netIncome);
+  const fxAppliedRate =
+    record.fxAppliedRate !== null && record.fxAppliedRate !== undefined
+      ? toNumber(record.fxAppliedRate)
+      : 1;
+  const fxSnapshotCapturedAt =
+    (record as any).fxSnapshot?.capturedAt instanceof Date
+      ? (record as any).fxSnapshot.capturedAt.toISOString()
+      : null;
   return {
     recordId: record.id,
     monthDate: record.monthDate.toISOString(),
     month: monthKey(record.monthDate),
-    currency,
+    currency: recordCurrency,
+    recordCurrency,
     sourceCurrency,
     cityId: record.cityId,
     gross: toNumber(record.gross),
@@ -308,6 +320,11 @@ function toTimelineItem(record: IncomeRecord): TimelineItem {
     isForecast: Boolean(record.isForecast),
     manualNet,
     manualNote: record.manualNote ?? null,
+    fxSnapshotId: record.fxSnapshotId ?? null,
+    fxSnapshotCapturedAt,
+    fxAppliedRate,
+    displayCurrency: recordCurrency,
+    displayRate: 1,
   };
 }
 
@@ -568,8 +585,7 @@ export async function buildIncomeTimeline(
     displayCurrency && displayCurrency.trim().length > 0
       ? displayCurrency.trim().toUpperCase()
       : null;
-  const defaultSummaryCurrency =
-    user.displayCurrency ?? user.baseCurrency ?? "USD";
+  const defaultSummaryCurrency = user.displayCurrency ?? "USD";
   const summaryCurrency = normalizeCurrency(
     requestedDisplayCurrency ?? defaultSummaryCurrency,
   );
@@ -643,6 +659,15 @@ export async function buildIncomeTimeline(
           monthDate: {
             gte: new Date(Date.UTC(minYear, 0, 1)),
             lt: new Date(Date.UTC(maxYear + 1, 0, 1)),
+          },
+        },
+        include: {
+          fxSnapshot: {
+            select: {
+              id: true,
+              rate: true,
+              capturedAt: true,
+            },
           },
         },
         orderBy: { monthDate: "asc" },
@@ -803,6 +828,7 @@ export async function buildIncomeTimeline(
         monthDate: meta.monthDate.toISOString(),
         month: monthKey(meta.monthDate),
         currency: meta.currency,
+        recordCurrency: meta.currency,
         sourceCurrency: meta.currency,
         cityId: meta.cityId,
         gross: meta.gross,
@@ -822,6 +848,11 @@ export async function buildIncomeTimeline(
         isForecast: true,
         manualNet: null,
         manualNote: null,
+        fxSnapshotId: null,
+        fxSnapshotCapturedAt: null,
+        fxAppliedRate: 1,
+        displayCurrency: meta.currency,
+        displayRate: 1,
       });
     }
   }

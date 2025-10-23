@@ -5,7 +5,7 @@ import { getUserFromRequest } from "@/server/utils/auth";
 /**
  * GET /api/v1/auth/me
  * - 获取当前登录用户的信息
- * - 返回: { id, email, name, baseCurrency, currentCityId, displayCurrency }
+ * - 返回: { id, email, name, currentCityId, displayCurrency }
  */
 
 export async function GET(req: NextRequest) {
@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
         id: true,
         email: true,
         name: true,
-        baseCurrency: true,
         currentCityId: true,
         displayCurrency: true,
       },
@@ -87,7 +86,6 @@ export async function PATCH(req: NextRequest) {
         id: true,
         email: true,
         name: true,
-        baseCurrency: true,
         currentCityId: true,
         displayCurrency: true,
       },

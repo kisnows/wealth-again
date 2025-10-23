@@ -36,14 +36,13 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
   it("半年（1-6月）与 5-8 月的应纳税额准确", async () => {
     const recalc = await import("@/app/api/v1/income/recalc/route");
     // 用户（CN）
-    mockPrisma.user.findMany.mockResolvedValueOnce([
-      {
-        id: "u1",
-        baseCurrency: "CNY",
-        currentCityId: "c1",
-        currentCity: { country: "CN" },
-      },
-    ]);
+  mockPrisma.user.findMany.mockResolvedValueOnce([
+    {
+      id: "u1",
+      currentCityId: "c1",
+      currentCity: { country: "CN" },
+    },
+  ]);
     // 工资变更：10000/月
     mockPrisma.incomeChange.findFirst.mockResolvedValue({
       grossMonthly: 10000,

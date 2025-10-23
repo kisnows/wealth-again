@@ -33,14 +33,13 @@ describe("PRD 示例（2025 年 1–3 月）", () => {
   it("当月个税匹配 PRD 数字", async () => {
     const recalc = await import("@/app/api/v1/income/recalc/route");
     // 用户（CN/HZ）
-    mockPrisma.user.findMany.mockResolvedValueOnce([
-      {
-        id: "u1",
-        baseCurrency: "CNY",
-        currentCityId: "c1",
-        currentCity: { country: "CN" },
-      },
-    ]);
+  mockPrisma.user.findMany.mockResolvedValueOnce([
+    {
+      id: "u1",
+      currentCityId: "c1",
+      currentCity: { country: "CN" },
+    },
+  ]);
     // 工资：2025-01 起 20000
     mockPrisma.incomeChange.findFirst.mockResolvedValue({
       grossMonthly: 20000,

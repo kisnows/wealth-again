@@ -47,10 +47,9 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
     // 用例：以 PRD 给定的假设数据，验证半年与 5-8 月区间的预测税额、社保、公积金扣除均符合预期。
     const recalc = await import("@/app/api/v1/income/recalc/route");
     // 用户（CN）
-    mockPrisma.user.findMany.mockResolvedValueOnce([
+  mockPrisma.user.findMany.mockResolvedValueOnce([
       {
         id: "u1",
-        baseCurrency: "CNY",
         currentCityId: "c1",
         currentCity: { country: "CN" },
       },

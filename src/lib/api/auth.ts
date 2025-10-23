@@ -8,7 +8,6 @@ export interface CurrentUser {
   id: string;
   email: string;
   name?: string;
-  baseCurrency: string;
   currentCityId: string;
   displayCurrency: string | null;
 }

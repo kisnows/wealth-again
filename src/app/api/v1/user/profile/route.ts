@@ -9,7 +9,7 @@ import { getUserFromRequest } from "@/server/utils/auth";
 /**
  * PATCH /api/v1/user/profile
  * - 更新用户基础信息
- * - 入参: { baseCurrency?: string, currentCityId?: string, name?: string }
+ * - 入参: { name?: string }
  * - 返回: 更新后的用户信息
  */
 export async function PATCH(req: NextRequest) {
@@ -19,24 +19,12 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const data = (await req.json()) as Partial<
-      Pick<User, "baseCurrency" | "currentCityId" | "name">
-    >;
-    const { baseCurrency, currentCityId, name } = data;
+    const data = (await req.json()) as Partial<Pick<User, "currentCityId" | "name">>;
+    const { currentCityId, name } = data;
     const userId = user.id;
 
     // 验证输入
-    const updateData: Partial<Pick<User, "baseCurrency" | "name">> = {};
-    if (baseCurrency) {
-      // 验证币种格式
-      if (!/^[A-Z]{3}$/.test(baseCurrency)) {
-        return NextResponse.json(
-          { error: "Invalid currency format. Must be 3 uppercase letters." },
-          { status: 400 },
-        );
-      }
-      updateData.baseCurrency = baseCurrency;
-    }
+    const updateData: Partial<Pick<User, "name">> = {};
 
     if (currentCityId) {
       return NextResponse.json(
@@ -64,7 +52,6 @@ export async function PATCH(req: NextRequest) {
         id: true,
         email: true,
         name: true,
-        baseCurrency: true,
         currentCityId: true,
         displayCurrency: true,
       },

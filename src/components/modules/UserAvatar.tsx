@@ -17,7 +17,6 @@ interface UserInfo {
   id: string;
   email: string;
   name: string;
-  baseCurrency: string;
 }
 
 export default function UserAvatar() {

@@ -82,7 +82,6 @@ async function seed() {
       email: "demo@example.com",
       password: "hashed",
       name: "Demo",
-      baseCurrency: "CNY",
       displayCurrency: "USD",
       currentCityId: hz.id,
     },
