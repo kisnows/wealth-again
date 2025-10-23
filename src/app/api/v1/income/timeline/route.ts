@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const displayCurrency = searchParams.get("displayCurrency");
 
   if (!from || !to) {
     return NextResponse.json(
@@ -20,7 +21,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await buildIncomeTimeline(user.id, from, to);
+    const result = await buildIncomeTimeline(
+      user.id,
+      from,
+      to,
+      displayCurrency ?? undefined,
+    );
     return NextResponse.json(result);
   } catch (error) {
     console.error("income timeline error", error);

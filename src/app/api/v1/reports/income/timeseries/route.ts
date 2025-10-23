@@ -1,10 +1,7 @@
-import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
-import {
-  ensureIncomeRecordsForUser,
-  summarizeIncomeRecords,
-} from "@/server/services/income";
+import type { IncomeRecordsSummary } from "@/server/services/income";
+import { ensureIncomeRecordsForUser } from "@/server/services/income";
+import { buildIncomeTimeline } from "@/server/services/income-timeline";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
@@ -17,6 +14,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const displayCurrency = searchParams.get("displayCurrency");
   if (!from || !to)
     return NextResponse.json({ error: "from & to required" }, { status: 400 });
   const user = await getUserFromRequest(req);
@@ -24,49 +22,78 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
   await ensureIncomeRecordsForUser(userId);
-  const items = await prisma.incomeRecord.findMany({
-    where: {
-      userId,
-      monthDate: { gte: new Date(from), lte: new Date(to) },
-    },
-    orderBy: { monthDate: "asc" },
-  });
-  const toNumber = (value: Prisma.Decimal | number | null | undefined) =>
-    Number(value ?? 0);
+  const timeline = await buildIncomeTimeline(
+    userId,
+    from,
+    to,
+    displayCurrency ?? undefined,
+  );
+  const actualItems = timeline.items.filter((item) => !item.isForecast);
+
   const series = {
-    gross: items.map((r) => ({
-      month: r.monthDate,
-      value: toNumber(r.gross),
+    gross: actualItems.map((item) => ({
+      month: item.monthDate,
+      value: item.gross,
     })),
-    bonus: items.map((r) => ({
-      month: r.monthDate,
-      value: toNumber(r.bonus),
+    bonus: actualItems.map((item) => ({
+      month: item.monthDate,
+      value: item.bonus,
     })),
-    ltcIncome: items.map((r) => ({
-      month: r.monthDate,
-      value: toNumber(r.ltcIncome),
+    ltcIncome: actualItems.map((item) => ({
+      month: item.monthDate,
+      value: item.ltcIncome,
     })),
-    equityIncome: items.map((r) => ({
-      month: r.monthDate,
-      value: toNumber(r.equityIncome),
+    equityIncome: actualItems.map((item) => ({
+      month: item.monthDate,
+      value: item.equityIncome,
     })),
-    socialInsurance: items.map((r) => ({
-      month: r.monthDate,
-      value: toNumber(r.socialInsurance),
+    socialInsurance: actualItems.map((item) => ({
+      month: item.monthDate,
+      value: item.socialInsurance,
     })),
-    housingFund: items.map((r) => ({
-      month: r.monthDate,
-      value: toNumber(r.housingFund),
+    housingFund: actualItems.map((item) => ({
+      month: item.monthDate,
+      value: item.housingFund,
     })),
-    incomeTax: items.map((r) => ({
-      month: r.monthDate,
-      value: toNumber(r.incomeTax),
+    incomeTax: actualItems.map((item) => ({
+      month: item.monthDate,
+      value: item.incomeTax,
     })),
-    netIncome: items.map((r) => ({
-      month: r.monthDate,
-      value: toNumber(r.netIncome),
+    netIncome: actualItems.map((item) => ({
+      month: item.monthDate,
+      value: item.netIncome,
     })),
   };
-  const summary = summarizeIncomeRecords(items);
+
+  const totalsActual = timeline.summary.totals.actual;
+  const totalIncome =
+    totalsActual.gross +
+    totalsActual.bonus +
+    totalsActual.ltcIncome +
+    totalsActual.equityIncome;
+  const totalSpecialDeductions = actualItems.reduce(
+    (acc, item) => acc + item.specialDeductions,
+    0,
+  );
+  const latestActual = actualItems[actualItems.length - 1] ?? null;
+
+  const summary: IncomeRecordsSummary = {
+    months: actualItems.length,
+    currency: timeline.summary.currency,
+    totalGross: totalsActual.gross,
+    totalBonus: totalsActual.bonus,
+    totalLtc: totalsActual.ltcIncome,
+    totalEquity: totalsActual.equityIncome,
+    totalSocialInsurance: totalsActual.socialInsurance,
+    totalHousingFund: totalsActual.housingFund,
+    totalSpecialDeductions,
+    totalTax: totalsActual.incomeTax,
+    totalNet: totalsActual.netIncome,
+    totalIncome,
+    avgTaxRate: totalIncome > 0 ? (totalsActual.incomeTax / totalIncome) * 100 : 0,
+    latestTaxPaid: latestActual?.incomeTax ?? 0,
+    latestTaxCumulative: latestActual?.taxPaidCumulative ?? 0,
+  };
+
   return NextResponse.json({ series, summary });
 }

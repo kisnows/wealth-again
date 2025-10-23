@@ -9,6 +9,7 @@ export type CurrentUser = {
   name?: string | null;
   baseCurrency: string;
   currentCityId: string;
+  displayCurrency: string | null;
 };
 
 export type CurrentCity = {
@@ -43,6 +44,14 @@ export function useCurrentUser() {
 export async function updateBaseCurrency(baseCurrency: string) {
   const result = await patchJson<CurrentUser>("/api/v1/user/profile", {
     baseCurrency,
+  });
+  await globalMutate(USER_PROFILE_KEY);
+  return result;
+}
+
+export async function updateDisplayCurrency(displayCurrency: string | null) {
+  const result = await patchJson<CurrentUser>("/api/v1/auth/me", {
+    displayCurrency,
   });
   await globalMutate(USER_PROFILE_KEY);
   return result;

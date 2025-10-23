@@ -76,6 +76,7 @@ export default function IncomeAnalyticsPanel({
   const { data, error, isLoading, mutate } = useIncomeTimeline(
     range.from,
     range.to,
+    displayCurrency ?? undefined,
   );
   const [editingItem, setEditingItem] = useState<IncomeTimelineItem | null>(null);
   const [manualNetInput, setManualNetInput] = useState("");

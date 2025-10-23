@@ -50,6 +50,7 @@ import { useAnnualDeductions } from "@/lib/api/income";
 import {
   type CityChangeItem,
   createCityChange,
+  updateDisplayCurrency,
   useCityChanges,
   useCurrentUser,
 } from "@/lib/api/user";
@@ -192,10 +193,30 @@ export default function SettingsPage() {
     [cityChangeData?.items],
   );
 
+  const applyDisplayCurrency = async (
+    nextValue: string | null,
+    successMessage: string,
+  ) => {
+    const normalized =
+      nextValue != null ? nextValue.trim().toUpperCase() : null;
+    if (normalized === displayCurrency) return;
+    const previous = displayCurrency ?? null;
+    setDisplayCurrency(normalized);
+    try {
+      await updateDisplayCurrency(normalized);
+      toast.success(successMessage);
+    } catch (error) {
+      setDisplayCurrency(previous);
+      toast.error(extractErrorMessage(error, "展示币种更新失败，请稍后再试"));
+    }
+  };
+
   const handleDisplayCurrencyPreference = (nextValue: string) => {
-    if (!nextValue || nextValue === displayCurrency) return;
-    setDisplayCurrency(nextValue);
-    toast.success(`展示币种偏好已更新为 ${nextValue}`);
+    if (!nextValue) return;
+    void applyDisplayCurrency(
+      nextValue,
+      `展示币种偏好已更新为 ${nextValue.toUpperCase()}`,
+    );
   };
 
   const handleAsOfDateUpdate = (value: string) => {
@@ -290,8 +311,10 @@ export default function SettingsPage() {
                     data-testid="settings-ui-pref-display-reset"
                     onClick={() => {
                       if (displayCurrency == null) return;
-                      setDisplayCurrency(null);
-                      toast.success("展示币种偏好已恢复为自动模式");
+                      void applyDisplayCurrency(
+                        null,
+                        "展示币种偏好已恢复为自动模式",
+                      );
                     }}
                     size="sm"
                     type="button"

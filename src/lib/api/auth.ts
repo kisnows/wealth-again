@@ -10,6 +10,7 @@ export interface CurrentUser {
   name?: string;
   baseCurrency: string;
   currentCityId: string;
+  displayCurrency: string | null;
 }
 
 // 获取当前用户信息的hook

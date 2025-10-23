@@ -108,6 +108,7 @@ export default function DashboardPage() {
     undefined,
     `${currentYear}-01-01`,
     `${currentYear}-12-01`,
+    displayCurrency ?? undefined,
   );
 
   const totals = dashboardData?.totals ?? {

@@ -24,11 +24,13 @@
 ### 二、待办事项拆解
 
 #### 1. 服务层与领域逻辑
-- [ ] `src/server/services/income.ts` / `income-timeline.ts`
+- [x] `src/server/services/income.ts` / `income-timeline.ts`
+  - 2025-02-19：收入回算改为按 `TaxContext` 分段累计，并在回算/时间线层统一通过 `FxSnapshot` 进行币种折算。
   - 替换 `fxRateId` 依赖，基于 `fxSnapshotId` + `fxAppliedRate` 进行累计换算。
   - 在 `calculateTax` 调用处处理快照币种与规则币种的差异，必要时调用 `convert`。
   - 补充城市/国家切换时累计字段重置逻辑。
-- [ ] `src/server/services/tax.ts`
+- [x] `src/server/services/tax.ts`
+  - 2025-02-19：新增 `getTaxContext` 与 `computeCumulativeTax`，替换旧的单一税率表计算逻辑，支持多币种与生效区间。
   - 已加入委托兜底，但需将 `calculateTax` 的入口改造为快照感知（例如对传入的收入记录进行币种换算）。
   - 更新 `TaxService` 测试，覆盖多币种税率场景。
 - [ ] `src/server/services/income-forecast.ts` / 相关任务处理器
@@ -44,11 +46,12 @@
 
 #### 3. 前端（Next.js App Router）
 - [ ] `/settings`
-  - 展示基础币种与展示币种的区别，新增双重确认弹窗（`data-testid="settings-ui-base-currency-dialog"`）。
-  - 操作成功后提示异步重算进度（可轮询 `rebaseDisplayAmounts` 任务占位 API）。
+  - [x] 展示币种偏好持久化到用户表，支持全局 SWR 同步与 Dashboard/Income 刷新。
+  - [ ] 展示基础币种与展示币种的区别，新增双重确认弹窗（`data-testid="settings-ui-base-currency-dialog"`）。
+  - [ ] 操作成功后提示异步重算进度（可轮询 `rebaseDisplayAmounts` 任务占位 API）。
 - [ ] `/income/*`
-  - 与 `IncomeAnalyticsPanel` 联动，显示记录币种、快照信息以及折算后的展示金额。
-  - 表单写入时补充 `sourceCurrency` / `fxSnapshotId`。
+  - [x] 与 `IncomeAnalyticsPanel` 联动，显示记录币种、快照信息以及折算后的展示金额。
+  - [ ] 表单写入时补充 `sourceCurrency` / `fxSnapshotId`。
 - [ ] `/accounts`、`/entries/*`
   - 转账弹窗展示实时快照说明（当转换依赖历史速率时，需要提示用户 `asOf` 日期）。
   - Dashboard 中 `accountType` 汇总需改造为类型安全（当前 `any`）。

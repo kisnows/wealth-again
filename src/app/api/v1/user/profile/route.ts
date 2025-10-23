@@ -66,6 +66,7 @@ export async function PATCH(req: NextRequest) {
         name: true,
         baseCurrency: true,
         currentCityId: true,
+        displayCurrency: true,
       },
     });
 

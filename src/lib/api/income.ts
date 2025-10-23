@@ -68,6 +68,7 @@ export type IncomeTimelineItem = {
   monthDate: string;
   month: string;
   currency: string;
+  sourceCurrency?: string | null;
   cityId: string | null;
   gross: number;
   bonus: number;
@@ -181,9 +182,17 @@ export function useIncomeRecords(
   }>(key, getJson);
 }
 
-export function useIncomeTimeline(from: string, to: string) {
+export function useIncomeTimeline(
+  from: string,
+  to: string,
+  displayCurrency?: string | null,
+) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  if (displayCurrency) params.set("displayCurrency", displayCurrency);
   const key =
-    from && to ? `/api/v1/income/timeline?from=${from}&to=${to}` : null;
+    from && to ? `/api/v1/income/timeline?${params.toString()}` : null;
   return useSWR<IncomeTimelineResponse>(key, getJson);
 }
 

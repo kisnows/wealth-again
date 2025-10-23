@@ -55,10 +55,16 @@ export function useIncomeTimeseries(
   userId: string | undefined,
   from: string,
   to: string,
+  displayCurrency?: string | null,
 ) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  if (userId) params.set("userId", userId);
+  if (displayCurrency) params.set("displayCurrency", displayCurrency);
   const key =
     from && to
-      ? `/api/v1/reports/income/timeseries?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}`
+      ? `/api/v1/reports/income/timeseries?${params.toString()}`
       : null;
   return useSWR<{
     series: Record<string, Array<{ month: string; value: number }>>;

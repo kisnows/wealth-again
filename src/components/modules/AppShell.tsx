@@ -2,19 +2,37 @@
 import { BookMarked, Layers3, LayoutDashboard, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import UserAvatar from "@/components/modules/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useUserPrefsStore } from "@/lib/state/user-prefs";
+import { useCurrentUser } from "@/lib/api/auth";
 
 type Props = { children: ReactNode };
 
 export default function AppShell({ children }: Props) {
   const pathname = usePathname();
-  const { displayCurrency, asOfDate } = useUserPrefsStore();
+  const { data: currentUser } = useCurrentUser();
+  const { displayCurrency, asOfDate, setDisplayCurrency } = useUserPrefsStore(
+    (state) => ({
+      displayCurrency: state.displayCurrency,
+      asOfDate: state.asOfDate,
+      setDisplayCurrency: state.setDisplayCurrency,
+    }),
+  );
+
+  useEffect(() => {
+    if (
+      currentUser &&
+      currentUser.displayCurrency !== undefined &&
+      currentUser.displayCurrency !== displayCurrency
+    ) {
+      setDisplayCurrency(currentUser.displayCurrency);
+    }
+  }, [currentUser?.displayCurrency, displayCurrency, setDisplayCurrency]);
   const nav = [
     {
       href: "/dashboard",

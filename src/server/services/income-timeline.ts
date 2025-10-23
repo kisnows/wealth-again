@@ -7,7 +7,13 @@ import type {
 } from "@prisma/client";
 import prisma from "@/server/db";
 import { ensureIncomeRecordsForUser } from "@/server/services/income";
-import { calculateTax } from "@/server/services/tax";
+import {
+  computeCumulativeTax,
+  getTaxContext,
+  type TaxComputationInput,
+  type TaxContext,
+} from "@/server/services/tax";
+import { convert } from "@/server/services/fx";
 
 type TimelineSource = "system" | "manual" | "forecast";
 
@@ -16,6 +22,7 @@ export type TimelineItem = {
   monthDate: string;
   month: string;
   currency: string;
+  sourceCurrency: string | null;
   cityId: string | null;
   gross: number;
   bonus: number;
@@ -92,6 +99,106 @@ const monthKey = (date: Date) =>
 const monthStartUTC = (date: Date) =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 
+const normalizeCurrency = (value?: string | null) => {
+  if (!value) return "CNY";
+  return value.trim().toUpperCase() || "CNY";
+};
+
+const monthCacheKey = (date: Date) =>
+  monthStartUTC(date).toISOString().slice(0, 10);
+
+type ConversionCacheValue = {
+  rate: number;
+};
+
+async function ensureConversionRate(
+  cache: Map<string, ConversionCacheValue>,
+  from: string,
+  to: string,
+  asOf: Date,
+): Promise<ConversionCacheValue> {
+  const normalizedFrom = normalizeCurrency(from);
+  const normalizedTo = normalizeCurrency(to);
+  if (normalizedFrom === normalizedTo) return { rate: 1 };
+  const key = `${normalizedFrom}->${normalizedTo}::${monthCacheKey(asOf)}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const result = await convert(1, normalizedFrom, normalizedTo, asOf);
+  const value: ConversionCacheValue = {
+    rate:
+      typeof result.effectiveRate === "number" && Number.isFinite(result.effectiveRate)
+        ? result.effectiveRate
+        : result.amount,
+  };
+  cache.set(key, value);
+  return value;
+}
+
+async function convertAmountValue(
+  cache: Map<string, ConversionCacheValue>,
+  amount: number,
+  from: string,
+  to: string,
+  asOf: Date,
+) {
+  const normalizedFrom = normalizeCurrency(from);
+  const normalizedTo = normalizeCurrency(to);
+  if (normalizedFrom === normalizedTo) {
+    return { amount, rate: 1 };
+  }
+  if (!Number.isFinite(amount) || amount === 0) {
+    const info = await ensureConversionRate(cache, normalizedFrom, normalizedTo, asOf);
+    return { amount: amount * info.rate, rate: info.rate };
+  }
+  const info = await ensureConversionRate(cache, normalizedFrom, normalizedTo, asOf);
+  return { amount: amount * info.rate, rate: info.rate };
+}
+
+async function convertTimelineItemCurrency(
+  item: TimelineItem,
+  targetCurrency: string,
+  cache: Map<string, ConversionCacheValue>,
+) {
+  const sourceCurrency = normalizeCurrency(item.currency);
+  if (sourceCurrency === targetCurrency) {
+    return {
+      ...item,
+      currency: targetCurrency,
+      sourceCurrency: item.sourceCurrency ?? sourceCurrency,
+    };
+  }
+  const { rate } = await ensureConversionRate(
+    cache,
+    sourceCurrency,
+    targetCurrency,
+    new Date(item.monthDate),
+  );
+  const apply = (value: number) =>
+    Number.isFinite(value) ? value * rate : value;
+  return {
+    ...item,
+    currency: targetCurrency,
+    sourceCurrency: item.sourceCurrency ?? sourceCurrency,
+    gross: apply(item.gross),
+    bonus: apply(item.bonus),
+    ltcIncome: apply(item.ltcIncome),
+    equityIncome: apply(item.equityIncome),
+    socialInsurance: apply(item.socialInsurance),
+    housingFund: apply(item.housingFund),
+    specialDeductions: apply(item.specialDeductions),
+    taxableCurrent: apply(item.taxableCurrent),
+    taxableCumulative: apply(item.taxableCumulative),
+    taxCumulative: apply(item.taxCumulative),
+    taxPaidCumulative: apply(item.taxPaidCumulative),
+    incomeTax: apply(item.incomeTax),
+    netIncome: apply(item.netIncome),
+    manualNet:
+      item.manualNet !== null && item.manualNet !== undefined
+        ? apply(item.manualNet)
+        : item.manualNet,
+  };
+}
+
 const addMonths = (date: Date, count: number) =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + count, 1));
 
@@ -105,6 +212,9 @@ const enumerateMonths = (start: Date, end: Date) => {
   }
   return months;
 };
+
+const isWithinMonth = (value: Date, start: Date, next: Date) =>
+  value >= start && value < next;
 
 type CityMeta = { id: string; country: string };
 
@@ -132,42 +242,6 @@ function buildCityResolver(
   };
 }
 
-type TaxBaseline = {
-  standard: number;
-  special: number;
-};
-
-async function getTaxBaseline(
-  country: string,
-  year: number,
-  cache: Map<string, TaxBaseline>,
-): Promise<TaxBaseline> {
-  const key = `${country}-${year}`;
-  const cached = cache.get(key);
-  if (cached) return cached;
-  const config =
-    (await prisma.taxConfig.findFirst({
-      where: {
-        country,
-        effectiveFrom: { lte: new Date(Date.UTC(year, 11, 31)) },
-        OR: [
-          { effectiveTo: null },
-          { effectiveTo: { gt: new Date(Date.UTC(year, 0, 1)) } },
-        ],
-      },
-      orderBy: { effectiveFrom: "desc" },
-    })) ??
-    (await prisma.taxConfig.findUnique({
-      where: { country_taxYear: { country, taxYear: year } },
-    }));
-  const standardValue = toNumber(config?.standardDeduction);
-  const standard = standardValue > 0 ? standardValue : 5000;
-  const special = toNumber(config?.specialAdditionalDeduction);
-  const baseline = { standard, special };
-  cache.set(key, baseline);
-  return baseline;
-}
-
 const zeroTotals = (): TimelineTotals => ({
   gross: 0,
   bonus: 0,
@@ -191,10 +265,15 @@ type ForecastMeta = {
   housingFund: number;
   specialDeductions: number;
   taxableCurrent: number;
+  taxContext: TaxContext;
 };
 
 function toTimelineItem(record: IncomeRecord): TimelineItem {
   const currency = record.currency || "CNY";
+  const sourceCurrency =
+    record.sourceCurrency && record.sourceCurrency.length > 0
+      ? record.sourceCurrency
+      : currency;
   const manualNet =
     record.manualNet !== null && record.manualNet !== undefined
       ? toNumber(record.manualNet)
@@ -206,6 +285,7 @@ function toTimelineItem(record: IncomeRecord): TimelineItem {
     monthDate: record.monthDate.toISOString(),
     month: monthKey(record.monthDate),
     currency,
+    sourceCurrency,
     cityId: record.cityId,
     gross: toNumber(record.gross),
     bonus: toNumber(record.bonus),
@@ -231,31 +311,11 @@ function toTimelineItem(record: IncomeRecord): TimelineItem {
   };
 }
 
-function sumWithinMonth<T extends { [key: string]: unknown }>(
-  items: T[],
-  dateKey: keyof T,
-  monthDate: Date,
-  nextMonth: Date,
-  amountKey: keyof T,
-): number {
-  return items
-    .filter((item) => {
-      const raw = item[dateKey];
-      if (!raw) return false;
-      const date = new Date(raw as string | Date);
-      return date >= monthDate && date < nextMonth;
-    })
-    .reduce((sum, item) => {
-      const rawAmount = item[amountKey];
-      return sum + toNumber(rawAmount);
-    }, 0);
-}
-
 function getSalaryForMonth(
   monthDate: Date,
   nextMonth: Date,
   salaryChanges: IncomeChange[],
-): number {
+): { amount: number; currency: string } {
   let latest: IncomeChange | null = null;
   for (const change of salaryChanges) {
     const effective = new Date(change.effectiveFrom);
@@ -267,7 +327,13 @@ function getSalaryForMonth(
       break;
     }
   }
-  return latest ? toNumber(latest.grossMonthly) : 0;
+  if (!latest) {
+    return { amount: 0, currency: "CNY" };
+  }
+  return {
+    amount: toNumber(latest.grossMonthly),
+    currency: normalizeCurrency(latest.currency),
+  };
 }
 
 async function computeForecastMeta(
@@ -278,36 +344,71 @@ async function computeForecastMeta(
   equityVests: EquityVest[],
   resolveCity: (monthDate: Date) => string,
   cityMetaMap: Map<string, CityMeta>,
-  country: string,
-  taxBaselineCache: Map<string, TaxBaseline>,
   annualDeductionMap: Map<number, number>,
-  baseCurrency: string,
+  conversionCache: Map<string, ConversionCacheValue>,
 ): Promise<ForecastMeta> {
   const nextMonth = addMonths(monthDate, 1);
-  const salary = getSalaryForMonth(monthDate, nextMonth, salaryChanges);
-  const bonus = sumWithinMonth(
-    bonusPlans,
-    "effectiveDate",
-    monthDate,
-    nextMonth,
-    "amount",
-  );
-  const ltc = sumWithinMonth(
-    ltcPayouts,
-    "payDate",
-    monthDate,
-    nextMonth,
-    "amount",
-  );
-  const equity = sumWithinMonth(
-    equityVests,
-    "vestDate",
-    monthDate,
-    nextMonth,
-    "fairValue",
-  );
-
   const cityId = resolveCity(monthDate);
+  const cityMeta = cityMetaMap.get(cityId);
+  const country = cityMeta?.country ?? "CN";
+  const taxContext = await getTaxContext(country, monthDate);
+  const targetCurrency = taxContext.currency;
+
+  const salaryInfo = getSalaryForMonth(monthDate, nextMonth, salaryChanges);
+  const salaryConverted =
+    salaryInfo.amount !== 0
+      ? await convertAmountValue(
+          conversionCache,
+          salaryInfo.amount,
+          salaryInfo.currency,
+          targetCurrency,
+          monthDate,
+        )
+      : { amount: 0, rate: 1 };
+  const salary = salaryConverted.amount;
+
+  let bonus = 0;
+  for (const plan of bonusPlans) {
+    const effective = new Date(plan.effectiveDate);
+    if (!isWithinMonth(effective, monthDate, nextMonth)) continue;
+    const converted = await convertAmountValue(
+      conversionCache,
+      toNumber(plan.amount),
+      plan.currency,
+      targetCurrency,
+      monthDate,
+    );
+    bonus += converted.amount;
+  }
+
+  let ltc = 0;
+  for (const payout of ltcPayouts) {
+    const payDate = new Date(payout.payDate);
+    if (!isWithinMonth(payDate, monthDate, nextMonth)) continue;
+    const converted = await convertAmountValue(
+      conversionCache,
+      toNumber(payout.amount),
+      payout.currency,
+      targetCurrency,
+      monthDate,
+    );
+    ltc += converted.amount;
+  }
+
+  let equity = 0;
+  for (const vest of equityVests) {
+    const vestDate = new Date(vest.vestDate);
+    if (!isWithinMonth(vestDate, monthDate, nextMonth)) continue;
+    const converted = await convertAmountValue(
+      conversionCache,
+      toNumber(vest.fairValue),
+      vest.currency,
+      targetCurrency,
+      monthDate,
+    );
+    equity += converted.amount;
+  }
+
   const ssRule = await prisma.cityRuleSS.findFirst({
     where: {
       cityId,
@@ -316,6 +417,46 @@ async function computeForecastMeta(
     },
     orderBy: { effectiveFrom: "desc" },
   });
+  let socialInsurance = 0;
+  if (ssRule && salaryInfo.amount > 0) {
+    const ssCurrency = normalizeCurrency(ssRule.currency);
+    const salaryForSS =
+      ssCurrency === salaryInfo.currency
+        ? salaryInfo.amount
+        : (
+            await convertAmountValue(
+              conversionCache,
+              salaryInfo.amount,
+              salaryInfo.currency,
+              ssCurrency,
+              monthDate,
+            )
+          ).amount;
+    const ssBase = clamp(
+      salaryForSS,
+      toNumber(ssRule.baseMin),
+      toNumber(ssRule.baseMax),
+    );
+    const pension = ssBase * toNumber(ssRule.ratePension);
+    const medical =
+      ssBase * toNumber(ssRule.rateMedical) +
+      toNumber(ssRule.fixedMedicalPersonal);
+    const unemployment = ssBase * toNumber(ssRule.rateUnemployment);
+    const total = pension + medical + unemployment;
+    socialInsurance =
+      ssCurrency === targetCurrency
+        ? total
+        : (
+            await convertAmountValue(
+              conversionCache,
+              total,
+              ssCurrency,
+              targetCurrency,
+              monthDate,
+            )
+          ).amount;
+  }
+
   const hfRule = await prisma.cityRuleHF.findFirst({
     where: {
       cityId,
@@ -324,48 +465,60 @@ async function computeForecastMeta(
     },
     orderBy: { effectiveFrom: "desc" },
   });
+  let housingFund = 0;
+  if (hfRule && salaryInfo.amount > 0) {
+    const hfCurrency = normalizeCurrency(hfRule.currency);
+    const salaryForHF =
+      hfCurrency === salaryInfo.currency
+        ? salaryInfo.amount
+        : (
+            await convertAmountValue(
+              conversionCache,
+              salaryInfo.amount,
+              salaryInfo.currency,
+              hfCurrency,
+              monthDate,
+            )
+          ).amount;
+    const hfBase = clamp(
+      salaryForHF,
+      toNumber(hfRule.baseMin),
+      toNumber(hfRule.baseMax),
+    );
+    const total = hfBase * toNumber(hfRule.rateEmployee);
+    housingFund =
+      hfCurrency === targetCurrency
+        ? total
+        : (
+            await convertAmountValue(
+              conversionCache,
+              total,
+              hfCurrency,
+              targetCurrency,
+              monthDate,
+            )
+          ).amount;
+  }
 
   const gross = salary + bonus + ltc + equity;
-  const ssBase =
-    ssRule && salary > 0
-      ? clamp(salary, toNumber(ssRule.baseMin), toNumber(ssRule.baseMax))
-      : salary;
-  const hfBase =
-    hfRule && salary > 0
-      ? clamp(salary, toNumber(hfRule.baseMin), toNumber(hfRule.baseMax))
-      : salary;
-
-  const pension = ssRule ? ssBase * toNumber(ssRule.ratePension) : 0;
-  const medical = ssRule
-    ? ssBase * toNumber(ssRule.rateMedical) + toNumber(ssRule.fixedMedicalPersonal)
-    : 0;
-  const unemployment = ssRule
-    ? ssBase * toNumber(ssRule.rateUnemployment)
-    : 0;
-  const socialInsurance = pension + medical + unemployment;
-  const housingFund = hfRule ? hfBase * toNumber(hfRule.rateEmployee) : 0;
-
   const year = monthDate.getUTCFullYear();
-  const baseline = await getTaxBaseline(
-    country,
-    year,
-    taxBaselineCache,
-  );
   const userAnnual = annualDeductionMap.get(year) ?? 0;
   const userSpecialMonthly = userAnnual / 12;
-  const specialDeductions = baseline.special + userSpecialMonthly;
+  const specialDeductions = taxContext.special + userSpecialMonthly;
 
   const taxableCurrent = Math.max(
     0,
-    gross - socialInsurance - housingFund - baseline.standard - specialDeductions,
+    gross -
+      socialInsurance -
+      housingFund -
+      taxContext.standard -
+      specialDeductions,
   );
-
-  const currency = baseCurrency || "CNY";
 
   return {
     monthDate,
     cityId,
-    currency,
+    currency: targetCurrency,
     gross,
     bonus,
     ltcIncome: ltc,
@@ -374,6 +527,7 @@ async function computeForecastMeta(
     housingFund,
     specialDeductions,
     taxableCurrent,
+    taxContext,
   };
 }
 
@@ -392,6 +546,7 @@ export async function buildIncomeTimeline(
   userId: string,
   from: string,
   to: string,
+  displayCurrency?: string | null,
 ): Promise<IncomeTimelineResponse> {
   const fromDate = monthStartUTC(new Date(from));
   const toDate = monthStartUTC(new Date(to));
@@ -409,13 +564,22 @@ export async function buildIncomeTimeline(
   if (!user) {
     throw new Error("user_not_found");
   }
+  const requestedDisplayCurrency =
+    displayCurrency && displayCurrency.trim().length > 0
+      ? displayCurrency.trim().toUpperCase()
+      : null;
+  const defaultSummaryCurrency =
+    user.displayCurrency ?? user.baseCurrency ?? "USD";
+  const summaryCurrency = normalizeCurrency(
+    requestedDisplayCurrency ?? defaultSummaryCurrency,
+  );
 
   const months = enumerateMonths(fromDate, toDate);
   if (months.length === 0) {
     return {
       items: [],
       summary: {
-        currency: user.baseCurrency ?? "CNY",
+        currency: summaryCurrency,
         counts: { total: 0, actual: 0, forecast: 0 },
         totals: {
           actual: zeroTotals(),
@@ -534,18 +698,21 @@ export async function buildIncomeTimeline(
     annualDeductionMap.set(item.taxYear, toNumber(item.annualAmount));
   });
 
-  const taxBaselineCache = new Map<string, TaxBaseline>();
   const representativeCountry =
     cityMetaMap.get(fallbackCityId)?.country ??
     user.currentCity?.country ??
     "CN";
 
   const items: TimelineItem[] = [];
+  const conversionCache = new Map<string, ConversionCacheValue>();
+  const displayConversionCache = new Map<string, ConversionCacheValue>();
 
   for (let year = minYear; year <= maxYear; year++) {
     const yearStart = new Date(Date.UTC(year, 0, 1));
     const yearEnd = new Date(Date.UTC(year, 11, 1));
-    const monthlyTaxables = new Array(12).fill(0);
+    const taxInputs: Array<TaxComputationInput | null> = new Array(12).fill(
+      null,
+    );
     const monthlyOutputs: Array<TimelineItem | null> = new Array(12).fill(null);
     const monthlyForecastMeta: Array<ForecastMeta | null> = new Array(12).fill(
       null,
@@ -557,8 +724,17 @@ export async function buildIncomeTimeline(
       const key = monthKey(currentMonth);
       const record = recordMap.get(key);
       if (record) {
-        monthlyTaxables[monthIndex] = toNumber(record.taxableCurrent);
         monthlyOutputs[monthIndex] = toTimelineItem(record);
+        const recordCityId = record.cityId ?? resolveCity(currentMonth);
+        const recordCity =
+          recordCityId && cityMetaMap.has(recordCityId)
+            ? cityMetaMap.get(recordCityId)!
+            : { id: recordCityId, country: representativeCountry };
+        const context = await getTaxContext(recordCity.country, currentMonth);
+        taxInputs[monthIndex] = {
+          taxable: toNumber(record.taxableCurrent),
+          context,
+        };
         continue;
       }
 
@@ -567,7 +743,16 @@ export async function buildIncomeTimeline(
         currentMonth < fromDate ||
         currentMonth > toDate
       ) {
-        monthlyTaxables[monthIndex] = 0;
+        const cityIdForContext = resolveCity(currentMonth);
+        const cityForContext =
+          cityIdForContext && cityMetaMap.has(cityIdForContext)
+            ? cityMetaMap.get(cityIdForContext)!
+            : { id: cityIdForContext, country: representativeCountry };
+        const context = await getTaxContext(
+          cityForContext.country,
+          currentMonth,
+        );
+        taxInputs[monthIndex] = { taxable: 0, context };
         continue;
       }
 
@@ -579,20 +764,17 @@ export async function buildIncomeTimeline(
         equityVests,
         resolveCity,
         cityMetaMap,
-        representativeCountry,
-        taxBaselineCache,
         annualDeductionMap,
-        user.baseCurrency ?? "CNY",
+        conversionCache,
       );
-      monthlyTaxables[monthIndex] = meta.taxableCurrent;
       monthlyForecastMeta[monthIndex] = meta;
+      taxInputs[monthIndex] = {
+        taxable: meta.taxableCurrent,
+        context: meta.taxContext,
+      };
     }
 
-    const taxResults = await calculateTax({
-      country: representativeCountry,
-      taxYear: year,
-      monthlyTaxables,
-    });
+    const taxResults = computeCumulativeTax(taxInputs);
 
     for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
       const currentMonth = new Date(Date.UTC(year, monthIndex, 1));
@@ -620,7 +802,8 @@ export async function buildIncomeTimeline(
         recordId: null,
         monthDate: meta.monthDate.toISOString(),
         month: monthKey(meta.monthDate),
-        currency: user.baseCurrency ?? meta.currency ?? "CNY",
+        currency: meta.currency,
+        sourceCurrency: meta.currency,
         cityId: meta.cityId,
         gross: meta.gross,
         bonus: meta.bonus,
@@ -647,10 +830,23 @@ export async function buildIncomeTimeline(
     a.monthDate < b.monthDate ? -1 : a.monthDate > b.monthDate ? 1 : 0,
   );
 
+  const timelineItems =
+    requestedDisplayCurrency && summaryCurrency
+      ? await Promise.all(
+          items.map((item) =>
+            convertTimelineItemCurrency(
+              item,
+              summaryCurrency,
+              displayConversionCache,
+            ),
+          ),
+        )
+      : items;
+
   const totalsActual = zeroTotals();
   const totalsForecast = zeroTotals();
 
-  items.forEach((item) => {
+  timelineItems.forEach((item) => {
     if (item.isForecast) {
       accumulateTotals(totalsForecast, item);
     } else {
@@ -671,13 +867,13 @@ export async function buildIncomeTimeline(
   };
 
   return {
-    items,
+    items: timelineItems,
     summary: {
-      currency: user.baseCurrency ?? "CNY",
+      currency: summaryCurrency,
       counts: {
-        total: items.length,
-        actual: items.filter((item) => !item.isForecast).length,
-        forecast: items.filter((item) => item.isForecast).length,
+        total: timelineItems.length,
+        actual: timelineItems.filter((item) => !item.isForecast).length,
+        forecast: timelineItems.filter((item) => item.isForecast).length,
       },
       totals: {
         actual: totalsActual,

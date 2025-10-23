@@ -1,7 +1,16 @@
 import type { IncomeRecord } from "@prisma/client";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
-import { calculateTax } from "@/server/services/tax";
+import {
+  computeCumulativeTax,
+  getTaxContext,
+  type TaxContext,
+  type TaxComputationInput,
+} from "@/server/services/tax";
+import {
+  convert,
+  type FxSnapshotInfo,
+} from "@/server/services/fx";
 
 type RecalcParams = {
   taxYear: number;
@@ -16,6 +25,93 @@ const clamp = (value: number, min: number, max: number) =>
 
 const monthStartUTC = (date: Date) =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+
+const normalizeCurrency = (value?: string | null) => {
+  if (!value) return "CNY";
+  return value.trim().toUpperCase() || "CNY";
+};
+
+const monthCacheKey = (date: Date) =>
+  monthStartUTC(date).toISOString().slice(0, 10);
+
+type ConversionCacheValue = {
+  rate: number;
+  snapshot: FxSnapshotInfo | null;
+};
+
+async function ensureConversionRate(
+  cache: Map<string, ConversionCacheValue>,
+  from: string,
+  to: string,
+  asOf: Date,
+): Promise<ConversionCacheValue> {
+  const normalizedFrom = normalizeCurrency(from);
+  const normalizedTo = normalizeCurrency(to);
+  if (normalizedFrom === normalizedTo) return { rate: 1, snapshot: null };
+  const key = `${normalizedFrom}->${normalizedTo}::${monthCacheKey(asOf)}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const result = await convert(1, normalizedFrom, normalizedTo, asOf);
+  const snapshot =
+    result.snapshots.find(
+      (item) => normalizeCurrency(item.quoteCurrency) === normalizedTo,
+    ) ?? result.snapshots[0] ?? null;
+  const value: ConversionCacheValue = {
+    rate:
+      typeof result.effectiveRate === "number" && Number.isFinite(result.effectiveRate)
+        ? result.effectiveRate
+        : result.amount,
+    snapshot,
+  };
+  cache.set(key, value);
+  return value;
+}
+
+async function convertAmountValue(
+  cache: Map<string, ConversionCacheValue>,
+  amount: number,
+  from: string,
+  to: string,
+  asOf: Date,
+) {
+  const normalizedFrom = normalizeCurrency(from);
+  const normalizedTo = normalizeCurrency(to);
+  if (normalizedFrom === normalizedTo) {
+    return { amount, rate: 1, snapshot: null };
+  }
+  if (!Number.isFinite(amount) || amount === 0) {
+    const info = await ensureConversionRate(cache, normalizedFrom, normalizedTo, asOf);
+    return { amount: amount * info.rate, rate: info.rate, snapshot: info.snapshot };
+  }
+  const info = await ensureConversionRate(cache, normalizedFrom, normalizedTo, asOf);
+  return { amount: amount * info.rate, rate: info.rate, snapshot: info.snapshot };
+}
+
+type MonthComputation = {
+  monthDate: Date;
+  cityId: string;
+  taxContext: TaxContext;
+  currency: string;
+  sourceCurrency: string;
+  fxSnapshotId: string | null;
+  fxAppliedRate: number;
+  gross: number;
+  bonus: number;
+  ltcIncome: number;
+  equityIncome: number;
+  socialInsurance: number;
+  socialInsuranceBase?: number;
+  housingFund: number;
+  housingFundBase?: number;
+  standard: number;
+  special: number;
+  taxableCurrent: number;
+  incomeTax: number;
+  taxPaidCumulative: number;
+  taxableCumulative: number;
+  taxCumulative: number;
+  netIncome: number;
+};
 
 type CityChangeSnapshot = {
   effectiveMonth: Date;
@@ -259,6 +355,7 @@ export async function recalcIncome({
   let updated = 0;
 
   for (const user of users) {
+    const conversionCache = new Map<string, ConversionCacheValue>();
     const cityOverride = cityId ?? null;
 
     const cityChangeRepo = (prisma as any).cityChangeRecord;
@@ -333,41 +430,6 @@ export async function recalcIncome({
         : null;
     if (!representativeCity) continue;
 
-    const monthlyTaxables = new Array(12).fill(0);
-    const monthlyCumTaxables = new Array(12).fill(0);
-    const monthRecords: Array<{
-      monthDate: Date;
-      gross: number;
-      bonus: number;
-      ltcIncome: number;
-      equityIncome: number;
-      socialInsurance: number;
-      housingFund: number;
-      standard: number;
-      special: number;
-      cityId: string;
-    } | null> = new Array(12).fill(null);
-
-    const taxConfig =
-      (await prisma.taxConfig.findFirst({
-        where: {
-          country: representativeCity.country,
-          effectiveFrom: { lte: new Date(Date.UTC(taxYear, 11, 31)) },
-          OR: [
-            { effectiveTo: null },
-            { effectiveTo: { gt: new Date(Date.UTC(taxYear, 0, 1)) } },
-          ],
-        },
-        orderBy: { effectiveFrom: "desc" },
-      })) ??
-      (await prisma.taxConfig.findUnique({
-        where: {
-          country_taxYear: { country: representativeCity.country, taxYear },
-        },
-      }));
-    if (!taxConfig) continue;
-    const standard = Number(taxConfig.standardDeduction || 0);
-    const configSpecial = Number(taxConfig.specialAdditionalDeduction || 0);
     let userAnnualDeduction: { annualAmount?: any } | null = null;
     const userAnnualRepo = (prisma as any).userAnnualDeduction;
     if (userAnnualRepo && typeof userAnnualRepo.findUnique === "function") {
@@ -383,6 +445,13 @@ export async function recalcIncome({
       ? Number(userAnnualDeduction.annualAmount || 0) / 12
       : 0;
 
+    const taxInputs: Array<TaxComputationInput | null> = new Array(12).fill(
+      null,
+    );
+    const monthComputations: Array<MonthComputation | null> = new Array(12).fill(
+      null,
+    );
+
     if (startMonth > 1) {
       const previousRecords = await prisma.incomeRecord.findMany({
         where: {
@@ -394,21 +463,26 @@ export async function recalcIncome({
         },
         orderBy: { monthDate: "asc" },
       });
-      for (const record of previousRecords) {
-        const idx = record.monthDate.getUTCMonth();
-        monthlyTaxables[idx] = Number(record.taxableCurrent || 0);
-        monthRecords[idx] = {
-          monthDate: record.monthDate,
-          gross: Number(record.gross || 0),
-          bonus: Number(record.bonus || 0),
-          ltcIncome: Number(record.ltcIncome || 0),
-          equityIncome: Number(record.equityIncome || 0),
-          socialInsurance: Number(record.socialInsurance || 0),
-          housingFund: Number(record.housingFund || 0),
-          standard,
-          special: Number(record.specialDeductions || 0),
-          cityId: record.cityId || resolveCity(record.monthDate),
-        };
+      const recordsMap = new Map<number, IncomeRecord>();
+      previousRecords.forEach((record) => {
+        recordsMap.set(record.monthDate.getUTCMonth(), record);
+      });
+      for (let m = 1; m < startMonth; m++) {
+        const monthIdx = m - 1;
+        const monthDate = new Date(Date.UTC(taxYear, monthIdx, 1, 0, 0, 0));
+        const existingRecord = recordsMap.get(monthIdx) ?? null;
+        const resolvedCityId =
+          existingRecord?.cityId ?? resolveCity(monthDate);
+        const cityMeta =
+          resolvedCityId && cityMap.has(resolvedCityId)
+            ? cityMap.get(resolvedCityId)!
+            : representativeCity;
+        if (!cityMeta) continue;
+        const context = await getTaxContext(cityMeta.country, monthDate);
+        const taxable = existingRecord
+          ? Number(existingRecord.taxableCurrent || 0)
+          : 0;
+        taxInputs[monthIdx] = { taxable, context };
       }
     }
 
@@ -417,39 +491,152 @@ export async function recalcIncome({
       const nextMonthStart = new Date(Date.UTC(taxYear, m, 1, 0, 0, 0));
       const monthCityId = resolveCity(monthDate);
 
+      const cityMeta =
+        monthCityId && cityMap.has(monthCityId)
+          ? cityMap.get(monthCityId)!
+          : representativeCity;
+      if (!cityMeta) continue;
+
+      const taxContext = await getTaxContext(cityMeta.country, monthDate);
+      const targetCurrency = taxContext.currency;
+
       const incomeChange = await prisma.incomeChange.findFirst({
         where: { userId: user.id, effectiveFrom: { lt: nextMonthStart } },
         orderBy: { effectiveFrom: "desc" },
       });
-      const gross = Number(incomeChange?.grossMonthly || 0);
+      const grossOriginal = Number(incomeChange?.grossMonthly || 0);
+      const grossCurrency = normalizeCurrency(incomeChange?.currency);
+      const monthRecord: MonthComputation = {
+        monthDate,
+        cityId: monthCityId,
+        taxContext,
+        currency: targetCurrency,
+        sourceCurrency: targetCurrency,
+        fxSnapshotId: null,
+        fxAppliedRate: 1,
+        gross: 0,
+        bonus: 0,
+        ltcIncome: 0,
+        equityIncome: 0,
+        socialInsurance: 0,
+        socialInsuranceBase: 0,
+        housingFund: 0,
+        housingFundBase: 0,
+        standard: taxContext.standard,
+        special: 0,
+        taxableCurrent: 0,
+        incomeTax: 0,
+        taxPaidCumulative: 0,
+        taxableCumulative: 0,
+        taxCumulative: 0,
+        netIncome: 0,
+      };
 
-      const bonus = (
-        await prisma.bonusPlan.findMany({
-          where: {
-            userId: user.id,
-            effectiveDate: { gte: monthDate, lt: nextMonthStart },
-          },
-        })
-      ).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const conversionCandidates: Array<{ currency: string; amount: number }> =
+        [];
+      let grossConversion: ConversionCacheValue | null = null;
+      if (grossOriginal !== 0) {
+        conversionCandidates.push({
+          currency: grossCurrency,
+          amount: Math.abs(grossOriginal),
+        });
+        if (normalizeCurrency(grossCurrency) === targetCurrency) {
+          monthRecord.gross = grossOriginal;
+          grossConversion = { rate: 1, snapshot: null };
+        } else {
+          const converted = await convertAmountValue(
+            conversionCache,
+            grossOriginal,
+            grossCurrency,
+            targetCurrency,
+            monthDate,
+          );
+          monthRecord.gross = converted.amount;
+          grossConversion = {
+            rate: converted.rate,
+            snapshot: converted.snapshot,
+          };
+        }
+      }
 
-      const ltcIncome = (
-        await prisma.longTermCashPayout.findMany({
-          where: {
-            plan: { userId: user.id },
-            payDate: { gte: monthDate, lt: nextMonthStart },
-          },
-        })
-      ).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const bonusRows = await prisma.bonusPlan.findMany({
+        where: {
+          userId: user.id,
+          effectiveDate: { gte: monthDate, lt: nextMonthStart },
+        },
+      });
+      let bonusTotal = 0;
+      for (const item of bonusRows) {
+        const amount = Number(item.amount || 0);
+        if (!amount) continue;
+        const itemCurrency = normalizeCurrency(item.currency);
+        const converted = await convertAmountValue(
+          conversionCache,
+          amount,
+          itemCurrency,
+          targetCurrency,
+          monthDate,
+        );
+        bonusTotal += converted.amount;
+        conversionCandidates.push({
+          currency: itemCurrency,
+          amount: Math.abs(amount),
+        });
+      }
+      monthRecord.bonus = bonusTotal;
 
-      const equityIncome = (
-        await prisma.equityVest.findMany({
-          where: {
-            grant: { userId: user.id },
-            vestDate: { gte: monthDate, lt: nextMonthStart },
-            fairValue: { not: null },
-          },
-        })
-      ).reduce((sum, item) => sum + Number(item.fairValue || 0), 0);
+      const ltcRows = await prisma.longTermCashPayout.findMany({
+        where: {
+          plan: { userId: user.id },
+          payDate: { gte: monthDate, lt: nextMonthStart },
+        },
+      });
+      let ltcIncome = 0;
+      for (const payout of ltcRows) {
+        const amount = Number(payout.amount || 0);
+        if (!amount) continue;
+        const payoutCurrency = normalizeCurrency(payout.currency);
+        const converted = await convertAmountValue(
+          conversionCache,
+          amount,
+          payoutCurrency,
+          targetCurrency,
+          monthDate,
+        );
+        ltcIncome += converted.amount;
+        conversionCandidates.push({
+          currency: payoutCurrency,
+          amount: Math.abs(amount),
+        });
+      }
+      monthRecord.ltcIncome = ltcIncome;
+
+      const equityRows = await prisma.equityVest.findMany({
+        where: {
+          grant: { userId: user.id },
+          vestDate: { gte: monthDate, lt: nextMonthStart },
+          fairValue: { not: null },
+        },
+      });
+      let equityIncome = 0;
+      for (const vest of equityRows) {
+        const amount = Number(vest.fairValue || 0);
+        if (!amount) continue;
+        const vestCurrency = normalizeCurrency(vest.currency);
+        const converted = await convertAmountValue(
+          conversionCache,
+          amount,
+          vestCurrency,
+          targetCurrency,
+          monthDate,
+        );
+        equityIncome += converted.amount;
+        conversionCandidates.push({
+          currency: vestCurrency,
+          amount: Math.abs(amount),
+        });
+      }
+      monthRecord.equityIncome = equityIncome;
 
       const ssRule = await prisma.cityRuleSS.findFirst({
         where: {
@@ -459,6 +646,69 @@ export async function recalcIncome({
         },
         orderBy: { effectiveFrom: "desc" },
       });
+      if (ssRule) {
+        const ssCurrency = normalizeCurrency(ssRule.currency);
+        const grossForSS =
+          grossOriginal > 0
+            ? ssCurrency === normalizeCurrency(grossCurrency)
+              ? grossOriginal
+              : (
+                  await convertAmountValue(
+                    conversionCache,
+                    grossOriginal,
+                    grossCurrency,
+                    ssCurrency,
+                    monthDate,
+                  )
+                ).amount
+            : 0;
+        const ssBaseRaw =
+          grossForSS > 0
+            ? clamp(grossForSS, Number(ssRule.baseMin), Number(ssRule.baseMax))
+            : 0;
+        let socialInsuranceRaw = 0;
+        if (ssBaseRaw > 0) {
+          const pension = ssBaseRaw * Number(ssRule.ratePension);
+          const medical =
+            ssBaseRaw * Number(ssRule.rateMedical) +
+            Number(ssRule.fixedMedicalPersonal || 0);
+          const unemployment = ssBaseRaw * Number(ssRule.rateUnemployment);
+          socialInsuranceRaw = pension + medical + unemployment;
+        }
+        let socialInsurance = 0;
+        if (socialInsuranceRaw !== 0) {
+          socialInsurance =
+            ssCurrency === targetCurrency
+              ? socialInsuranceRaw
+              : (
+                  await convertAmountValue(
+                    conversionCache,
+                    socialInsuranceRaw,
+                    ssCurrency,
+                    targetCurrency,
+                    monthDate,
+                  )
+                ).amount;
+        }
+        let socialBaseTarget = 0;
+        if (ssBaseRaw > 0) {
+          socialBaseTarget =
+            ssCurrency === targetCurrency
+              ? ssBaseRaw
+              : (
+                  await convertAmountValue(
+                    conversionCache,
+                    ssBaseRaw,
+                    ssCurrency,
+                    targetCurrency,
+                    monthDate,
+                  )
+                ).amount;
+        }
+        monthRecord.socialInsurance = socialInsurance;
+        monthRecord.socialInsuranceBase = socialBaseTarget;
+      }
+
       const hfRule = await prisma.cityRuleHF.findFirst({
         where: {
           cityId: monthCityId,
@@ -467,78 +717,135 @@ export async function recalcIncome({
         },
         orderBy: { effectiveFrom: "desc" },
       });
+      if (hfRule) {
+        const hfCurrency = normalizeCurrency(hfRule.currency);
+        const grossForHF =
+          grossOriginal > 0
+            ? hfCurrency === normalizeCurrency(grossCurrency)
+              ? grossOriginal
+              : (
+                  await convertAmountValue(
+                    conversionCache,
+                    grossOriginal,
+                    grossCurrency,
+                    hfCurrency,
+                    monthDate,
+                  )
+                ).amount
+            : 0;
+        const hfBaseRaw =
+          grossForHF > 0
+            ? clamp(grossForHF, Number(hfRule.baseMin), Number(hfRule.baseMax))
+            : 0;
+        let housingRaw = 0;
+        if (hfBaseRaw > 0) {
+          housingRaw = hfBaseRaw * Number(hfRule.rateEmployee);
+        }
+        let housingFund = 0;
+        if (housingRaw !== 0) {
+          housingFund =
+            hfCurrency === targetCurrency
+              ? housingRaw
+              : (
+                  await convertAmountValue(
+                    conversionCache,
+                    housingRaw,
+                    hfCurrency,
+                    targetCurrency,
+                    monthDate,
+                  )
+                ).amount;
+        }
+        let housingBaseTarget = 0;
+        if (hfBaseRaw > 0) {
+          housingBaseTarget =
+            hfCurrency === targetCurrency
+              ? hfBaseRaw
+              : (
+                  await convertAmountValue(
+                    conversionCache,
+                    hfBaseRaw,
+                    hfCurrency,
+                    targetCurrency,
+                    monthDate,
+                  )
+                ).amount;
+        }
+        monthRecord.housingFund = housingFund;
+        monthRecord.housingFundBase = housingBaseTarget;
+      }
 
-      const ssBase =
-        ssRule && gross > 0
-          ? clamp(gross, Number(ssRule.baseMin), Number(ssRule.baseMax))
-          : 0;
-      const hfBase =
-        hfRule && gross > 0
-          ? clamp(gross, Number(hfRule.baseMin), Number(hfRule.baseMax))
-          : 0;
-      const pension = ssRule ? ssBase * Number(ssRule.ratePension) : 0;
-      const medical = ssRule
-        ? ssBase * Number(ssRule.rateMedical) +
-          Number(ssRule.fixedMedicalPersonal || 0)
-        : 0;
-      const unemployment = ssRule
-        ? ssBase * Number(ssRule.rateUnemployment)
-        : 0;
-      const socialInsurance = pension + medical + unemployment;
-      const housingFund = hfRule ? hfBase * Number(hfRule.rateEmployee) : 0;
+      const special = taxContext.special + userSpecialMonthly;
+      monthRecord.special = special;
 
-      const special = configSpecial + userSpecialMonthly;
-      const taxable = Math.max(
-        0,
-        gross +
-          bonus +
-          ltcIncome +
-          equityIncome -
-          socialInsurance -
-          housingFund -
-          standard -
-          special,
-      );
+      const taxable =
+        monthRecord.gross +
+        monthRecord.bonus +
+        monthRecord.ltcIncome +
+        monthRecord.equityIncome -
+        monthRecord.socialInsurance -
+        monthRecord.housingFund -
+        taxContext.standard -
+        special;
+      monthRecord.taxableCurrent = Math.max(0, taxable);
 
-      monthlyTaxables[m - 1] = taxable;
-      monthRecords[m - 1] = {
-        monthDate,
-        gross,
-        bonus,
-        ltcIncome,
-        equityIncome,
-        socialInsurance,
-        housingFund,
-        standard,
-        special,
-        cityId: monthCityId,
+      let sourceCurrency = targetCurrency;
+      if (grossOriginal > 0) {
+        sourceCurrency = normalizeCurrency(grossCurrency);
+      } else {
+        const candidate = conversionCandidates.find((item) => item.amount > 0);
+        if (candidate) sourceCurrency = normalizeCurrency(candidate.currency);
+      }
+      monthRecord.sourceCurrency = sourceCurrency;
+
+      if (sourceCurrency === targetCurrency) {
+        monthRecord.fxAppliedRate = 1;
+        monthRecord.fxSnapshotId = null;
+      } else if (
+        grossConversion &&
+        normalizeCurrency(grossCurrency) === sourceCurrency
+      ) {
+        monthRecord.fxAppliedRate = grossConversion.rate;
+        monthRecord.fxSnapshotId = grossConversion.snapshot?.id ?? null;
+      } else {
+        const fxInfo = await ensureConversionRate(
+          conversionCache,
+          sourceCurrency,
+          targetCurrency,
+          monthDate,
+        );
+        monthRecord.fxAppliedRate = fxInfo.rate;
+        monthRecord.fxSnapshotId = fxInfo.snapshot?.id ?? null;
+      }
+
+      monthComputations[m - 1] = monthRecord;
+      taxInputs[m - 1] = {
+        taxable: monthRecord.taxableCurrent,
+        context: taxContext,
       };
     }
 
-    const taxRes = await calculateTax({
-      country: representativeCity.country,
-      taxYear,
-      monthlyTaxables,
-    });
-
-    let cumulativeTaxable = 0;
-    for (let i = 0; i < endMonth; i++) {
-      cumulativeTaxable += Math.max(0, monthlyTaxables[i] || 0);
-      monthlyCumTaxables[i] = cumulativeTaxable;
-    }
-
+    const taxRes = computeCumulativeTax(taxInputs);
     for (let m = startMonth; m <= endMonth; m++) {
-      const record = monthRecords[m - 1];
+      const record = monthComputations[m - 1];
       if (!record) continue;
       const tax = taxRes[m - 1];
-      const net =
+      const monthTax = tax?.monthTax ?? 0;
+      const cumulativePaid = tax?.cumulativePaid ?? monthTax;
+      const cumulativeTaxable = tax?.cumulativeTaxable ?? record.taxableCurrent;
+      const cumulativeTax = tax?.cumulativeTax ?? monthTax;
+      record.incomeTax = monthTax;
+      record.taxPaidCumulative = cumulativePaid;
+      record.taxableCumulative = cumulativeTaxable;
+      record.taxCumulative = cumulativeTax;
+      record.netIncome =
         record.gross +
         record.bonus +
         record.ltcIncome +
         record.equityIncome -
         record.socialInsurance -
         record.housingFund -
-        tax.monthTax;
+        monthTax;
 
       await prisma.incomeRecord.upsert({
         where: {
@@ -549,20 +856,26 @@ export async function recalcIncome({
         },
         update: {
           cityId: record.cityId,
-          currency: user.baseCurrency,
+          currency: record.currency,
+          sourceCurrency: record.sourceCurrency,
+          fxRateId: null,
+          fxSnapshotId: record.fxSnapshotId,
+          fxAppliedRate: record.fxAppliedRate,
           gross: record.gross,
           bonus: record.bonus,
           ltcIncome: record.ltcIncome,
           equityIncome: record.equityIncome,
           socialInsurance: record.socialInsurance,
+          socialInsuranceBase: record.socialInsuranceBase ?? 0,
           housingFund: record.housingFund,
+          housingFundBase: record.housingFundBase ?? 0,
           specialDeductions: record.special,
-          taxableCurrent: monthlyTaxables[m - 1],
-          incomeTax: tax.monthTax,
-          taxPaidCumulative: tax.cumulativePaid,
-          taxableCumulative: monthlyCumTaxables[m - 1],
-          taxCumulative: tax.cumulativeTax,
-          netIncome: net,
+          taxableCurrent: record.taxableCurrent,
+          incomeTax: monthTax,
+          taxPaidCumulative: cumulativePaid,
+          taxableCumulative: cumulativeTaxable,
+          taxCumulative: cumulativeTax,
+          netIncome: record.netIncome,
           source: "system",
           isForecast: false,
         },
@@ -570,20 +883,26 @@ export async function recalcIncome({
           userId: user.id,
           monthDate: record.monthDate,
           cityId: record.cityId,
-          currency: user.baseCurrency,
+          currency: record.currency,
+          sourceCurrency: record.sourceCurrency,
+          fxRateId: null,
+          fxSnapshotId: record.fxSnapshotId,
+          fxAppliedRate: record.fxAppliedRate,
           gross: record.gross,
           bonus: record.bonus,
           ltcIncome: record.ltcIncome,
           equityIncome: record.equityIncome,
           socialInsurance: record.socialInsurance,
+          socialInsuranceBase: record.socialInsuranceBase ?? 0,
           housingFund: record.housingFund,
+          housingFundBase: record.housingFundBase ?? 0,
           specialDeductions: record.special,
-          taxableCurrent: monthlyTaxables[m - 1],
-          incomeTax: tax.monthTax,
-          taxPaidCumulative: tax.cumulativePaid,
-          taxableCumulative: monthlyCumTaxables[m - 1],
-          taxCumulative: tax.cumulativeTax,
-          netIncome: net,
+          taxableCurrent: record.taxableCurrent,
+          incomeTax: monthTax,
+          taxPaidCumulative: cumulativePaid,
+          taxableCumulative: cumulativeTaxable,
+          taxCumulative: cumulativeTax,
+          netIncome: record.netIncome,
           source: "system",
           isForecast: false,
         },

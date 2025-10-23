@@ -51,8 +51,10 @@ const mockTimelineService = {
 
 vi.mock("@/server/services/income-timeline", () => mockTimelineService);
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  const { clearTaxContextCache } = await import("@/server/services/tax");
+  clearTaxContextCache();
   mockPrisma.bonusPlan.findMany = vi.fn().mockResolvedValue([]);
   mockPrisma.longTermCashPayout.findMany = vi.fn().mockResolvedValue([]);
   mockPrisma.equityVest.findMany = vi.fn().mockResolvedValue([]);
@@ -316,6 +318,7 @@ describe("Income basic endpoints", () => {
       "u1",
       "2025-01-01",
       "2025-02-01",
+      undefined,
     );
     expect(await res.json()).toEqual(sample);
   });
@@ -472,7 +475,7 @@ describe("Income basic endpoints", () => {
     });
     mockPrisma.userAnnualDeduction.findUnique.mockResolvedValue(null);
     // 当 taxConfig.include 未返回 brackets 时，服务会回退到 taxBracket.findMany
-    mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
+    mockPrisma.taxBracket.findMany.mockResolvedValue([
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
       { position: 2, threshold: 144000, taxRate: 0.1, quickDeduction: 2520 },
       {
@@ -548,7 +551,7 @@ describe("Income basic endpoints", () => {
       brackets: undefined,
     });
     // 税表：36000 @3%，+∞ @45%（简化）
-    mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
+    mockPrisma.taxBracket.findMany.mockResolvedValue([
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
       {
         position: 7,
