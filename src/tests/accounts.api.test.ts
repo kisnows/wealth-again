@@ -1,30 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
+import { prisma as mockPrisma } from "@/server/db";
 
-const mockPrisma: any = {
-  account: {
-    findMany: vi.fn(),
-    findUnique: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  txnEntry: { create: vi.fn() },
-  txnLine: { aggregate: vi.fn(), findMany: vi.fn() },
-  valuationSnapshot: {
-    findMany: vi.fn(),
-    create: vi.fn(),
-    findFirst: vi.fn(),
-    upsert: vi.fn(),
-  },
-  idempotencyKey: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-  auditLog: { create: vi.fn() },
-  $transaction: vi.fn(async (cb: (client: any) => Promise<any> | any) =>
-    cb(mockPrisma),
-  ),
-};
-
-// 使用局部 mock Prisma，避免影响其他测试文件
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
 // 跨币种自动折算路径中，直接 mock 转换函数，避免依赖汇率表
 const mockFxSnapshotDate = new Date("2025-01-01T00:00:00.000Z");
 vi.mock("@/server/services/fx", () => ({

@@ -1,5 +1,4 @@
 import type { Prisma } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
 import prisma from "@/server/db";
 import {
   convert,
@@ -198,8 +197,7 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
   const now = new Date();
   const fxRateDelegate = (prisma as any).fxRate;
   const rawFxRows =
-    codesToFetch.length === 0 ||
-    typeof fxRateDelegate?.findMany !== "function"
+    codesToFetch.length === 0 || typeof fxRateDelegate?.findMany !== "function"
       ? []
       : await fxRateDelegate.findMany({
           where: {
@@ -263,11 +261,7 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
     rawSnapshotRows.forEach((snap) => {
       const base = snap.baseCurrency.toUpperCase();
       if (base === displayCurrencyUpper) return;
-      const key = buildBridgeKey(
-        base,
-        displayCurrencyUpper,
-        snap.capturedAt,
-      );
+      const key = buildBridgeKey(base, displayCurrencyUpper, snap.capturedAt);
       if (bridgeRequests.find((item) => item.key === key)) return;
       bridgeRequests.push({
         key,
@@ -302,7 +296,7 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
       const latestValuation = account.valuations[0] ?? null;
       const valuationSnapshot =
         latestValuation?.fxSnapshotId != null
-          ? snapshotMap.get(latestValuation.fxSnapshotId) ?? null
+          ? (snapshotMap.get(latestValuation.fxSnapshotId) ?? null)
           : null;
       const valuationAsOf =
         latestValuation?.asOf ??
@@ -407,7 +401,12 @@ async function convertAmountForDisplay({
 }: {
   amount: number;
   amountCurrency: string;
-  snapshot: { baseCurrency: string; quoteCurrency: string; rate: number; capturedAt: Date } | null;
+  snapshot: {
+    baseCurrency: string;
+    quoteCurrency: string;
+    rate: number;
+    capturedAt: Date;
+  } | null;
   displayCurrency: string;
   bridgeMap: Map<string, FxSnapshotInfo>;
   fallbackAsOf: Date;
@@ -431,7 +430,11 @@ async function convertAmountForDisplay({
     if (amountInBase != null) {
       if (normalizedDisplay === base) return amountInBase;
       if (normalizedDisplay === quote) return amountInBase * rate;
-      const bridgeKey = buildBridgeKey(base, normalizedDisplay, snapshot.capturedAt);
+      const bridgeKey = buildBridgeKey(
+        base,
+        normalizedDisplay,
+        snapshot.capturedAt,
+      );
       const bridgeSnapshot = bridgeMap.get(bridgeKey);
       if (bridgeSnapshot) {
         return amountInBase * bridgeSnapshot.rate;
