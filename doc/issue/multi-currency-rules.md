@@ -32,6 +32,17 @@
 - 同步补录历史收入、扣除、对账记录的原币种金额、展示金额与对应汇率快照引用，为后续展示币种或基础币种调整提供重算依据。
 - 更新 `prisma/seed.ts` 以提供币种与生效区间示例数据（至少覆盖杭州 2023–2025）。
 
+### 现有模型影响确认（2025-02-18 审核）
+
+- Prisma 当前已包含 `FxSnapshot` 表（字段：`baseCurrency`、`quoteCurrency`、`rate`、`capturedAt`、`sourceRateId`、`effectiveFrom/To`、`createdBy`）。迁移顺序需明确：**先建表，再补充业务表外键**，确保回填脚本可引用。
+- 以下业务表已落地 `fxSnapshotId` / `fxAppliedRate` 字段，但仍保留旧的 `fxRateId` 或临时冗余，需要在迁移脚本中统一回填与校验：
+  - `TxnEntry`：`fxRateId`、`fxSnapshotId`、`fxAppliedRate`；主记录需引用与资金方向一致的快照。
+  - `TxnLine`：`fxSnapshotId`、`fxAppliedRate`、`fxEffectiveAt`；跨币种明细必须匹配 `TxnEntry` 聚合的快照。
+  - `ValuationSnapshot`：用于账户估值的快照引用，回填后才能正确反推历史展示金额。
+  - `IncomeRecord`：新增 `fxSnapshotId`、`fxAppliedRate`、`sourceCurrency` 字段；后续迁移脚本需根据 `monthDate` 与记录币种生成快照。
+- 迁移演练应按照「建表 → 增列 → 回填 → 校验 → 清理旧列」的顺序执行；当前 schema 仍依赖 `fxRateId`，暂不移除，避免在回填完成前破坏历史记录。
+- 除 FX 相关字段外，`CityRuleSS`、`CityRuleHF`、`TaxConfig`、`TaxBracket`、`IncomeChange` 等规则表已补充 `currency` 与 `effectiveFrom/To` 字段；迁移脚本需校验 seed 中 2023–2025 杭州样例是否覆盖所有时间段。
+
 ## 服务与前端影响
 
 - 更新 `src/server/services/income`、`tax`、`fx` 等使用基础币种的逻辑，改为动态匹配规则与记录币种。
@@ -161,3 +172,56 @@
 5. **测试与文档收尾**
    - 目标：补充 Vitest 用例、更新文档索引及操作手册，验证示例数据回算。
    - 产出：新增/更新测试文件、`doc/` 相关章节、验收报告草稿。
+
+## 技术任务拆解（基于当前代码库现状）
+
+> 2025-02-18 扫描 `prisma/schema.prisma`、`src/server/services/*`、`src/app/api/v1/*`、`src/lib/api/*` 与主要 UI 模块后的初始拆解；后续执行过程中逐项更新勾选状态。
+
+### 1. 数据库与种子
+
+- [x] 新增迁移：确保 `FxSnapshot` 表结构与关联索引落库（当前 schema 已定义，但需迁移落地并在 README 记录顺序）。(2025-02-18 已生成 `20250218121000_multi_currency_fx_snapshots`)
+- [x] 新增迁移：为 `TxnEntry`、`TxnLine`、`ValuationSnapshot`、`IncomeRecord` 增补 `fxSnapshotId`、`fxAppliedRate`、`fxEffectiveAt`、`sourceCurrency` 等字段，同时保持 `fxRateId` 作为兼容字段。
+- [x] 回填脚本 `scripts/backfill-fx-snapshots.ts`：遍历上述业务表，依据已有 `fxRateId` 或发生时间调用 `ensureFxSnapshot`，写入 `fxSnapshotId`/`fxAppliedRate`。
+- [x] 更新 `prisma/seed.ts`：同步为交易、估值、收入样例写入 `fxSnapshotId`、`fxAppliedRate`、`sourceCurrency`，并提供 USD↔CNY 2023–2025 示例快照。
+- [ ] 数据验证：添加 `src/tests/db/fx-backfill.test.ts`（或合适位置），断言 seed 后所有跨币种记录具备快照引用。
+- [ ] 迁移完成后清理：编写后续迁移移除业务表对 `fxRateId` 的依赖，并将历史值固化到 `FxSnapshot`。
+
+### 2. 服务层
+
+- [ ] `src/server/services/fx.ts`：补充缓存/批量接口，暴露 `ensureFxSnapshot` 的批处理能力，并在缺失速率时抛出可观测错误（含 AuditLog）。
+  - [x] 捕获 `P2002` 并发冲突并回读已有快照（2025-02-18，修复转账 500）。
+- [x] `src/server/services/ledger.ts`：复用 `ensureFxSnapshot`，在服务层转账/存款写入快照与 AuditLog（2025-02-18）。
+- [ ] `src/server/services/income.ts`、`income-timeline.ts`：读取 `IncomeRecord.fxSnapshotId`，将累计/展示金额改为基于 `fxAppliedRate` 计算；替换所有对 `fxRateId` 的引用。
+- [x] `src/server/services/accounts-summary.ts`、`ledger.ts`：统一在转账/存款/估值流程中落 `fxSnapshotId` 与 `fxAppliedRate`，并返回快照信息供前端展示。（2025-02-18）
+- [ ] `src/server/services/tax.ts`、`rule.ts`：确保规则币种使用 `currency` 字段，并在计算中调用 FX 服务做币种转换。
+- [ ] 新增 `src/server/services/tasks/rebase-display.ts`：接受基础币种变化任务，重算展示金额并写入 AuditLog。
+
+### 3. API 层（Route Handlers）
+
+- [ ] `/api/v1/entries/transfer`、`deposit`：完成 FX 快照回写、`fxRateId` 清理、错误码细化（当前 transfer 已部分落地，仍需补充失败日志）。
+- [ ] `/api/v1/valuations`：改用 `fxSnapshotId` 和 `fxAppliedRate`，并允许传入 `asOf` 触发快照；移除 `fxRateId` 参数。
+- [ ] `/api/v1/fxrates`：新增快照读取/补齐接口，以供前端展示历史换算。
+- [ ] `/api/v1/rules/*`、`/api/v1/cities`：确保返回体带上 `currency`、`effectiveFrom/To`，并在写操作中校验币种。
+- [ ] `/api/settings/base-currency`（新增）：封装基础币种修改逻辑，触发二次确认与 `rebase-display` 任务。
+- [ ] `/api/v1/user/profile`：更新返回的 `baseCurrency` 描述文案，标注其为展示默认值，并附带最后确认时间。
+
+### 4. 前端
+
+- [ ] `/settings` 页面：拆分展示币种与基础币种表单，新增确认弹窗（`data-testid="settings-ui-base-currency-dialog"`）、风险提示及操作日志提示。
+- [ ] `/settings`：引入基础币种修改进度提示（轮询任务状态），并在 SWR 中区分 `displayCurrency`/`baseCurrency`。
+- [ ] `/income` 相关页面：复用 `IncomeAnalyticsPanel` 展示多币种明细，标注记录币种与快照来源。
+- [ ] `/accounts`、`/entries/*`：为转账/存款表单显示快照明细，提示用户当前采用的 FX。
+- [ ] Zustand `useUserPrefsStore`：拆分 `displayCurrency` 与 `baseCurrency`，提供重置逻辑，并与 `SWR` key 同步。
+
+### 5. 测试与监控
+
+- [ ] Vitest：新增 `fx.service.test.ts` 验证快照去重/补齐；`income.service.test.ts` 覆盖多币种累计预扣。
+- [ ] API 测试：添加 `src/tests/accounts.api.test.ts` 检查转账接口返回 `fxSnapshotId`、`fxAppliedRate`。
+- [ ] UI 测试：编写 `/settings` 流程测试，验证基础币种确认弹窗与失败提示。
+- [ ] 监控：为 FX 快照缺失、基础币种重算失败设置告警（暂可记录在 `doc/tech.md`「运维」章节）。
+
+### 6. 文档与发布
+
+- [ ] 更新 `doc/tech.md` 与 `doc/frontend-spec.md`，反映多币种与快照方案。
+- [ ] 在 `doc/README.md` 索引新增“多币种规则改造”章节，并链接本 issue。
+- [ ] 准备迁移演练记录（时间线、回滚方案、影响评估），作为发布清单的一部分。

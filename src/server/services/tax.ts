@@ -16,27 +16,31 @@ export async function calculateTax({
   const yearStart = new Date(Date.UTC(taxYear, 0, 1));
   const yearEnd = new Date(Date.UTC(taxYear, 11, 31));
   const cfg =
-    (await prisma.taxConfig.findFirst({
-      where: {
-        country,
-        effectiveFrom: { lte: yearEnd },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gt: yearStart } }],
-      },
-      include: {
-        brackets: {
+    (typeof (prisma as any).taxConfig?.findFirst === "function"
+      ? await (prisma as any).taxConfig.findFirst({
           where: {
+            country,
             effectiveFrom: { lte: yearEnd },
             OR: [{ effectiveTo: null }, { effectiveTo: { gt: yearStart } }],
           },
-          orderBy: { position: "asc" },
-        },
-      },
-      orderBy: { effectiveFrom: "desc" },
-    })) ??
-    (await prisma.taxConfig.findUnique({
-      where: { country_taxYear: { country, taxYear } },
-      include: { brackets: { orderBy: { position: "asc" } } },
-    }));
+          include: {
+            brackets: {
+              where: {
+                effectiveFrom: { lte: yearEnd },
+                OR: [{ effectiveTo: null }, { effectiveTo: { gt: yearStart } }],
+              },
+              orderBy: { position: "asc" },
+            },
+          },
+          orderBy: { effectiveFrom: "desc" },
+        })
+      : null) ??
+    (typeof (prisma as any).taxConfig?.findUnique === "function"
+      ? await (prisma as any).taxConfig.findUnique({
+          where: { country_taxYear: { country, taxYear } },
+          include: { brackets: { orderBy: { position: "asc" } } },
+        })
+      : null);
   if (!cfg) throw new Error("TaxConfig missing");
   let brackets = (cfg as any).brackets as any[] | undefined;
   if (!brackets || brackets.length === 0) {

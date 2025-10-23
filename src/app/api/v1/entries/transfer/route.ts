@@ -108,6 +108,9 @@ export async function POST(req: NextRequest) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
+  const snapshots = Array.isArray(conversionResult.snapshots)
+    ? conversionResult.snapshots
+    : [];
   const metaPayload = {
     fromAmount: absoluteFromAmount,
     fromCurrency: fromAccount.baseCurrency,
@@ -119,27 +122,43 @@ export async function POST(req: NextRequest) {
     rateUsdToB: conversionResult.rateUsdToB,
     fxEffectiveAt:
       conversionResult.fxEffectiveAt?.toISOString() ?? fxAsOfDate.toISOString(),
-    rateSnapshots: conversionResult.snapshots.map((snapshot) => ({
-      base: snapshot.baseCurrency,
-      quote: snapshot.quoteCurrency,
-      rate: snapshot.rate,
-      capturedAt: snapshot.capturedAt.toISOString(),
-      effectiveFrom: snapshot.effectiveFrom?.toISOString() ?? null,
-      effectiveTo: snapshot.effectiveTo?.toISOString() ?? null,
-      id: snapshot.id ?? null,
-      sourceRateId: snapshot.sourceRateId,
-    })),
+    rateSnapshots: snapshots.map((snapshot) => {
+      const captured =
+        snapshot?.capturedAt instanceof Date
+          ? snapshot.capturedAt
+          : conversionResult.fxEffectiveAt instanceof Date
+            ? conversionResult.fxEffectiveAt
+            : fxAsOfDate;
+      return {
+        base: snapshot?.baseCurrency ?? fromAccount.baseCurrency,
+        quote: snapshot?.quoteCurrency ?? toAccount.baseCurrency,
+        rate: Number(snapshot?.rate ?? 1),
+        capturedAt: captured.toISOString(),
+        effectiveFrom:
+          snapshot?.effectiveFrom instanceof Date
+            ? snapshot.effectiveFrom.toISOString()
+            : null,
+        effectiveTo:
+          snapshot?.effectiveTo instanceof Date
+            ? snapshot.effectiveTo.toISOString()
+            : null,
+        id: snapshot?.id ?? null,
+        sourceRateId: snapshot?.sourceRateId ?? null,
+      };
+    }),
     asOf: asOf ?? null,
   };
   const normalizedFromCurrency = fromAccount.baseCurrency.toUpperCase();
   const normalizedToCurrency = toAccount.baseCurrency.toUpperCase();
   const fromSnapshot =
-    conversionResult.snapshots.find(
-      (snapshot) => snapshot.quoteCurrency === normalizedFromCurrency,
+    snapshots.find(
+      (snapshot) =>
+        snapshot?.quoteCurrency?.toUpperCase?.() === normalizedFromCurrency,
     ) ?? null;
   const toSnapshot =
-    conversionResult.snapshots.find(
-      (snapshot) => snapshot.quoteCurrency === normalizedToCurrency,
+    snapshots.find(
+      (snapshot) =>
+        snapshot?.quoteCurrency?.toUpperCase?.() === normalizedToCurrency,
     ) ?? null;
   const fromLineInput = {
     accountId: from.accountId,

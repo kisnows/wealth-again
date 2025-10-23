@@ -1,4 +1,6 @@
+import { Prisma } from "@prisma/client";
 import prisma from "@/server/db";
+import { logAudit } from "@/server/services/audit";
 
 type FxRateRecord = {
   id: string;
@@ -20,7 +22,7 @@ type FxSnapshotRecord = {
   effectiveTo: Date | null;
 };
 
-type FxSnapshotInfo = {
+export type FxSnapshotInfo = {
   id: string;
   baseCurrency: string;
   quoteCurrency: string;
@@ -31,15 +33,59 @@ type FxSnapshotInfo = {
   effectiveTo: Date | null;
 };
 
-const fxRateClient = prisma.fxRate as unknown as {
-  findFirst: (args: unknown) => Promise<FxRateRecord | null>;
-  findMany: (args: unknown) => Promise<FxRateRecord[]>;
-};
-const fxSnapshotClient = prisma.fxSnapshot as unknown as {
-  findFirst: (args: unknown) => Promise<FxSnapshotRecord | null>;
-  create: (args: unknown) => Promise<FxSnapshotRecord>;
-};
 const USD = "USD";
+const SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+type SnapshotCacheEntry = {
+  expiresAt: number;
+  promise: Promise<FxSnapshotInfo | null>;
+};
+
+const snapshotCache = new Map<string, SnapshotCacheEntry>();
+
+async function fxRateFindFirstSafe(
+  args: Record<string, unknown>,
+): Promise<FxRateRecord | null> {
+  const delegate = (prisma as unknown as Record<string, any>).fxRate;
+  if (delegate && typeof delegate.findFirst === "function") {
+    return delegate.findFirst(args);
+  }
+  if (delegate && typeof delegate.findMany === "function") {
+    const rows = (await delegate.findMany(args)) as FxRateRecord[];
+    return rows[0] ?? null;
+  }
+  return null;
+}
+
+async function fxRateFindManySafe(
+  args: Record<string, unknown>,
+): Promise<FxRateRecord[]> {
+  const delegate = (prisma as unknown as Record<string, any>).fxRate;
+  if (delegate && typeof delegate.findMany === "function") {
+    return delegate.findMany(args);
+  }
+  return [];
+}
+
+async function fxSnapshotFindFirstSafe(
+  args: Record<string, unknown>,
+): Promise<FxSnapshotRecord | null> {
+  const delegate = (prisma as unknown as Record<string, any>).fxSnapshot;
+  if (delegate && typeof delegate.findFirst === "function") {
+    return delegate.findFirst(args);
+  }
+  return null;
+}
+
+async function fxSnapshotCreateSafe(
+  args: Record<string, unknown>,
+): Promise<FxSnapshotRecord> {
+  const delegate = (prisma as unknown as Record<string, any>).fxSnapshot;
+  if (delegate && typeof delegate.create === "function") {
+    return delegate.create(args);
+  }
+  throw new Error("fxSnapshot.create not available");
+}
 
 function toRateValue(value: number | { toNumber: () => number }): number {
   return typeof value === "number" ? value : value.toNumber();
@@ -75,39 +121,109 @@ export async function ensureFxSnapshot({
   const normalizedQuote = quote.toUpperCase();
   if (normalizedBase === normalizedQuote) return null;
   const asOfDate = asOf ?? new Date();
-  const rateRecord = await getFxRate({
-    base: normalizedBase,
-    quote: normalizedQuote,
-    asOf: asOfDate,
-  });
-  if (!rateRecord) {
-    if (allowMissing) return null;
-    throw new Error("rate missing");
+
+  const cacheKey = `${normalizedBase}::${normalizedQuote}::${asOfDate.toISOString()}::${allowMissing ? "allow" : "strict"}`;
+  const cached = snapshotCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
   }
 
-  const existing = await fxSnapshotClient.findFirst({
-    where: {
-      baseCurrency: normalizedBase,
-      quoteCurrency: normalizedQuote,
-      sourceRateId: rateRecord.id,
-      capturedAt: asOfDate,
-    },
-  });
-  if (existing) return mapSnapshot(existing);
+  const promise = (async () => {
+    const rateRecord = await getFxRate({
+      base: normalizedBase,
+      quote: normalizedQuote,
+      asOf: asOfDate,
+    });
+    if (!rateRecord) {
+      if (!allowMissing) {
+        await logAudit("FX_RATE_MISSING", {
+          meta: {
+            base: normalizedBase,
+            quote: normalizedQuote,
+            asOf: asOfDate.toISOString(),
+          },
+        });
+        throw new Error(
+          `fx_rate_missing:${normalizedBase}-${normalizedQuote}-${asOfDate.toISOString()}`,
+        );
+      }
+      return null;
+    }
 
-  const created = await fxSnapshotClient.create({
-    data: {
-      baseCurrency: normalizedBase,
-      quoteCurrency: normalizedQuote,
-      rate: toRateValue(rateRecord.rate),
-      capturedAt: asOfDate,
-      sourceRateId: rateRecord.id,
-      effectiveFrom: rateRecord.effectiveFrom,
-      effectiveTo: rateRecord.effectiveTo,
-      createdBy: createdBy ?? "system",
-    },
+    const existing = await fxSnapshotFindFirstSafe({
+      where: {
+        baseCurrency: normalizedBase,
+        quoteCurrency: normalizedQuote,
+        sourceRateId: rateRecord.id,
+        capturedAt: asOfDate,
+      },
+    });
+    if (existing) return mapSnapshot(existing);
+
+    let created: FxSnapshotRecord | null = null;
+    try {
+      created = await fxSnapshotCreateSafe({
+        data: {
+          baseCurrency: normalizedBase,
+          quoteCurrency: normalizedQuote,
+          rate: toRateValue(rateRecord.rate),
+          capturedAt: asOfDate,
+          sourceRateId: rateRecord.id,
+          effectiveFrom: rateRecord.effectiveFrom,
+          effectiveTo: rateRecord.effectiveTo,
+          createdBy: createdBy ?? "system",
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const retry = await fxSnapshotFindFirstSafe({
+          where: {
+            baseCurrency: normalizedBase,
+            quoteCurrency: normalizedQuote,
+            sourceRateId: rateRecord.id,
+            capturedAt: asOfDate,
+          },
+        });
+        if (retry) return mapSnapshot(retry);
+      }
+      throw error;
+    }
+    if (!created) throw new Error("fx_snapshot_not_created");
+    return mapSnapshot(created);
+  })().catch((error) => {
+    snapshotCache.delete(cacheKey);
+    throw error;
   });
-  return mapSnapshot(created);
+
+  snapshotCache.set(cacheKey, {
+    promise,
+    expiresAt: now + SNAPSHOT_CACHE_TTL_MS,
+  });
+  return promise;
+}
+
+export function clearFxSnapshotCache() {
+  snapshotCache.clear();
+}
+
+export async function ensureFxSnapshotBatch(
+  requests: Array<{
+    base: string;
+    quote: string;
+    asOf?: Date;
+    createdBy?: string;
+    allowMissing?: boolean;
+  }>,
+): Promise<(FxSnapshotInfo | null)[]> {
+  if (requests.length === 0) return [];
+  const results = await Promise.all(
+    requests.map((request) => ensureFxSnapshot(request)),
+  );
+  return results;
 }
 
 export async function getFxRate(params: {
@@ -119,7 +235,7 @@ export async function getFxRate(params: {
   const quote = params.quote.toUpperCase();
   if (params.asOf) {
     const at = params.asOf;
-    return fxRateClient.findFirst({
+    return fxRateFindFirstSafe({
       where: {
         base,
         quote,
@@ -129,7 +245,7 @@ export async function getFxRate(params: {
       orderBy: { effectiveFrom: "desc" },
     });
   }
-  return fxRateClient.findFirst({
+  return fxRateFindFirstSafe({
     where: { base, quote },
     orderBy: { effectiveFrom: "desc" },
   });
@@ -151,7 +267,7 @@ export async function getLatestRates(
   const upperQuotes = Array.from(
     new Set(quotes.map((quote) => quote.toUpperCase())),
   );
-  const rows = await fxRateClient.findMany({
+  const rows = await fxRateFindManySafe({
     where: {
       base: upperBase,
       quote: { in: upperQuotes },

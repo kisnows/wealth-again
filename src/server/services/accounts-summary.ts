@@ -1,11 +1,32 @@
 import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/server/db";
+import {
+  convert,
+  ensureFxSnapshotBatch,
+  type FxSnapshotInfo,
+} from "@/server/services/fx";
 
 const BASE_CURRENCY = "USD";
 
 const accountInclude = {
-  txnLines: true,
-  valuations: { orderBy: { asOf: "desc" as const }, take: 1 },
+  txnLines: {
+    select: {
+      amount: true,
+      principalDelta: true,
+    },
+  },
+  valuations: {
+    select: {
+      asOf: true,
+      totalValue: true,
+      currency: true,
+      fxSnapshotId: true,
+      fxAppliedRate: true,
+    },
+    orderBy: { asOf: "desc" as const },
+    take: 1,
+  },
 } satisfies Prisma.AccountInclude;
 
 type AccountWithRelations = Prisma.AccountGetPayload<{
@@ -60,9 +81,8 @@ function convertAmount(
 function computeAccountMetrics(account: AccountWithRelations) {
   const initialBalance = Number(account.initialBalance ?? 0);
   const principal = account.txnLines.reduce((sum, line) => {
-    const candidate = (
-      line as unknown as { principalDelta?: Prisma.Decimal | number }
-    ).principalDelta;
+    const candidate = (line as { principalDelta?: Prisma.Decimal | number })
+      .principalDelta;
     const delta =
       candidate != null && Number(candidate) !== 0
         ? Number(candidate)
@@ -101,6 +121,7 @@ function computeAccountMetrics(account: AccountWithRelations) {
     roi,
     valuationCurrency,
     latestValuationAt,
+    valuationSnapshotId: account.valuations[0]?.fxSnapshotId ?? null,
   };
 }
 
@@ -175,28 +196,12 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
 
   const codesToFetch = gatherCurrencyCodes(accounts, displayCurrencyUpper);
   const now = new Date();
-  const fxRateClient = prisma.fxRate as unknown as {
-    findMany: (args: {
-      where: {
-        base: string;
-        quote: { in: string[] };
-        effectiveFrom: { lte: Date };
-        OR: Array<{ effectiveTo: null } | { effectiveTo: { gt: Date } }>;
-      };
-      orderBy: { effectiveFrom: "desc" };
-    }) => Promise<
-      Array<{
-        quote: string;
-        rate: Prisma.Decimal;
-        effectiveFrom: Date;
-        effectiveTo: Date | null;
-      }>
-    >;
-  };
+  const fxRateDelegate = (prisma as any).fxRate;
   const rawFxRows =
-    codesToFetch.length === 0
+    codesToFetch.length === 0 ||
+    typeof fxRateDelegate?.findMany !== "function"
       ? []
-      : await fxRateClient.findMany({
+      : await fxRateDelegate.findMany({
           where: {
             base: BASE_CURRENCY,
             quote: { in: codesToFetch },
@@ -214,41 +219,138 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
     }>,
   );
 
-  const items: AccountSummaryItem[] = accounts.map((account) => {
-    const metrics = computeAccountMetrics(account);
-    if (!displayCurrencyUpper) {
-      return metrics;
+  const valuationSnapshotIds = accounts
+    .map((account) => account.valuations[0]?.fxSnapshotId)
+    .filter((id): id is string => Boolean(id));
+  const rawSnapshotRows =
+    valuationSnapshotIds.length === 0
+      ? []
+      : await prisma.fxSnapshot.findMany({
+          where: { id: { in: valuationSnapshotIds } },
+          select: {
+            id: true,
+            baseCurrency: true,
+            quoteCurrency: true,
+            rate: true,
+            capturedAt: true,
+          },
+        });
+  const snapshotMap = new Map<
+    string,
+    {
+      id: string;
+      baseCurrency: string;
+      quoteCurrency: string;
+      rate: number;
+      capturedAt: Date;
     }
-    const displayValue = convertAmount(
-      metrics.valuation,
-      metrics.valuationCurrency ?? metrics.currency,
-      displayCurrencyUpper,
-      rateMap,
-    );
-    const displayPrincipal = convertAmount(
-      metrics.principal,
-      metrics.currency,
-      displayCurrencyUpper,
-      rateMap,
-    );
-    const displayInitial = convertAmount(
-      metrics.initialBalance,
-      metrics.currency,
-      displayCurrencyUpper,
-      rateMap,
-    );
-    const displayProfit =
-      displayValue != null && displayPrincipal != null
-        ? displayValue - displayPrincipal
-        : null;
-    return {
-      ...metrics,
-      displayValue: displayValue ?? undefined,
-      displayPrincipal: displayPrincipal ?? undefined,
-      displayProfit: displayProfit ?? undefined,
-      displayInitialBalance: displayInitial ?? undefined,
-    };
+  >();
+  rawSnapshotRows.forEach((row) => {
+    snapshotMap.set(row.id, {
+      id: row.id,
+      baseCurrency: row.baseCurrency,
+      quoteCurrency: row.quoteCurrency,
+      rate: Number(row.rate),
+      capturedAt: row.capturedAt,
+    });
   });
+
+  const bridgeRequests: Array<{
+    key: string;
+    request: { base: string; quote: string; asOf: Date; allowMissing: boolean };
+  }> = [];
+  if (displayCurrencyUpper) {
+    rawSnapshotRows.forEach((snap) => {
+      const base = snap.baseCurrency.toUpperCase();
+      if (base === displayCurrencyUpper) return;
+      const key = buildBridgeKey(
+        base,
+        displayCurrencyUpper,
+        snap.capturedAt,
+      );
+      if (bridgeRequests.find((item) => item.key === key)) return;
+      bridgeRequests.push({
+        key,
+        request: {
+          base,
+          quote: displayCurrencyUpper,
+          asOf: snap.capturedAt,
+          allowMissing: true,
+        },
+      });
+    });
+  }
+  const ensureBatch =
+    typeof ensureFxSnapshotBatch === "function"
+      ? ensureFxSnapshotBatch
+      : async (requests: Array<Record<string, unknown>>) =>
+          requests.map(() => null);
+  const bridgeSnapshots = bridgeRequests.length
+    ? await ensureBatch(bridgeRequests.map((item) => item.request))
+    : [];
+  const bridgeMap = new Map<string, FxSnapshotInfo>();
+  bridgeSnapshots.forEach((snapshot, index) => {
+    if (snapshot) bridgeMap.set(bridgeRequests[index]!.key, snapshot);
+  });
+
+  const items: AccountSummaryItem[] = await Promise.all(
+    accounts.map(async (account) => {
+      const metrics = computeAccountMetrics(account);
+      if (!displayCurrencyUpper) {
+        return metrics;
+      }
+      const latestValuation = account.valuations[0] ?? null;
+      const valuationSnapshot =
+        latestValuation?.fxSnapshotId != null
+          ? snapshotMap.get(latestValuation.fxSnapshotId) ?? null
+          : null;
+      const valuationAsOf =
+        latestValuation?.asOf ??
+        valuationSnapshot?.capturedAt ??
+        new Date(account.updatedAt ?? Date.now());
+      const displayValue = await convertAmountForDisplay({
+        amount: metrics.valuation,
+        amountCurrency: metrics.valuationCurrency ?? metrics.currency,
+        snapshot: valuationSnapshot,
+        displayCurrency: displayCurrencyUpper,
+        bridgeMap,
+        fallbackAsOf: valuationAsOf,
+        rateMap,
+      });
+      const displayPrincipal = await convertAmountForDisplay({
+        amount: metrics.principal,
+        amountCurrency: metrics.currency,
+        snapshot:
+          metrics.valuationCurrency === metrics.currency
+            ? valuationSnapshot
+            : null,
+        displayCurrency: displayCurrencyUpper,
+        bridgeMap,
+        fallbackAsOf: valuationAsOf,
+        rateMap,
+      });
+      const displayInitial = await convertAmountForDisplay({
+        amount: metrics.initialBalance,
+        amountCurrency: metrics.currency,
+        snapshot: null,
+        displayCurrency: displayCurrencyUpper,
+        bridgeMap,
+        fallbackAsOf: valuationAsOf,
+        rateMap,
+      });
+      const displayProfit =
+        displayValue != null && displayPrincipal != null
+          ? displayValue - displayPrincipal
+          : null;
+      return {
+        ...metrics,
+        displayValue: displayValue ?? undefined,
+        displayPrincipal: displayPrincipal ?? undefined,
+        displayProfit: displayProfit ?? undefined,
+        displayInitialBalance: displayInitial ?? undefined,
+      };
+    }),
+  );
 
   const totals = items.reduce<AccountsSummaryTotals>(
     (acc, item) => {
@@ -288,4 +390,86 @@ export async function computeAccountSummaryById(options: {
     displayCurrency: options.displayCurrency ?? null,
   });
   return result.items[0] ?? null;
+}
+
+function buildBridgeKey(base: string, target: string, capturedAt: Date) {
+  return `${base.toUpperCase()}::${target.toUpperCase()}::${capturedAt.toISOString()}`;
+}
+
+async function convertAmountForDisplay({
+  amount,
+  amountCurrency,
+  snapshot,
+  displayCurrency,
+  bridgeMap,
+  fallbackAsOf,
+  rateMap,
+}: {
+  amount: number;
+  amountCurrency: string;
+  snapshot: { baseCurrency: string; quoteCurrency: string; rate: number; capturedAt: Date } | null;
+  displayCurrency: string;
+  bridgeMap: Map<string, FxSnapshotInfo>;
+  fallbackAsOf: Date;
+  rateMap: Map<string, LatestFxRate>;
+}) {
+  if (!Number.isFinite(amount)) return null;
+  const normalizedAmountCurrency = amountCurrency.toUpperCase();
+  const normalizedDisplay = displayCurrency.toUpperCase();
+  if (normalizedAmountCurrency === normalizedDisplay) return amount;
+
+  if (snapshot) {
+    const base = snapshot.baseCurrency.toUpperCase();
+    const quote = snapshot.quoteCurrency.toUpperCase();
+    const rate = snapshot.rate;
+    let amountInBase: number | null = null;
+    if (normalizedAmountCurrency === base) {
+      amountInBase = amount;
+    } else if (normalizedAmountCurrency === quote) {
+      amountInBase = rate === 0 ? null : amount / rate;
+    }
+    if (amountInBase != null) {
+      if (normalizedDisplay === base) return amountInBase;
+      if (normalizedDisplay === quote) return amountInBase * rate;
+      const bridgeKey = buildBridgeKey(base, normalizedDisplay, snapshot.capturedAt);
+      const bridgeSnapshot = bridgeMap.get(bridgeKey);
+      if (bridgeSnapshot) {
+        return amountInBase * bridgeSnapshot.rate;
+      }
+      try {
+        const fallbackConversion = await convert(
+          amountInBase,
+          base,
+          normalizedDisplay,
+          snapshot.capturedAt,
+        );
+        return fallbackConversion.amount;
+      } catch (_error) {
+        const viaRate = convertAmount(
+          amountInBase,
+          base,
+          normalizedDisplay,
+          rateMap,
+        );
+        return viaRate ?? null;
+      }
+    }
+  }
+  try {
+    const fallbackConversion = await convert(
+      amount,
+      normalizedAmountCurrency,
+      normalizedDisplay,
+      fallbackAsOf,
+    );
+    return fallbackConversion.amount;
+  } catch (_error) {
+    const viaRate = convertAmount(
+      amount,
+      normalizedAmountCurrency,
+      normalizedDisplay,
+      rateMap,
+    );
+    return viaRate ?? null;
+  }
 }

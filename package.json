@@ -10,7 +10,8 @@
     "format": "biome ci --formatter-enabled=true --linter-enabled=true --assist-enabled=true --enforce-assist=true",
     "test": "vitest run",
     "test:watch": "vitest --watch",
-    "test:coverage": "vitest --coverage "
+    "test:coverage": "vitest --coverage ",
+    "fx:backfill": "node scripts/backfill-fx-snapshots.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

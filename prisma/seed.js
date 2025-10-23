@@ -83,7 +83,7 @@ async function seed() {
       password: "hashed",
       name: "Demo",
       baseCurrency: "CNY",
-       displayCurrency: "CNY",
+      displayCurrency: "USD",
       currentCityId: hz.id,
     },
   });
@@ -107,8 +107,12 @@ async function seed() {
   await prisma.bonusPlan.deleteMany({ where: { userId: user.id } });
   await prisma.incomeChange.deleteMany({ where: { userId: user.id } });
   await prisma.userAnnualDeduction.deleteMany({ where: { userId: user.id } });
-  await prisma.fxRate.deleteMany({ where: { base: "USD" } });
-  await prisma.fxSnapshot.deleteMany({ where: { baseCurrency: "USD" } });
+  await prisma.fxRate.deleteMany({
+    where: { base: { in: ["USD", "CNY"] } },
+  });
+  await prisma.fxSnapshot.deleteMany({
+    where: { baseCurrency: { in: ["USD", "CNY"] } },
+  });
 
   // --- 城市规则 ---
   await prisma.cityRuleSS.upsert({
@@ -379,6 +383,66 @@ async function seed() {
     })),
   });
 
+  // --- FX 基准曲线 ---
+  const usdCnySeries = [
+    { effectiveFrom: "2023-01-01T00:00:00Z", rate: 6.85 },
+    { effectiveFrom: "2024-01-01T00:00:00Z", rate: 7.1 },
+    { effectiveFrom: "2025-01-01T00:00:00Z", rate: 7.0 },
+  ];
+  let usdToCnyRate2025 = null;
+  for (let i = 0; i < usdCnySeries.length; i += 1) {
+    const row = usdCnySeries[i];
+    const next = usdCnySeries[i + 1] ?? null;
+    const effectiveFrom = new Date(row.effectiveFrom);
+    const effectiveTo = next ? new Date(next.effectiveFrom) : null;
+    const usdRate = await prisma.fxRate.create({
+      data: {
+        base: "USD",
+        quote: "CNY",
+        rate: row.rate,
+        effectiveFrom,
+        effectiveTo,
+      },
+    });
+    const usdSnapshot = await prisma.fxSnapshot.create({
+      data: {
+        baseCurrency: "USD",
+        quoteCurrency: "CNY",
+        rate: row.rate,
+        capturedAt: effectiveFrom,
+        sourceRateId: usdRate.id,
+        effectiveFrom,
+        effectiveTo,
+        createdBy: "seed",
+      },
+    });
+    const invertedRate = Number((1 / row.rate).toFixed(6));
+    const cnyRate = await prisma.fxRate.create({
+      data: {
+        base: "CNY",
+        quote: "USD",
+        rate: invertedRate,
+        effectiveFrom,
+        effectiveTo,
+      },
+    });
+    await prisma.fxSnapshot.create({
+      data: {
+        baseCurrency: "CNY",
+        quoteCurrency: "USD",
+        rate: invertedRate,
+        capturedAt: effectiveFrom,
+        sourceRateId: cnyRate.id,
+        effectiveFrom,
+        effectiveTo,
+        createdBy: "seed",
+      },
+    });
+    if (effectiveFrom.getUTCFullYear() === 2025) {
+      usdToCnyRate2025 = usdRate;
+    }
+  }
+
   await prisma.cityChangeRecord.create({
     data: {
       userId: user.id,
@@ -429,26 +493,18 @@ async function seed() {
   });
 
   const crossCurrencyAt = new Date("2025-10-12T23:37:00Z");
-
-  const usdToCny = await prisma.fxRate.create({
-    data: {
-      base: "USD",
-      quote: "CNY",
-      rate: 7,
-      effectiveFrom: new Date("2025-10-12T08:00:00Z"),
-      effectiveTo: null,
-    },
-  });
-
+  if (!usdToCnyRate2025) {
+    throw new Error("missing usd/cny 2025 rate for cross-currency seed");
+  }
   const usdToCnySnapshot = await prisma.fxSnapshot.create({
     data: {
       baseCurrency: "USD",
       quoteCurrency: "CNY",
-      rate: 7,
+      rate: usdToCnyRate2025.rate,
       capturedAt: crossCurrencyAt,
-      sourceRateId: usdToCny.id,
-      effectiveFrom: usdToCny.effectiveFrom,
-      effectiveTo: usdToCny.effectiveTo,
+      sourceRateId: usdToCnyRate2025.id,
+      effectiveFrom: usdToCnyRate2025.effectiveFrom,
+      effectiveTo: usdToCnyRate2025.effectiveTo,
       createdBy: "seed",
     },
   });
@@ -459,6 +515,8 @@ async function seed() {
       userId: user.id,
       type: "DEPOSIT",
       occurredAt: new Date("2025-10-10T09:00:00Z"),
+      fxSnapshotId: null,
+      fxAppliedRate: 1,
       note: "初始化存款",
       lines: {
         create: [
@@ -467,6 +525,8 @@ async function seed() {
             type: "DEPOSIT",
             amount: 500,
             currency: "CNY",
+            fxSnapshotId: null,
+            fxAppliedRate: 1,
             principalDelta: 500,
             valuationDelta: 500,
             note: "初始资金",
@@ -504,6 +564,8 @@ async function seed() {
             type: "TRANSFER",
             amount: -5,
             currency: "CNY",
+            fxSnapshotId: null,
+            fxAppliedRate: 1,
             counterpartyAccountId: cnyLoan.id,
             counterpartyName: "借款",
             exchangeRateAB: 1,
@@ -519,6 +581,8 @@ async function seed() {
             type: "TRANSFER",
             amount: 5,
             currency: "CNY",
+            fxSnapshotId: null,
+            fxAppliedRate: 1,
             counterpartyAccountId: cnySavings.id,
             counterpartyName: "工商",
             exchangeRateAB: 1,
@@ -540,29 +604,32 @@ async function seed() {
       userId: user.id,
       type: "TRANSFER",
       occurredAt: crossCurrencyAt,
-      fxRateId: usdToCny.id,
+      fxRateId: usdToCnyRate2025.id,
       fxSnapshotId: usdToCnySnapshot.id,
-      fxAppliedRate: usdToCnySnapshot.rate,
+      fxAppliedRate: Number(usdToCnySnapshot.rate),
       note: "外汇兑入 A 股账户",
       meta: JSON.stringify({
         fromAmount: 100,
         fromCurrency: "USD",
         toAmount: 700,
         toCurrency: "CNY",
-        effectiveRate: 7,
+        effectiveRate: Number(usdToCnyRate2025.rate),
         viaCurrency: "USD",
         rateAtoUsd: 1,
-        rateUsdToB: 7,
+        rateUsdToB: Number(usdToCnyRate2025.rate),
         fxEffectiveAt: crossCurrencyAt.toISOString(),
         rateSnapshots: [
           {
             base: "USD",
             quote: "CNY",
-            rate: 7,
-            effectiveFrom: usdToCny.effectiveFrom.toISOString(),
-            effectiveTo: null,
-            id: usdToCny.id,
-            snapshotId: usdToCnySnapshot.id,
+            rate: Number(usdToCnyRate2025.rate),
+            capturedAt: crossCurrencyAt.toISOString(),
+            effectiveFrom: usdToCnyRate2025.effectiveFrom.toISOString(),
+            effectiveTo: usdToCnyRate2025.effectiveTo
+              ? usdToCnyRate2025.effectiveTo.toISOString()
+              : null,
+            id: usdToCnySnapshot.id,
+            sourceRateId: usdToCnyRate2025.id,
           },
         ],
         asOf: crossCurrencyAt.toISOString(),
@@ -576,12 +643,12 @@ async function seed() {
             currency: "USD",
             counterpartyAccountId: cnyInvestment.id,
             counterpartyName: "同花顺",
-            exchangeRateAB: 7,
+            exchangeRateAB: Number(usdToCnyRate2025.rate),
             viaCurrency: "USD",
             rateAtoUSD: 1,
-            rateUSDtoB: 7,
+            rateUSDtoB: Number(usdToCnyRate2025.rate),
             fxSnapshotId: usdToCnySnapshot.id,
-            fxAppliedRate: usdToCnySnapshot.rate,
+            fxAppliedRate: Number(usdToCnySnapshot.rate),
             fxEffectiveAt: crossCurrencyAt,
             principalDelta: -100,
             valuationDelta: -100,
@@ -593,12 +660,12 @@ async function seed() {
             currency: "CNY",
             counterpartyAccountId: usdSavings.id,
             counterpartyName: "测试美金",
-            exchangeRateAB: 7,
+            exchangeRateAB: Number(usdToCnyRate2025.rate),
             viaCurrency: "USD",
             rateAtoUSD: 1,
-            rateUSDtoB: 7,
+            rateUSDtoB: Number(usdToCnyRate2025.rate),
             fxSnapshotId: usdToCnySnapshot.id,
-            fxAppliedRate: usdToCnySnapshot.rate,
+            fxAppliedRate: Number(usdToCnySnapshot.rate),
             fxEffectiveAt: crossCurrencyAt,
             principalDelta: 700,
             valuationDelta: 700,
@@ -638,18 +705,27 @@ async function seed() {
         asOf: new Date("2025-10-11T16:12:00Z"),
         totalValue: 6500,
         currency: "CNY",
+        fxRateId: null,
+        fxSnapshotId: null,
+        fxAppliedRate: 1,
       },
       {
         accountId: cnySavings.id,
         asOf: new Date(depositEntry.occurredAt),
         totalValue: 500,
         currency: "CNY",
+        fxRateId: null,
+        fxSnapshotId: null,
+        fxAppliedRate: 1,
       },
       {
         accountId: usdSavings.id,
         asOf: new Date("2025-10-12T08:00:00Z"),
         totalValue: 100,
         currency: "USD",
+        fxRateId: null,
+        fxSnapshotId: usdToCnySnapshot.id,
+        fxAppliedRate: Number(usdToCnySnapshot.rate),
       },
     ],
   });
@@ -661,6 +737,7 @@ async function seed() {
       gross: 20000,
       bonus: 0,
       ltcIncome: 0,
+      sourceCurrency: "CNY",
       socialInsurance: 2103,
       housingFund: 2400,
       taxableCurrent: 10500,
@@ -675,6 +752,7 @@ async function seed() {
       gross: 20000,
       bonus: 0,
       ltcIncome: 0,
+      sourceCurrency: "CNY",
       socialInsurance: 2103,
       housingFund: 2400,
       taxableCurrent: 10500,
@@ -689,6 +767,7 @@ async function seed() {
       gross: 20000,
       bonus: 30000,
       ltcIncome: 10000,
+      sourceCurrency: "CNY",
       socialInsurance: 2103,
       housingFund: 2400,
       taxableCurrent: 50497,
@@ -706,6 +785,10 @@ async function seed() {
       monthDate: new Date(row.monthDate),
       cityId: hz.id,
       currency: "CNY",
+      sourceCurrency: row.sourceCurrency,
+      fxRateId: null,
+      fxSnapshotId: null,
+      fxAppliedRate: 1,
       gross: row.gross,
       bonus: row.bonus,
       ltcIncome: row.ltcIncome,
