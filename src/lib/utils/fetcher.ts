@@ -31,6 +31,9 @@ export async function fetchJson<T = unknown>(
     body: body != null ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error("请先登录后再执行此操作");
+    }
     const text = await res.text().catch(() => "");
     throw new Error(text || `Request failed: ${res.status}`);
   }
