@@ -143,6 +143,12 @@
 
 总体思路：采用“小步快跑、保持兼容”的方式。第一阶段做最少改动以“内聚”服务边界（不改 schema 或在必须时添加最小 migration），将服务代码按子系统重组以便后续抽取；第二阶段实现共享平台（FX provider、Jobs/queue、Outbox consumer）；第三阶段完善 Reporting 与审计。
 
+### 执行三步概览（优先顺序）
+
+- **步骤一 · 结构梳理与基线稳定**：建立 `src/server/services/accounts-ledger/`、`income-tax/` 等子目录，迁移现有服务导出并同步更新路由及测试引用，确保 `pnpm test` 全绿，为后续功能迭代打基线。
+- **步骤二 · 核心写路径补强**：在 `services/fx/` 下实现 provider，并统一写入端的 FX 快照；新增 `EventOutbox` 模型与 writer，将交易、收入等写路径和事件发布绑定到同一事务，补齐相应测试。
+- **步骤三 · 异步与横切能力完善**：实现 `services/jobs/` 本地队列及 worker，将收入重算等长耗时逻辑改为异步；基于 Outbox 构建 reporting consumer，并在敏感操作中统一写入审计日志，完成端到端回放与监控闭环。
+
 阶段 0：基线与验收（短，目标：保证当前测试通过并记录基线）
 
 - 产出：
