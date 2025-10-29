@@ -3,7 +3,7 @@ import { logAudit } from "@/server/services/audit";
 import {
   recalcIncome,
   settleIncomeRecalcTasks,
-} from "@/server/services/income";
+} from "@/server/services/income-tax/income";
 import {
   ensureIdempotent,
   markIdempotencyUsed,

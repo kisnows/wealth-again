@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
 // PRD 示例（doc/prd-income.md 1–3 月）：
 // - 工资：自 2025-01 起 20000（当月生效）
@@ -10,24 +11,12 @@ import { makeJsonRequest } from "@/tests/helpers";
 // - 基本减除：5000/月；专项附加：0
 // 期望个税：1月 614.91；2月 314.91；3月 4699.28（季度在 1/4/7/10 发放，3 月无 LTC）
 
-const mockPrisma: any = {
-  user: { findMany: vi.fn() },
-  incomeChange: { findFirst: vi.fn() },
-  bonusPlan: { findMany: vi.fn() },
-  longTermCashPayout: { findMany: vi.fn() },
-  equityVest: { findMany: vi.fn() },
-  cityRuleSS: { findFirst: vi.fn() },
-  cityRuleHF: { findFirst: vi.fn() },
-  taxConfig: { findUnique: vi.fn() },
-  taxBracket: { findMany: vi.fn() },
-  incomeRecord: { upsert: vi.fn() },
-  idempotencyKey: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-  auditLog: { create: vi.fn() },
-};
+const mockPrisma = prismaMock;
 
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
-
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetPrismaMock();
+});
 
 describe("PRD 示例（2025 年 1–3 月）", () => {
   it("当月个税匹配 PRD 数字", async () => {
@@ -74,13 +63,15 @@ describe("PRD 示例（2025 年 1–3 月）", () => {
       rateEmployee: 0.12,
     });
     // 税制：标准 5000、专项 0；税表按 PRD（7 档）
-    mockPrisma.taxConfig.findUnique.mockResolvedValue({
+    const taxConfig = {
       country: "CN",
       taxYear: 2025,
       standardDeduction: 5000,
       specialAdditionalDeduction: 0,
       brackets: undefined,
-    });
+    };
+    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfig);
+    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfig);
     mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
       { position: 2, threshold: 144000, taxRate: 0.1, quickDeduction: 2520 },

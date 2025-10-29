@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  account: { findMany: vi.fn() },
-  fxRate: { findMany: vi.fn() },
-};
+const mockPrisma = prismaMock;
 
-// 报表依赖账户估值与汇率，统一在此 mock
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
-
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetPrismaMock();
+});
 
 describe("Reports routes", () => {
   it("accounts summary returns 200", async () => {
@@ -66,21 +64,24 @@ describe("Reports routes", () => {
 
   it("income timeseries returns series for given range", async () => {
     const m = await import("@/app/api/v1/reports/income/timeseries/route");
-    (mockPrisma as any).incomeRecord = {
-      findMany: vi.fn().mockResolvedValueOnce([
-        {
-          monthDate: new Date("2025-01-01"),
-          gross: 10000,
-          bonus: 0,
-          ltcIncome: 0,
-          equityIncome: 0,
-          socialInsurance: 0,
-          housingFund: 0,
-          incomeTax: 300,
-          netIncome: 9700,
-        },
-      ]),
-    };
+    mockPrisma.user.findUnique.mockResolvedValueOnce({
+      id: "u1",
+      currentCityId: "c1",
+      currentCity: { country: "CN" },
+    });
+    mockPrisma.incomeRecord.findMany.mockResolvedValueOnce([
+      {
+        monthDate: new Date("2025-01-01"),
+        gross: 10000,
+        bonus: 0,
+        ltcIncome: 0,
+        equityIncome: 0,
+        socialInsurance: 0,
+        housingFund: 0,
+        incomeTax: 300,
+        netIncome: 9700,
+      },
+    ]);
     const res = await m.GET(
       makeGet(
         "http://localhost/api/v1/reports/income/timeseries?from=2025-01-01&to=2025-12-01&userId=u1",

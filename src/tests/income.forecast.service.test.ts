@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
 // 本文件针对“收入预测/回算”做金额级断言：
 // - 工资：每月 10000
@@ -13,30 +14,11 @@ import { makeJsonRequest } from "@/tests/helpers";
 // - 1月 682.5（当月含 2w 奖金）；2月 82.5；3月 82.5；4月 172.5（含 3k LTC）
 // - 5月 135（跨档后当月税 135）；6月 275；7月 575（含 3k LTC）；8月 275
 
-const mockPrisma: any = {
-  user: { findMany: vi.fn() },
-  incomeChange: { findFirst: vi.fn() },
-  bonusPlan: { findMany: vi.fn() },
-  longTermCashPayout: { findMany: vi.fn() },
-  equityVest: { findMany: vi.fn() },
-  cityRuleSS: { findFirst: vi.fn() },
-  cityRuleHF: { findFirst: vi.fn() },
-  taxConfig: { findUnique: vi.fn() },
-  taxBracket: { findMany: vi.fn() },
-  incomeRecord: {
-    upsert: vi.fn(),
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-  },
-  idempotencyKey: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-  auditLog: { create: vi.fn() },
-  userAnnualDeduction: { findUnique: vi.fn(), findMany: vi.fn() },
-};
-
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPrismaMock();
   mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
   mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
   mockPrisma.userAnnualDeduction.findUnique.mockResolvedValue(null);
@@ -91,12 +73,14 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
       rateEmployee: 0.12,
     });
     // 税制：标准扣除 5000；税表（简化）
-    mockPrisma.taxConfig.findUnique.mockResolvedValue({
+    const taxConfig = {
       country: "CN",
       taxYear: 2025,
       standardDeduction: 5000,
       brackets: undefined,
-    });
+    };
+    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfig);
+    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfig);
     mockPrisma.userAnnualDeduction.findUnique.mockResolvedValue(null);
     mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },

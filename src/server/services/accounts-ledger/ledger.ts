@@ -3,7 +3,7 @@ import prisma from "@/server/db";
 import {
   computeAccountSummaryById,
   type AccountSummaryItem,
-} from "@/server/services/accounts-summary";
+} from "@/server/services/accounts-ledger/accounts";
 import { convert } from "@/server/services/fx";
 import { logAudit } from "@/server/services/audit";
 
@@ -47,6 +47,7 @@ export async function postDeposit(input: {
       currency: account.baseCurrency,
       fxSnapshotId: null,
       fxAppliedRate: 1,
+      fxEffectiveAt: occurredAtDate,
       principalDelta: depositAmount,
       valuationDelta: depositAmount,
       note: input.note,

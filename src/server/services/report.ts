@@ -1,4 +1,4 @@
-import { computeAccountsSummary } from "@/server/services/accounts-summary";
+import { computeAccountsSummary } from "@/server/services/accounts-ledger/accounts";
 
 export async function getDashboard(displayCurrency?: string, userId?: string) {
   const summary = await computeAccountsSummary({

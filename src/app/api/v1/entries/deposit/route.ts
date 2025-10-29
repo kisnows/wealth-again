@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       currency: account.baseCurrency,
       fxSnapshotId: null,
       fxAppliedRate: 1,
+      fxEffectiveAt: occurredAtDate,
       principalDelta: depositAmount,
       valuationDelta: depositAmount,
       note,

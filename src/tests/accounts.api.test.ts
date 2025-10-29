@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
-import { prisma as mockPrisma } from "@/server/db";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
 // 跨币种自动折算路径中，直接 mock 转换函数，避免依赖汇率表
 const mockFxSnapshotDate = new Date("2025-01-01T00:00:00.000Z");
@@ -29,8 +29,11 @@ vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
 
+const mockPrisma = prismaMock;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPrismaMock();
 });
 
 // 本文件覆盖账户与记账接口，验证白名单更新、归档、时序查询与跨币种校验等逻辑。

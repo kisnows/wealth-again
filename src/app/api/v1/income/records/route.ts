@@ -4,7 +4,7 @@ import prisma from "@/server/db";
 import {
   ensureIncomeRecordsForUser,
   summarizeIncomeRecords,
-} from "@/server/services/income";
+} from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**

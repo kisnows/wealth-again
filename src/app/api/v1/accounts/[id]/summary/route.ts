@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { computeAccountSummaryById } from "@/server/services/accounts-summary";
+import { computeAccountSummaryById } from "@/server/services/accounts-ledger/accounts";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/server/db";
-import { scheduleIncomeRecalcTask } from "@/server/services/income";
+import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**

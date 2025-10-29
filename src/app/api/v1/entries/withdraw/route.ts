@@ -40,13 +40,24 @@ export async function POST(req: NextRequest) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
+  const occurredAtDate = new Date(occurredAt);
+  if (Number.isNaN(occurredAtDate.getTime())) {
+    return NextResponse.json({ error: "invalid occurredAt" }, { status: 400 });
+  }
+  const normalizedAmount = Math.abs(Number(amount));
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    return NextResponse.json({ error: "invalid amount" }, { status: 400 });
+  }
   const lineInput = {
     accountId,
     type: "WITHDRAW",
-    amount: -Math.abs(amount),
+    amount: -normalizedAmount,
     currency: account.baseCurrency,
-    principalDelta: -Math.abs(amount),
-    valuationDelta: -Math.abs(amount),
+    fxSnapshotId: null,
+    fxAppliedRate: 1,
+    fxEffectiveAt: occurredAtDate,
+    principalDelta: -normalizedAmount,
+    valuationDelta: -normalizedAmount,
     note,
     attachmentUrl:
       typeof attachmentUrl === "string" && attachmentUrl.trim().length > 0
@@ -57,7 +68,9 @@ export async function POST(req: NextRequest) {
     data: {
       userId: user.id,
       type: "WITHDRAW",
-      occurredAt: new Date(occurredAt),
+      occurredAt: occurredAtDate,
+      fxSnapshotId: null,
+      fxAppliedRate: 1,
       note,
       lines: {
         create: lineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,

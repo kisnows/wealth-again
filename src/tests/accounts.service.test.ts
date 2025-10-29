@@ -1,26 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  account: {
-    findUnique: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  fxRate: { findMany: vi.fn() },
-  txnEntry: { create: vi.fn() },
-};
-
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 
 describe("Ledger service（账户与交易）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    for (const key of Object.keys(mockPrisma.account)) {
-      mockPrisma.account[key].mockReset();
-    }
-    mockPrisma.fxRate.findMany.mockReset();
-    mockPrisma.txnEntry.create.mockReset();
+    resetPrismaMock();
     mockPrisma.fxRate.findMany.mockResolvedValue([]);
   });
 
@@ -28,7 +14,7 @@ describe("Ledger service（账户与交易）", () => {
     // 用例：服务在账户不存在时应返回 null，避免继续计算 ROI。
     mockPrisma.account.findMany
       .mockResolvedValueOnce([]);
-    const { getAccountSummary } = await import("@/server/services/ledger");
+    const { getAccountSummary } = await import("@/server/services/accounts-ledger/ledger");
     await expect(getAccountSummary("missing")).resolves.toBeNull();
   });
 
@@ -46,7 +32,7 @@ describe("Ledger service（账户与交易）", () => {
         valuations: [],
       },
     ]);
-    const { getAccountSummary } = await import("@/server/services/ledger");
+    const { getAccountSummary } = await import("@/server/services/accounts-ledger/ledger");
     const summarySavings = await getAccountSummary("acc-savings");
     expect(summarySavings).toMatchObject({
       principal: 105,
@@ -79,7 +65,7 @@ describe("Ledger service（账户与交易）", () => {
   it("postDeposit 账户缺失抛出异常", async () => {
     // 用例：存款前若无法找到账户，应抛出错误阻止创建流水。
     mockPrisma.account.findUnique.mockResolvedValueOnce(null);
-    const { postDeposit } = await import("@/server/services/ledger");
+    const { postDeposit } = await import("@/server/services/accounts-ledger/ledger");
     await expect(
       postDeposit({
         accountId: "missing",
@@ -97,7 +83,7 @@ describe("Ledger service（账户与交易）", () => {
       baseCurrency: "CNY",
     });
     mockPrisma.txnEntry.create.mockResolvedValueOnce({ id: "entry-1" });
-    const { postDeposit } = await import("@/server/services/ledger");
+    const { postDeposit } = await import("@/server/services/accounts-ledger/ledger");
     const occurredAt = new Date("2025-08-02T00:00:00Z").toISOString();
     const res = await postDeposit({
       accountId: "acc1",
@@ -105,16 +91,19 @@ describe("Ledger service（账户与交易）", () => {
       occurredAt,
       note: "薪资入账",
     });
-    expect(res).toEqual({ id: "entry-1" });
-    expect(mockPrisma.txnEntry.create).toHaveBeenCalledTimes(1);
-    const payload = mockPrisma.txnEntry.create.mock.calls[0][0];
-    expect(payload.data.userId).toBe("user-1");
-    expect(payload.data.lines.create).toMatchObject({
-      accountId: "acc1",
-      amount: 500,
-      currency: "CNY",
-      note: "薪资入账",
-    });
+  expect(res).toEqual({ id: "entry-1" });
+  expect(mockPrisma.txnEntry.create).toHaveBeenCalledTimes(1);
+  const payload = mockPrisma.txnEntry.create.mock.calls[0][0];
+  expect(payload.data.userId).toBe("user-1");
+  expect(payload.data.lines.create).toMatchObject({
+    accountId: "acc1",
+    amount: 500,
+    currency: "CNY",
+    note: "薪资入账",
+    fxAppliedRate: 1,
+    fxSnapshotId: null,
+    fxEffectiveAt: new Date(occurredAt),
+  });
   });
 
   it("postTransfer 生成双方分录，未显式提供目标金额时复用来源金额", async () => {
@@ -131,7 +120,7 @@ describe("Ledger service（账户与交易）", () => {
         baseCurrency: "USD",
       });
     mockPrisma.txnEntry.create.mockResolvedValueOnce({ id: "transfer-1" });
-    const { postTransfer } = await import("@/server/services/ledger");
+    const { postTransfer } = await import("@/server/services/accounts-ledger/ledger");
     await postTransfer({
       from: { accountId: "from", amount: 700 },
       to: { accountId: "to" },
@@ -141,19 +130,24 @@ describe("Ledger service（账户与交易）", () => {
     const payload = mockPrisma.txnEntry.create.mock.calls[0][0];
     expect(payload.data.userId).toBe("user-1");
     expect(payload.data.lines.create).toHaveLength(2);
-    const [fromLine, toLine] = payload.data.lines.create;
-    expect(fromLine).toMatchObject({
-      accountId: "from",
-      amount: -700,
-      currency: "CNY",
-      note: "兑换美元",
-    });
-    expect(toLine).toMatchObject({
-      accountId: "to",
-      amount: 700,
-      currency: "USD",
-      note: "兑换美元",
-    });
+  const [fromLine, toLine] = payload.data.lines.create;
+  expect(fromLine).toMatchObject({
+    accountId: "from",
+    amount: -700,
+    currency: "CNY",
+    note: "兑换美元",
+    fxAppliedRate: expect.any(Number),
+    fxSnapshotId: null,
+    fxEffectiveAt: expect.any(Date),
+  });
+  expect(toLine).toMatchObject({
+    accountId: "to",
+    amount: 700,
+    currency: "USD",
+    note: "兑换美元",
+    fxAppliedRate: expect.any(Number),
+    fxEffectiveAt: expect.any(Date),
+  });
   });
 
   it("postTransfer 显式指定目标金额时遵循传入数值", async () => {
@@ -170,7 +164,7 @@ describe("Ledger service（账户与交易）", () => {
         baseCurrency: "JPY",
       });
     mockPrisma.txnEntry.create.mockResolvedValueOnce({ id: "transfer-2" });
-    const { postTransfer } = await import("@/server/services/ledger");
+    const { postTransfer } = await import("@/server/services/accounts-ledger/ledger");
     await postTransfer({
       from: { accountId: "from", amount: 1000 },
       to: { accountId: "to", amount: 21000 },
@@ -179,10 +173,12 @@ describe("Ledger service（账户与交易）", () => {
     });
     const payload = mockPrisma.txnEntry.create.mock.calls[0][0];
     const [, toLine] = payload.data.lines.create;
-    expect(toLine).toMatchObject({
-      accountId: "to",
-      amount: 21000,
-      currency: "JPY",
-    });
+  expect(toLine).toMatchObject({
+    accountId: "to",
+    amount: 21000,
+    currency: "JPY",
+    fxAppliedRate: expect.any(Number),
+    fxEffectiveAt: expect.any(Date),
+  });
   });
 });

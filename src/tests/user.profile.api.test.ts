@@ -1,13 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-type MockedFn = ReturnType<typeof vi.fn>;
-
-const mockPrisma = {
-  user: { update: vi.fn() },
-} satisfies { user: { update: MockedFn } };
-
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
@@ -15,6 +10,7 @@ vi.mock("@/server/services/audit", () => ({ logAudit: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPrismaMock();
 });
 
 describe("用户资料 API", () => {

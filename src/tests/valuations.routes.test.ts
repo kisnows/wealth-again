@@ -1,19 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma = {
-  account: { findUnique: vi.fn() },
-  valuationSnapshot: { create: vi.fn() },
-  auditLog: { create: vi.fn() },
-};
-
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 // Mock 认证函数，返回测试用户
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetPrismaMock();
+});
 
 // 覆盖估值接口的两个路径：SAVINGS 禁止、INVESTMENT 允许；并通过摘要验证 ROI。
 describe("Valuations routes", () => {
@@ -63,10 +61,11 @@ describe("Valuations routes", () => {
       accountType: "INVESTMENT",
       initialBalance: 100,
       txnLines: [],
-      valuations: [{ totalValue: { toNumber: () => 120 } }],
+      valuations: [{ totalValue: 120, currency: "CNY", fxSnapshotId: null, fxAppliedRate: 1, asOf: new Date("2025-08-01") }],
     };
     // 用 mockPrisma 覆盖 account.findUnique，返回估值数据
     mockPrisma.account.findUnique.mockResolvedValueOnce(acc);
+    mockPrisma.account.findMany.mockResolvedValueOnce([acc]);
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
       { params: { id: "a" } },

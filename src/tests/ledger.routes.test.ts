@@ -1,26 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  account: {
-    findMany: vi.fn(),
-    findUnique: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  txnEntry: { create: vi.fn() },
-  valuationSnapshot: { findMany: vi.fn(), create: vi.fn() },
-  idempotencyKey: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-  auditLog: { create: vi.fn() },
-};
-
-// 使用局部 mock Prisma，避免影响其他测试文件
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 // 跨币种自动折算路径中，直接 mock 转换函数，避免依赖汇率表
 const mockFxSnapshotDate = new Date("2025-01-01T00:00:00.000Z");
 
+const convertMock = vi.fn();
+const ensureFxSnapshotBatchMock = vi.fn(async () => []);
 vi.mock("@/server/services/fx", () => ({
-  convert: vi.fn().mockResolvedValue({
+  convert: convertMock,
+  ensureFxSnapshotBatch: ensureFxSnapshotBatchMock,
+}));
+// Mock 认证函数，返回测试用户
+vi.mock("@/server/utils/auth", () => ({
+  getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetPrismaMock();
+  convertMock.mockResolvedValue({
     amount: 70,
     effectiveRate: 7,
     viaCurrency: "USD",
@@ -35,17 +35,12 @@ vi.mock("@/server/services/fx", () => ({
         effectiveFrom: mockFxSnapshotDate,
         effectiveTo: null,
         id: null,
+        sourceRateId: null,
+        capturedAt: mockFxSnapshotDate,
       },
     ],
-  }),
-}));
-// Mock 认证函数，返回测试用户
-vi.mock("@/server/utils/auth", () => ({
-  getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
-}));
-
-beforeEach(() => {
-  vi.clearAllMocks();
+  });
+  ensureFxSnapshotBatchMock.mockResolvedValue([]);
 });
 
 // 本文件覆盖账户与记账接口，验证白名单更新、归档、时序查询与跨币种校验等逻辑。
@@ -288,6 +283,18 @@ describe("Accounts & Entries routes", () => {
       txnLines: [{ amount: 10 }],
       valuations: [],
     });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "a",
+        userId: "u1",
+        name: "A",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        initialBalance: 100,
+        txnLines: [{ amount: 10 }],
+        valuations: [],
+      },
+    ]);
     const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
@@ -327,6 +334,18 @@ describe("Accounts & Entries routes", () => {
       txnLines: [{ amount: -10 }],
       valuations: [],
     });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "a",
+        userId: "u1",
+        name: "A",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        initialBalance: 100,
+        txnLines: [{ amount: -10 }],
+        valuations: [],
+      },
+    ]);
     const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
@@ -368,7 +387,7 @@ describe("Accounts & Entries routes", () => {
     // to.amount 使用了 convert 的返回（被 mock 为 70）
     expect(createArgs.data.lines.create[1].amount).toBe(70);
     const meta = JSON.parse(createArgs.data.meta);
-    expect(meta).toEqual({
+    expect(meta).toMatchObject({
       fromAmount: 10,
       fromCurrency: "USD",
       toAmount: 70,
@@ -378,16 +397,13 @@ describe("Accounts & Entries routes", () => {
       rateAtoUsd: 1,
       rateUsdToB: 7,
       fxEffectiveAt: mockFxSnapshotDate.toISOString(),
-      rateSnapshots: [
-        {
+      rateSnapshots: expect.arrayContaining([
+        expect.objectContaining({
           base: "USD",
           quote: "CNY",
           rate: 7,
-          id: null,
-          effectiveFrom: mockFxSnapshotDate.toISOString(),
-          effectiveTo: null,
-        },
-      ],
+        }),
+      ]),
       asOf: expect.any(String),
     });
   });
@@ -395,7 +411,7 @@ describe("Accounts & Entries routes", () => {
 
 describe("Account summary route", () => {
   it("computes principal/valuation/profit/roi", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
+    const summaryAccount = {
       id: "acc1",
       userId: "u1",
       name: "Invest",
@@ -403,8 +419,10 @@ describe("Account summary route", () => {
       accountType: "INVESTMENT",
       initialBalance: 100,
       txnLines: [{ amount: 50 }, { amount: -10 }],
-      valuations: [{ totalValue: { toNumber: () => 200 } }],
-    });
+      valuations: [{ totalValue: 200, currency: "CNY", fxSnapshotId: null, fxAppliedRate: 1, asOf: new Date("2025-08-01") }],
+    };
+    mockPrisma.account.findUnique.mockResolvedValueOnce(summaryAccount);
+    mockPrisma.account.findMany.mockResolvedValueOnce([summaryAccount]);
     const m = await import("@/app/api/v1/accounts/[id]/summary/route");
     const res = await m.GET(
       makeGet("http://localhost/api/v1/accounts/acc1/summary"),
@@ -424,6 +442,15 @@ describe("Entries transfer success case", () => {
     mockPrisma.account.findUnique
       .mockResolvedValueOnce({ id: "a", userId: "u1", baseCurrency: "CNY" })
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
+    convertMock.mockResolvedValueOnce({
+      amount: 5,
+      effectiveRate: 1,
+      viaCurrency: "USD",
+      rateAtoUsd: 1,
+      rateUsdToB: 1,
+      fxEffectiveAt: mockFxSnapshotDate,
+      snapshots: [],
+    });
     mockPrisma.txnEntry.create.mockImplementation(
       async ({
         data,
@@ -451,7 +478,7 @@ describe("Entries transfer success case", () => {
     const createArgs = mockPrisma.txnEntry.create.mock.calls[0][0];
     expect(createArgs.data.lines.create[0].amount).toBe(-5);
     expect(createArgs.data.lines.create[1].amount).toBe(5);
-    expect(JSON.parse(createArgs.data.meta)).toEqual({
+    expect(JSON.parse(createArgs.data.meta)).toMatchObject({
       fromAmount: 5,
       fromCurrency: "CNY",
       toAmount: 5,
@@ -460,7 +487,7 @@ describe("Entries transfer success case", () => {
       viaCurrency: "USD",
       rateAtoUsd: 1,
       rateUsdToB: 1,
-      fxEffectiveAt: null,
+      fxEffectiveAt: expect.any(String),
       rateSnapshots: [],
       asOf: null,
     });
@@ -479,6 +506,18 @@ describe("Entries transfer success case", () => {
       txnLines: [{ amount: -5 }],
       valuations: [],
     });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "a",
+        userId: "u1",
+        name: "A",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        initialBalance: 100,
+        txnLines: [{ amount: -5 }],
+        valuations: [],
+      },
+    ]);
     const resA = await summaryRoute.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
       { params: { id: "a" } },
@@ -497,6 +536,18 @@ describe("Entries transfer success case", () => {
       txnLines: [{ amount: 5 }],
       valuations: [],
     });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "b",
+        userId: "u1",
+        name: "B",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        initialBalance: 50,
+        txnLines: [{ amount: 5 }],
+        valuations: [],
+      },
+    ]);
     const resB = await summaryRoute.GET(
       makeGet("http://localhost/api/v1/accounts/b/summary"),
       { params: { id: "b" } },

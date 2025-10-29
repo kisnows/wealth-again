@@ -1,31 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-type MockedFn = ReturnType<typeof vi.fn>;
-
-const mockPrisma = {
-  city: { upsert: vi.fn(), findUnique: vi.fn() },
-  cityRuleSS: { findFirst: vi.fn(), upsert: vi.fn(), findMany: vi.fn() },
-  cityRuleHF: { findFirst: vi.fn(), upsert: vi.fn(), findMany: vi.fn() },
-  taxConfig: { upsert: vi.fn() },
-  taxBracket: { findMany: vi.fn(), upsert: vi.fn() },
-  idempotencyKey: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-  auditLog: { create: vi.fn() },
-} satisfies {
-  city: { upsert: MockedFn; findUnique: MockedFn };
-  cityRuleSS: { findFirst: MockedFn; upsert: MockedFn; findMany: MockedFn };
-  cityRuleHF: { findFirst: MockedFn; upsert: MockedFn; findMany: MockedFn };
-  taxConfig: { upsert: MockedFn };
-  taxBracket: { findMany: MockedFn; upsert: MockedFn };
-  idempotencyKey: { findUnique: MockedFn; create: MockedFn; update: MockedFn };
-  auditLog: { create: MockedFn };
-};
-
-// 按领域 mock Prisma，覆盖规则读取与写入路径
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPrismaMock();
 });
 
 describe("Rules routes", () => {

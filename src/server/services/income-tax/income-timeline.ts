@@ -6,13 +6,13 @@ import type {
   LongTermCashPayout,
 } from "@prisma/client";
 import prisma from "@/server/db";
-import { ensureIncomeRecordsForUser } from "@/server/services/income";
+import { ensureIncomeRecordsForUser } from "./income";
 import {
   computeCumulativeTax,
   getTaxContext,
   type TaxComputationInput,
   type TaxContext,
-} from "@/server/services/tax";
+} from "./tax";
 import { convert } from "@/server/services/fx";
 
 type TimelineSource = "system" | "manual" | "forecast";

@@ -1,28 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-type MockedFn = ReturnType<typeof vi.fn>;
-
-const mockPrisma = {
-  taxConfig: { findFirst: vi.fn(), findUnique: vi.fn() },
-  taxBracket: { findMany: vi.fn() },
-} satisfies {
-  taxConfig: { findFirst: MockedFn; findUnique: MockedFn };
-  taxBracket: { findMany: MockedFn };
-};
-
-// 税务服务仅依赖 taxConfig（含 brackets），在此提供最小 mock
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  resetPrismaMock();
   mockPrisma.taxBracket.findMany.mockResolvedValue([]);
-  const { clearTaxContextCache } = await import("@/server/services/tax");
+  const { clearTaxContextCache } = await import("@/server/services/income-tax/tax");
   clearTaxContextCache();
 });
 
 describe("TaxService.calculateTax", () => {
   it("computes increasing cumulative paid", async () => {
-    const { calculateTax } = await import("@/server/services/tax");
+    const { calculateTax } = await import("@/server/services/income-tax/tax");
     mockPrisma.taxConfig.findFirst.mockResolvedValue({
       id: "cfg-cn-2025",
       country: "CN",

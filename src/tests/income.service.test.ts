@@ -1,34 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  user: { findMany: vi.fn() },
-  incomeChange: { findFirst: vi.fn() },
-  bonusPlan: { findMany: vi.fn() },
-  longTermCashPayout: { findMany: vi.fn() },
-  equityVest: { findMany: vi.fn() },
-  cityRuleSS: { findFirst: vi.fn() },
-  cityRuleHF: { findFirst: vi.fn() },
-  taxConfig: { findUnique: vi.fn() },
-  taxBracket: { findMany: vi.fn() },
-  incomeRecord: { upsert: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
-  userAnnualDeduction: { findUnique: vi.fn() },
-};
-
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 
 describe("Income service · recalcIncome", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    for (const group of Object.values(mockPrisma)) {
-      if (group && typeof group === "object") {
-        for (const fnName of Object.keys(group)) {
-          group[fnName].mockClear?.();
-          group[fnName].mockReset?.();
-        }
-      }
-    }
+    resetPrismaMock();
     mockPrisma.userAnnualDeduction.findUnique.mockResolvedValue(null);
     mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
+  });
+
+  beforeEach(async () => {
+    const { clearTaxContextCache } = await import("@/server/services/income-tax/tax");
+    clearTaxContextCache();
   });
 
   it("clamps social/housing bases, picks last salary of the month, and persists cumulative tax metrics", async () => {
@@ -103,7 +88,7 @@ describe("Income service · recalcIncome", () => {
     ];
     mockPrisma.cityRuleSS.findFirst.mockImplementation(
       async ({ where }: any) => {
-        const monthDate: Date = where.startDate.lte;
+        const monthDate: Date = where.effectiveFrom.lte;
         const candidates = ssRules
           .filter(
             (rule) =>
@@ -132,7 +117,7 @@ describe("Income service · recalcIncome", () => {
     ];
     mockPrisma.cityRuleHF.findFirst.mockImplementation(
       async ({ where }: any) => {
-        const monthDate: Date = where.startDate.lte;
+        const monthDate: Date = where.effectiveFrom.lte;
         const candidates = hfRules
           .filter(
             (rule) =>
@@ -162,13 +147,15 @@ describe("Income service · recalcIncome", () => {
         quickDeduction: 181920,
       },
     ];
-    mockPrisma.taxConfig.findUnique.mockResolvedValue({
+    const taxConfig = {
       country: "CN",
       taxYear: 2025,
       standardDeduction: 5000,
       specialAdditionalDeduction: 200,
       brackets: brackets.map((b) => ({ ...b })),
-    });
+    };
+    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfig);
+    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfig);
     mockPrisma.userAnnualDeduction.findUnique.mockResolvedValue(null);
     mockPrisma.taxBracket.findMany.mockImplementation(async () =>
       brackets.map((b) => ({ ...b })),
@@ -180,7 +167,7 @@ describe("Income service · recalcIncome", () => {
     });
     mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
 
-    const { recalcIncome } = await import("@/server/services/income");
+    const { recalcIncome } = await import("@/server/services/income-tax/income");
     const result = await recalcIncome({ taxYear: 2025, endMonth: 3 });
     expect(result.updated).toBe(3);
     expect(upserts).toHaveLength(3);
@@ -278,13 +265,15 @@ describe("Income service · recalcIncome", () => {
         quickDeduction: 181920,
       },
     ];
-    mockPrisma.taxConfig.findUnique.mockResolvedValue({
+    const taxConfigMatch = {
       country: "CN",
       taxYear: 2025,
       standardDeduction: 5000,
       specialAdditionalDeduction: 0,
       brackets: brackets.map((b) => ({ ...b })),
-    });
+    };
+    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfigMatch);
+    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfigMatch);
     mockPrisma.taxBracket.findMany.mockImplementation(async () =>
       brackets.map((b) => ({ ...b })),
     );
@@ -294,7 +283,7 @@ describe("Income service · recalcIncome", () => {
       return args;
     });
 
-    const { recalcIncome } = await import("@/server/services/income");
+    const { recalcIncome } = await import("@/server/services/income-tax/income");
     await recalcIncome({ taxYear: 2025, endMonth: 3 });
 
     const monthly: Record<number, any> = {};

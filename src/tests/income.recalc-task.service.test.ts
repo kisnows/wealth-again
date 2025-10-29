@@ -1,23 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  incomeRecalcTask: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    findMany: vi.fn(),
-    updateMany: vi.fn(),
-  },
-};
-
+const mockPrisma = prismaMock;
 const logAuditMock = vi.fn().mockResolvedValue(undefined);
-
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
 vi.mock("@/server/services/audit", () => ({ logAudit: logAuditMock }));
 
 describe("Income recalc task service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPrismaMock();
     mockPrisma.incomeRecalcTask.findFirst.mockResolvedValue(null);
     mockPrisma.incomeRecalcTask.create.mockResolvedValue({
       id: "task-1",
@@ -28,7 +19,7 @@ describe("Income recalc task service", () => {
   });
 
   it("creates a new task when none pending", async () => {
-    const { scheduleIncomeRecalcTask } = await import("@/server/services/income");
+    const { scheduleIncomeRecalcTask } = await import("@/server/services/income-tax/income");
     const id = await scheduleIncomeRecalcTask({
       userId: "u1",
       taxYear: 2025,
@@ -61,7 +52,7 @@ describe("Income recalc task service", () => {
       status: "PENDING",
       scheduledFor: new Date(),
     });
-    const { scheduleIncomeRecalcTask } = await import("@/server/services/income");
+    const { scheduleIncomeRecalcTask } = await import("@/server/services/income-tax/income");
     const id = await scheduleIncomeRecalcTask({
       userId: "u1",
       taxYear: 2025,
@@ -96,7 +87,7 @@ describe("Income recalc task service", () => {
     mockPrisma.incomeRecalcTask.findMany.mockResolvedValue([dueTask]);
     mockPrisma.incomeRecalcTask.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.incomeRecalcTask.update.mockResolvedValue({});
-    const incomeService = await import("@/server/services/income");
+    const incomeService = await import("@/server/services/income-tax/income");
     const recalcSpy = vi
       .spyOn(incomeService, "recalcIncome")
       .mockResolvedValue({ updated: 3 });

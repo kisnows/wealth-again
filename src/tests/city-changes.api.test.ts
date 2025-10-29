@@ -1,33 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  user: { findUnique: vi.fn(), update: vi.fn() },
-  city: { findUnique: vi.fn() },
-  cityChangeRecord: { findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
-  taxConfig: { findUnique: vi.fn() },
-  taxBracket: { findMany: vi.fn() },
-  incomeChange: { findFirst: vi.fn() },
-  bonusPlan: { findMany: vi.fn() },
-  longTermCashPayout: { findMany: vi.fn() },
-  equityVest: { findMany: vi.fn() },
-  cityRuleSS: { findFirst: vi.fn() },
-  cityRuleHF: { findFirst: vi.fn() },
-  incomeRecord: { upsert: vi.fn(), findMany: vi.fn() },
-  userAnnualDeduction: { findUnique: vi.fn() },
-};
-
+const mockPrisma = prismaMock;
 const recalcMock = vi.fn().mockResolvedValue({ updated: 0 });
-
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
 vi.mock("@/server/services/audit", () => ({ logAudit: vi.fn() }));
-vi.mock("@/server/services/income", () => ({ recalcIncome: recalcMock }));
+vi.mock("@/server/services/income-tax/income", () => ({ recalcIncome: recalcMock }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPrismaMock();
   recalcMock.mockResolvedValue({ updated: 0 });
 });
 

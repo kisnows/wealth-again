@@ -1,28 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  account: { findMany: vi.fn() },
-  fxRate: { findMany: vi.fn() },
-  incomeChange: { findFirst: vi.fn().mockResolvedValue(null) },
-  bonusPlan: { findMany: vi.fn().mockResolvedValue([]) },
-  longTermCashPayout: { findMany: vi.fn().mockResolvedValue([]) },
-  equityVest: { findMany: vi.fn().mockResolvedValue([]) },
-  userAnnualDeduction: {
-    findUnique: vi.fn().mockResolvedValue(null),
-    findMany: vi.fn().mockResolvedValue([]),
-  },
-  incomeRecord: {
-    findMany: vi.fn().mockResolvedValue([]),
-    findFirst: vi.fn().mockResolvedValue(null),
-  },
-};
-
-// 报表依赖账户估值与汇率，统一在此 mock
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPrismaMock();
   mockPrisma.incomeChange.findFirst.mockResolvedValue(null);
   mockPrisma.bonusPlan.findMany.mockResolvedValue([]);
   mockPrisma.longTermCashPayout.findMany.mockResolvedValue([]);
@@ -91,6 +75,11 @@ describe("Reports routes", () => {
   it("income timeseries returns series for given range", async () => {
     // 用例：收入时序接口按时间范围返回单月数据，需包含税额与净收入序列。
     const m = await import("@/app/api/v1/reports/income/timeseries/route");
+    mockPrisma.user.findUnique.mockResolvedValueOnce({
+      id: "u1",
+      currentCityId: "c1",
+      currentCity: { country: "CN" },
+    });
     mockPrisma.incomeRecord.findMany.mockResolvedValueOnce([
       {
         monthDate: new Date("2025-01-01"),

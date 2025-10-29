@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { buildIncomeTimeline } from "@/server/services/income-timeline";
+import { buildIncomeTimeline } from "@/server/services/income-tax/income-timeline";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 export async function GET(req: NextRequest) {

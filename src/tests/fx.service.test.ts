@@ -1,21 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  fxRate: {
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    updateMany: vi.fn(),
-  },
-};
-
-// 使用局部 mock Prisma，确保该测试文件内的行为可控
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPrismaMock();
 });
 
 describe("FX routes", () => {
@@ -158,6 +149,7 @@ describe("FX service", () => {
     const asOf = new Date("2025-08-01");
     mockPrisma.fxRate.findFirst
       .mockResolvedValueOnce({
+        id: "rate-cny",
         base: "USD",
         quote: "CNY",
         rate: 7,
@@ -165,9 +157,32 @@ describe("FX service", () => {
         effectiveTo: null,
       })
       .mockResolvedValueOnce({
+        id: "rate-eur",
         base: "USD",
         quote: "EUR",
         rate: 0.9,
+        effectiveFrom: asOf,
+        effectiveTo: null,
+      });
+    mockPrisma.fxSnapshot.findFirst.mockResolvedValue(null);
+    mockPrisma.fxSnapshot.create
+      .mockResolvedValueOnce({
+        id: "snap-cny",
+        baseCurrency: "USD",
+        quoteCurrency: "CNY",
+        rate: 7,
+        capturedAt: asOf,
+        sourceRateId: "rate-cny",
+        effectiveFrom: asOf,
+        effectiveTo: null,
+      })
+      .mockResolvedValueOnce({
+        id: "snap-eur",
+        baseCurrency: "USD",
+        quoteCurrency: "EUR",
+        rate: 0.9,
+        capturedAt: asOf,
+        sourceRateId: "rate-eur",
         effectiveFrom: asOf,
         effectiveTo: null,
       });

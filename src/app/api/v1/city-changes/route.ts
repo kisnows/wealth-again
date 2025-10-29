@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
-import { recalcIncome } from "@/server/services/income";
+import { recalcIncome } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 function getNextUtcMonthStart(base = new Date()) {

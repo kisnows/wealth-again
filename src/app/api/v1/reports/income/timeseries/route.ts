@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import type { IncomeRecordsSummary } from "@/server/services/income";
-import { ensureIncomeRecordsForUser } from "@/server/services/income";
-import { buildIncomeTimeline } from "@/server/services/income-timeline";
+import type { IncomeRecordsSummary } from "@/server/services/income-tax/income";
+import { ensureIncomeRecordsForUser } from "@/server/services/income-tax/income";
+import { buildIncomeTimeline } from "@/server/services/income-tax/income-timeline";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**

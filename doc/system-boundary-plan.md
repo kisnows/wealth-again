@@ -164,32 +164,33 @@
 
 阶段 1：Accounts & Income 内聚（低风险、可回滚）
 
-- 目标：把相关服务代码按子系统目录化（仅代码移动与导出改造），并在写入端添加/确认汇率快照字段，建立 Event Outbox 基础表。
+- 目标：把相关服务代码按子系统目录化（尽量保持零功能改动），并补齐现有写路径对 FX 快照字段的使用验证，为后续 Outbox/异步改造打基线。
 
 - 主要改动（代码级）：
   1. 在 `src/server/services` 下新增目录：
      - `src/server/services/accounts-ledger/`：包含 `accounts.ts`, `ledger.ts`, `valuations.ts`, `transactions.ts`（把现有实现逐步迁移到这里，导出统一 API）
      - `src/server/services/income-tax/`：包含 `income.ts`, `recalc.ts`, `tax.ts`, `timeline.ts`
-  2. 在写入交易/估值/收入时，统一把 FX 快照字段写入实体（若 Prisma schema 缺少字段，则新增小型 migration，例如为 `TxnLine` 添加 `fxEffectiveAt DateTime?` 与 `fxSnapshot Json?` 字段；为 `IncomeRecord` 添加 `fxSnapshot Json?`）。
-  3. 新增 `EventOutbox` Prisma 模型并运行 migration，先作为本地 DB Outbox（可后续接入外部队列）。
-  4. 保持 API 路由行为不变（`src/app/api/v1/*` 不变），路由内部改为调用新分组的服务导出接口。
+  2. 逐条核对交易、估值、收入写路径，确认 `TxnLine`/`IncomeRecord` 已落库的 `fxSnapshotId`、`fxAppliedRate`、`fxEffectiveAt` 等字段；补充缺失的写入逻辑与回归测试，默认不引入新的 Prisma migration，如确需新增字段改为独立 PR。
+  3. 保持 API 路由行为不变（`src/app/api/v1/*` 仅更新内部依赖路径），同步调整测试引用与类型导出，确保 `pnpm test` 仍然通过。
 
 - 测试与验收：
   - 单元测试：更新/新增测试覆盖移动后的服务导出（在 `src/tests` 添加/更新对应测试）。
   - 集成测试：确保 `npm test` 全绿，重点测试：`income.prd-example.test.ts`, `income.service.test.ts`, `entries` 相关测试。 
   - 验收条目：新增或现有的 `TxnLine` 与 `IncomeRecord` 在 DB 中包含 `fxSnapshot` 字段；API 返回字段不变（向后兼容）。
 
-阶段 2：抽离/封装 FX Provider 与 Jobs（中等风险）
+阶段 2：写路径补强与基础平台（中等风险）
 
-- 目标：将 FX 调用、缓存与时间序列逻辑封装为 provider；引入 Jobs/queue 抽象并把长耗时任务（收入年回算、估值重算）迁移到队列执行。
+- 目标：在阶段 1 的目录化基础上，补齐 Outbox 与队列等横切能力，并将 FX 调用封装为可复用 provider，为长耗时任务迁移到异步流程做准备。
 
 - 主要改动（代码级）：
-  1. 在 `src/server/services/fx/` 中实现 `provider.ts`，接口导出 `getQuote(symbols, at?)`, `getLatest(base, symbols)`, `getTimeSeries(base,target,from,to)`，并实现本地 `FxCache`（内存 + 持久化缓存策略）。
-  2. 在 `src/server/services/jobs/` 中实现轻量 queue：`queue.ts`（抽象接口），`local-worker.ts`（本地 consumer），并在 `package.json` scripts 与 CI 中加入任务运行示例。可选后端：BullMQ（Redis）或直接使用 Postgres-based queue。
-  3. 把 `IncomeRecalcTask` 的触发从同步改为：路由写入 `IncomeRecalcTask` 表 + 向 `queue.enqueue('income-recalc', {taskId})`。Worker 负责拉取并执行 `recalcIncome`。
+  1. 新增 `EventOutbox` Prisma 模型与 `src/server/services/outbox.ts` writer，将交易、收入等核心写路径的事件持久化到 Outbox（与业务写入同一事务）；对应 migration 需单独评审风险，并提供 backfill/回滚方案。
+  2. 在 `src/server/services/fx/` 中实现 `provider.ts`，导出 `getQuote`, `getLatest`, `getTimeSeries` 等接口，并集中处理缓存策略；现有路由与服务改为依赖 provider。
+  3. 在 `src/server/services/jobs/` 中实现轻量 queue：`queue.ts`（抽象接口）、`local-worker.ts`（本地 consumer），并规划部署形态（如：Next.js 以独立 Node 进程运行 worker、或使用外部队列服务）。
+  4. 把 `IncomeRecalcTask` 的触发从同步改为：路由写入任务记录 + 向 queue 入队，由 worker 拉取并执行 `recalcIncome`；补充失败重试与死信策略。
 
 - 测试与验收：
-  - 单元测试覆盖 FX provider 的核心方法（`fx.service.test.ts` 已存在，扩展为 provider）
+  - 单元测试覆盖 FX provider 的核心方法（`fx.service.test.ts` 扩展为 provider 行为测试）。
+  - Outbox 写入/读取测试：验证与业务写入同事务落库、重复提交幂等。
   - 本地 queue 的 end-to-end：在测试中 enqueue 一个 `income-recalc`，worker 执行并写回 `IncomeRecalcTask` 的状态；CI 增加该集成测试。
 
 阶段 3：Reporting、Audit、事件投递完善（高价值、长期）
@@ -197,13 +198,14 @@
 - 目标：用 EventOutbox 驱动 Reporting 的物化视图，强化 AuditLog、事件schema 与监控告警。
 
 - 主要改动（代码级）：
-  1. 在 `src/server/services/reporting/` 中实现 consumer scaffold：`outbox-consumer.ts`，将事件异步写入 `ReportDataset` 或直接更新物化表。
-  2. 在 `src/server/services/audit/` 中统一审计接口：`audit.log(action, meta)`，所有敏感路由（如管理员模拟登录、人工调整、规则变更）必须调用并写入 `AuditLog`。
+  1. 在 `src/server/services/reporting/` 中实现 consumer scaffold：`outbox-consumer.ts`，将事件异步写入 `ReportDataset` 或直接更新物化表，并明确 consumer 的运行形态（复用队列进程或独立 worker）、失败重试与监控指标。
+  2. 在 `src/server/services/audit/` 中统一审计接口：`audit.log(action, meta)`，所有敏感路由（如管理员模拟登录、人工调整、规则变更）必须调用并写入 `AuditLog`，并在必要时产出 Outbox 事件以供异步消费。
   3. 增加报表物化表/索引与相应 migration，优化 `reports` 相关 API 性能。
 
 - 测试与验收：
   - 报表延迟与一致性验证测试（Outbox 写入 -> consumer 处理 -> reports API 返回物化结果）。
   - 审计记录覆盖关键操作（测试中断言 AuditLog 有条目）。
+  - 运行指引：文档化 consumer/worker 的启动方式、健康检查与监控报警配置。
 
 ## 4) Prisma 与 Schema 注意事项
 
@@ -222,11 +224,10 @@
 
 ## 6) 最小交付清单（阶段 1 完成时）
 
-1. `src/server/services/accounts-ledger/` 与 `src/server/services/income-tax/` 目录与导出接口建立完成（代码移动而非功能变更）。
-2. `TxnLine` 与 `IncomeRecord` 写入时包含 `fxSnapshot`（或等效字段）；若新增字段则包含对应 Prisma migration。 
-3. `EventOutbox` Prisma 模型与基础 consumer scaffold（本地实现）完成。
-4. 路由（`src/app/api/v1/*`）保持不变但内部改为调用新的服务导出接口。
-5. CI: `npm test`（或 `pnpm test`）能跑通关键集成测试：`income.prd-example.test.ts`、`entries` 和 `valuations` 相关测试。
+1. `src/server/services/accounts-ledger/` 与 `src/server/services/income-tax/` 目录与导出接口建立完成（仅做代码移动和依赖调整）。
+2. 交易、估值、收入写路径均验证会写入 `fxSnapshotId`、`fxAppliedRate`、`fxEffectiveAt` 等已有字段，并补充对应回归测试记录验证结果（无需新增 Prisma migration）。
+3. 路由（`src/app/api/v1/*`）保持不变但内部改为调用新的服务导出接口；相关测试与类型更新同步完成。
+4. CI: `npm test`（或 `pnpm test`）能跑通关键集成测试：`income.prd-example.test.ts`、`entries` 和 `valuations` 相关测试，并在 PR 描述记录验证步骤。
 
 ## 7) 验收与衡量指标（量化）
 
@@ -239,10 +240,11 @@
 
 以下为低风险、可以在短时间内验证的任务清单（每项可做成单个 PR）：
 
-1) 新增 `EventOutbox` Prisma 模型 + migration，并编写一个单元测试验证写入/读取（目标耗时：1 天）。
-2) 在 `src/server/services/fx/` 中创建 `provider.ts` 接口并把现有 `fxrates` 路由迁移调用到新 provider（目标耗时：1–2 天）。
-3) 在 `src/server/services` 下新增 `accounts-ledger` 目录并移动一个小服务（如 accounts list）确保导出保持不变（目标耗时：半天）。
-4) 为 `IncomeRecalcTask` 添加一个本地 worker 测试，模拟 enqueue -> worker 执行 -> 更新 task 状态（目标耗时：1–2 天）。
+1) 在 `src/server/services` 下新增 `accounts-ledger` 目录并移动一个现有服务（如 accounts list），确认导出保持不变（目标耗时：半天）。
+2) 为交易/收入写路径补充 FX 快照字段的断言测试（`entries`、`income`、`valuations` 等），记录测试输出用于基线对比（目标耗时：1 天）。
+3) 整理基线验证脚本/文档，明确 `pnpm test` 与收入回算示例的操作步骤（目标耗时：半天）。
+4) 新增 `EventOutbox` Prisma 模型 + migration，并编写一个单元测试验证写入/读取（目标耗时：1 天，进入阶段 2 前置任务）。
+5) 为 `IncomeRecalcTask` 添加一个本地 worker 测试，模拟 enqueue -> worker 执行 -> 更新 task 状态（目标耗时：1–2 天，阶段 2）。
 
 ## 9) 跟踪与 PR 模板建议（便于验收）
 
@@ -268,47 +270,51 @@
 阶段 0（基线，已完成/短期）
 - 任务 0.1：生成 `doc/openapi.yaml` 草案，按子系统分组（文档 PR）。验收：PR 描述包含按子系统列出的主要 API。
 
-阶段 1（结构与 schema 准备，优先级高）
-- 任务 1.1（PR-001）：在 `prisma/schema.prisma` 中新增 `FxRateSnapshot` 模型，并为 `TxnLine` 与 `IncomeRecord` 添加 nullable 字段：`fxSnapshotId String?`, `fxEffectiveAt DateTime?`, `baseToDisplayRate Decimal?`, `fxSnapshot Json?`。Migration 名称示例：`20251023_add_fx_snapshot_and_txnline_fields`。
-  - 测试：无破坏性；新增 migration 后跑 `npm test`，并确保现有测试通过。
-  - 验收：数据库包含新增模型/字段，且 API 未改变（向后兼容）。
-
-- 任务 1.2（PR-002）：在 `src/server/services` 下创建目录：`accounts-ledger/`、`income-tax/`（仅移动导出接口，不改变逻辑），并把对应服务逐步导出统一接口（不会影响路由行为）。
+阶段 1（结构与基线校验，优先级高）
+- 任务 1.1（PR-001）：在 `src/server/services` 下创建目录：`accounts-ledger/`、`income-tax/`（仅移动导出接口，不改变逻辑），并把对应服务逐步导出统一接口。
   - 测试：相关单元测试仍通过（更新引用路径）。
   - 验收：路由 `src/app/api/v1/*` 无需变更，服务导入处更新为新路径且 CI 通过。
 
-- 任务 1.3（PR-003）：实现简单的 `src/server/services/fx/provider.ts`（接口为 `getQuote(base,target,at?) -> { snapshotId, rate, timestamp, raw }`），初期可使用内存/DB mock（读取 `FxRateSnapshot`）。更新 `src/app/api/v1/entries/*` 的写入流程，在写入业务记录前调用 provider 并在同一事务写入 `fxSnapshotId` 与 `baseToDisplayRate`。
-  - 测试：新增历史复现测试（见下方测试清单）。
-  - 验收：新写入的 `TxnLine` 包含 `fxSnapshotId` 与 `baseToDisplayRate`，旧 API 行为未改变。
+- 任务 1.2（PR-002）：梳理交易、估值、收入等写路径，确保会写入现有的 `fxSnapshotId`、`fxAppliedRate`、`fxEffectiveAt` 等字段；对缺失场景补充逻辑与测试（不引入新的 Prisma migration），并将验证结果记录到 PR 描述。
+  - 测试：补充/更新 `src/tests/entries.*.test.ts`, `src/tests/income.*.test.ts`, `src/tests/valuations.*.test.ts` 等用例，断言写入字段及幂等行为。
+  - 验收：关键写路径都有覆盖测试，重复执行写操作结果一致，数据库字段保持现有 schema。
+
+- 任务 1.3（PR-003）：整理基线文档与脚本，记录 `pnpm test`、收入回算示例（`doc/prd-income.md`）的复现步骤，并在 `doc/README.md` 或该文档附注基线结果，便于后续改造对比。
+  - 测试：无代码变更；重点在文档与脚本复用。
+  - 验收：文档明确基线测试命令及预期输出（如关键断言的截图/日志节选）。
 
 阶段 2（Jobs、Outbox 与回刷，优先级中）
-- 任务 2.1（PR-004）：新增 `EventOutbox` Prisma 模型并实现 minimal outbox writer（`src/server/services/outbox.ts`），在关键写入点伴随业务写入向 Outbox 写事件（同一事务）。Migration 名称示例：`20251023_add_event_outbox`。
+- 任务 2.1（PR-004）：新增 `EventOutbox` Prisma 模型并实现 minimal outbox writer（`src/server/services/outbox.ts`），在关键写入点伴随业务写入向 Outbox 写事件（同一事务）。Migration 需评估数据兼容性，并在 PR 中包含 backfill/回滚指引。
   - 测试：Outbox 写入与读取单元测试。
   - 验收：写业务数据时 Outbox 有对应事件记录。
 
-- 任务 2.2（PR-005）：实现本地 queue 与 worker（`src/server/services/jobs/queue.ts`, `local-worker.ts`），并实现 `income-recalc` 的 enqueue/worker 执行逻辑（worker 读取 `IncomeRecalcTask` 表并调用 `income-tax.recalc`）。
+- 任务 2.2（PR-005）：实现本地 queue 与 worker（`src/server/services/jobs/queue.ts`, `local-worker.ts`），并实现 `income-recalc` 的 enqueue/worker 执行逻辑（worker 读取 `IncomeRecalcTask` 表并调用 `income-tax.recalc`）。在 PR 中说明运行方式（独立 Node 进程/pm2/或 CI script）及故障告警策略。
   - 测试：E2E 测试 enqueue -> worker 执行 -> 更新 task 状态。
-  - 验收：长耗时任务由 worker 执行，路由改为写任务记录并 enqueue。
+  - 验收：长耗时任务由 worker 执行，路由改为写任务记录并 enqueue，部署指引清晰。
+
+- 任务 2.3（PR-006）：在 `src/server/services/fx/provider.ts` 中集中封装 FX 报价/缓存逻辑，现有 `convert` 等函数改为调用 provider；同步更新调用方（包括路由、服务、测试）。
+  - 测试：扩展 `src/tests/fx.service.test.ts`、新增 provider 单元测试，确保缓存策略与降级逻辑可测。
+  - 验收：FX 相关路由与服务通过 provider 统一访问，缓存失效策略有测试覆盖。
 
 阶段 3（Reporting 与审计完善，优先级中低）
-- 任务 3.1（PR-006）：实现 `src/server/services/reporting/outbox-consumer.ts`，消费 Outbox 事件，更新/构建 `ReportDataset` 或物化表。
-- 任务 3.2（PR-007）：实现 `src/server/services/audit/audit.ts`，并在管理员/敏感操作写入 `AuditLog`（Prisma model）与 UI 触发点。
+- 任务 3.1（PR-007）：实现 `src/server/services/reporting/outbox-consumer.ts`，消费 Outbox 事件，更新/构建 `ReportDataset` 或物化表。明确 consumer 的部署方式（同队列进程/独立 worker）与监控指标。
+- 任务 3.2（PR-008）：实现 `src/server/services/audit/audit.ts`，并在管理员/敏感操作写入 `AuditLog` 与 Outbox 事件，完善审计链路。
 
 ## 后续可拆分 PR 任务清单（可直接引用到 PR 描述）
 
 优先级高（立即）：
-- PR-001：Prisma migration: `20251023_add_fx_snapshot_and_txnline_fields`
-  - Files: `prisma/schema.prisma` (+ migration files)
-  - Tests: none -> run full test suite
-  - Local verify: run `pnpm tsx prisma migrate dev`（或你的本地迁移命令），检查 DB schema
-
-- PR-002：服务目录化
+- PR-001：服务目录化
   - Files: `src/server/services/accounts-ledger/*`, `src/server/services/income-tax/*`（move & re-export）
   - Tests: update import paths in `src/tests/*`
 
-- PR-003：FX provider + write-time snapshot write
-  - Files: `src/server/services/fx/provider.ts`, update `src/app/api/v1/entries/*/route.ts`, update `src/server/services/ledger` 或相应写入逻辑
-  - Tests: 新增 `src/tests/fx.provider.test.ts`, 更新 `src/tests/entries.*.test.ts`
+- PR-002：写路径 FX 快照校验
+  - Files: `src/server/services/ledger.ts`（或拆分后的 `accounts-ledger/*`）、`src/server/services/income-tax/*`, `src/tests/*`
+  - Tests: 扩充 `entries`、`income`、`valuations` 相关测试断言 `fxSnapshotId`、`fxAppliedRate` 等字段
+  - Local verify: 记录 `pnpm test` 输出与示例数据校验结论
+
+- PR-003：基线脚本与文档
+  - Files: `doc/README.md`（或新增 `doc/baseline.md`）、脚本目录
+  - Tests: 无；需在 PR 描述附带基线验证日志
 
 中期优先：
 - PR-004：EventOutbox model + writer
@@ -318,10 +324,21 @@
 - PR-005：Local queue + income-recalc worker
   - Files: `src/server/services/jobs/*`, modifications to `src/app/api/v1/income/recalc/route.ts`
   - Tests: `src/tests/income.recalc-task.service.test.ts`
+- PR-006：FX provider 抽象与路由改造
+  - Files: `src/server/services/fx/provider.ts`, `src/server/services/fx.ts`, `src/app/api/v1/fxrates/*`, 以及调用方
+  - Tests: `src/tests/fx.service.test.ts`, 新增 provider 缓存与降级测试
 
 低优先（后续优化）：
-- PR-006：Outbox consumer -> Reporting dataset
-- PR-007：AuditLog model + audit wrapper and UI hook
+- PR-007：Outbox consumer -> Reporting dataset
+- PR-008：审计封装 + 管理员敏感操作挂钩
+
+## AI 执行手册（近期任务指引）
+
+- **步骤 1：服务目录化（PR-001）** 使用 `mkdir -p src/server/services/accounts-ledger src/server/services/income-tax` 创建目录，移动 `ledger.ts`、`accounts-summary.ts`、`income.ts`、`tax.ts` 等文件至对应目录并保持导出不变，更新 `src/app/api/v1/*` 与 `src/tests/*` 导入路径，执行 `pnpm test --filter "accounts"` 与 `pnpm test --filter "income"` 并在 PR 描述记录命令与摘要结果。
+- **步骤 2：写路径 FX 快照校验（PR-002）** 审核 `accounts-ledger/*` 与 `income-tax/*` 写入逻辑确保 `fxSnapshotId`、`fxAppliedRate`、`fxEffectiveAt` 会在事务中落库，必要时调用 `ensureFxSnapshot` 补写字段，扩展 `entries`、`income`、`valuations` 测试断言 FX 字段，运行 `pnpm test` 并将关键断言输出写入 PR 描述；若发现需要修改 Prisma schema，应终止此步骤并转入新的 migration PR。
+- **步骤 3：基线脚本与文档（PR-003）** 在 `doc/README.md` 或新建 `doc/baseline.md` 记录回归命令（`pnpm test`、`pnpm lint`、`pnpm tsx prisma/seed.ts`、收入回算脚本等），提供 `doc/prd-income.md` 示例数据复现步骤与预期断言，将执行结果写入文档列表，并更新 PR 模板“本地验证”小节引用该文档。
+- **步骤 4：EventOutbox 与队列（PR-004/PR-005）** 通过 `pnpm prisma migrate dev --name add_event_outbox` 新增模型并实现 `src/server/services/outbox.ts`，在写路径事务中调用 `outbox.write` 并补充 `src/tests/outbox.test.ts`，开发 `jobs/queue.ts` 与 `local-worker.ts` 并在 `package.json` 增加 `pnpm worker` 脚本，新增 enqueue→worker→任务完成的端到端测试，更新文档说明 worker 启动方式、重试策略与监控指标。
+- **步骤 5：FX Provider 与 Reporting/Audit（PR-006+）** 抽象 `src/server/services/fx/provider.ts` 并让路由与服务统一使用 provider，扩展 `src/tests/fx.service.test.ts` 覆盖缓存、降级与快照回放，实现 `reporting/outbox-consumer.ts` 与 `audit/audit.ts` 并文档化部署方案，针对 `/admin` 敏感操作补充审计日志与 Outbox 事件，并新增对应测试验证。
 
 ## 验收清单（可用于 PR 模板）
 
@@ -334,7 +351,7 @@
 
 ---
 
-我已把折中方案写入并把改造步骤细化为可拆分 PR 任务清单。下一步我会把 todo 列表同步更新以反映这些任务（把第 2 项标为已完成，生成跟踪清单与验收条目与建议小步任务设为进行中），或如果你同意，我可以直接开始实现 PR-001（Prisma migration + 小测试）。
+我已把折中方案写入并把改造步骤细化为可拆分 PR 任务清单。下一步我会把 todo 列表同步更新以反映这些任务（把第 2 项标为已完成，生成跟踪清单与验收条目与建议小步任务设为进行中），或如果你同意，我可以直接开始实现 PR-001（服务目录化与引用更新）。
 
 ## 测试矩阵与覆盖范围（补充）
 
@@ -557,4 +574,3 @@
 ---
 
 执行建议：优先补强已有测试文件中的断言，避免重复创建新文件；对阶段 2/3 相关用例先标注为 pending/skip，并在相应阶段启用。
-

@@ -1,44 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
+import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
-const mockPrisma: any = {
-  incomeChange: { findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
-  bonusPlan: { findMany: vi.fn(), create: vi.fn() },
-  longTermCashPlan: { findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn() },
-  longTermCashPayout: { upsert: vi.fn(), findMany: vi.fn() },
-  equityGrant: { findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn() },
-  equityVest: {
-    upsert: vi.fn(),
-    update: vi.fn(),
-    findMany: vi.fn(),
-    findUnique: vi.fn(),
-  },
-  incomeRecord: {
-    findMany: vi.fn(),
-    findFirst: vi.fn(),
-    update: vi.fn(),
-    upsert: vi.fn(),
-    findUnique: vi.fn(),
-  },
-  incomeRecalcTask: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    findMany: vi.fn(),
-    updateMany: vi.fn(),
-  },
-  user: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-  cityChangeRecord: { findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
-  city: { findMany: vi.fn(), findUnique: vi.fn() },
-  cityRuleSS: { findFirst: vi.fn() },
-  cityRuleHF: { findFirst: vi.fn() },
-  taxConfig: { findUnique: vi.fn() },
-  taxBracket: { findMany: vi.fn() },
-  idempotencyKey: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-  auditLog: { create: vi.fn() },
-};
-
-vi.mock("@/server/db", () => ({ default: mockPrisma }));
+const mockPrisma = prismaMock;
 // Mock 认证函数，返回测试用户
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
@@ -46,20 +10,19 @@ vi.mock("@/server/utils/auth", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPrismaMock();
   mockPrisma.cityChangeRecord.findMany.mockResolvedValue([]);
   mockPrisma.cityChangeRecord.findFirst.mockResolvedValue(null);
   mockPrisma.city.findMany.mockResolvedValue([]);
   mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
   mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
-  mockPrisma.incomeRecalcTask.findFirst = vi.fn().mockResolvedValue(null);
-  mockPrisma.incomeRecalcTask.create = vi.fn().mockResolvedValue({
+  mockPrisma.incomeRecalcTask.findFirst.mockResolvedValue(null);
+  mockPrisma.incomeRecalcTask.create.mockResolvedValue({
     id: "task-1",
   });
-  mockPrisma.incomeRecalcTask.update = vi.fn().mockResolvedValue(null);
-  mockPrisma.incomeRecalcTask.findMany = vi.fn().mockResolvedValue([]);
-  mockPrisma.incomeRecalcTask.updateMany = vi
-    .fn()
-    .mockResolvedValue({ count: 0 });
+  mockPrisma.incomeRecalcTask.update.mockResolvedValue(null);
+  mockPrisma.incomeRecalcTask.findMany.mockResolvedValue([]);
+  mockPrisma.incomeRecalcTask.updateMany.mockResolvedValue({ count: 0 });
 });
 
 // 本文件覆盖收入域路由：工资/奖金/长期现金/股权、月度快照与回算。
@@ -340,14 +303,16 @@ describe("Income basic endpoints", () => {
       baseMax: 40000,
       rateEmployee: 0.12,
     });
-    mockPrisma.taxConfig.findUnique.mockResolvedValue({
+    const taxConfigFull = {
       country: "CN",
       taxYear: 2025,
       standardDeduction: 5000,
       brackets: undefined,
-    });
+    };
+    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfigFull);
+    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfigFull);
     // 当 taxConfig.include 未返回 brackets 时，服务会回退到 taxBracket.findMany
-    mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
+    mockPrisma.taxBracket.findMany.mockImplementation(async () => [
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
       { position: 2, threshold: 144000, taxRate: 0.1, quickDeduction: 2520 },
       {
@@ -415,14 +380,16 @@ describe("Income basic endpoints", () => {
     mockPrisma.equityVest.findMany.mockResolvedValue([]);
     mockPrisma.cityRuleSS.findFirst.mockResolvedValue(null);
     mockPrisma.cityRuleHF.findFirst.mockResolvedValue(null);
-    mockPrisma.taxConfig.findUnique.mockResolvedValue({
+    const taxConfigSimplified = {
       country: "CN",
       taxYear: 2025,
       standardDeduction: 0,
       brackets: undefined,
-    });
+    };
+    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfigSimplified);
+    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfigSimplified);
     // 税表：36000 @3%，+∞ @45%（简化）
-    mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
+    mockPrisma.taxBracket.findMany.mockImplementation(async () => [
       { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
       {
         position: 7,

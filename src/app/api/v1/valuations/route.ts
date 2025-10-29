@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
+import { ensureFxSnapshot } from "@/server/services/fx";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
@@ -49,13 +50,41 @@ export async function POST(req: NextRequest) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
+  const asOfDate = new Date(asOf);
+  if (Number.isNaN(asOfDate.getTime())) {
+    return NextResponse.json({ error: "invalid asOf" }, { status: 400 });
+  }
+  const baseCurrency = account.baseCurrency.toUpperCase();
+  const normalizedCurrency = typeof currency === "string" && currency.trim()
+    ? currency.trim().toUpperCase()
+    : baseCurrency;
+  let snapshotId: string | null = null;
+  let appliedRate = 1;
+  if (normalizedCurrency !== baseCurrency) {
+    try {
+      const snapshot = await ensureFxSnapshot({
+        base: baseCurrency,
+        quote: normalizedCurrency,
+        asOf: asOfDate,
+        allowMissing: true,
+      });
+      if (snapshot) {
+        snapshotId = snapshot.id;
+        appliedRate = snapshot.rate;
+      }
+    } catch (error) {
+      console.error("valuation fx snapshot ensure failed", error);
+    }
+  }
   const created = await prisma.valuationSnapshot.create({
     data: {
       accountId,
-      asOf: new Date(asOf),
+      asOf: asOfDate,
       totalValue,
-      currency: currency || account.baseCurrency,
+      currency: normalizedCurrency,
       fxRateId: fxRateId || undefined,
+      fxSnapshotId: snapshotId,
+      fxAppliedRate: appliedRate,
       note,
     },
   });
