@@ -23,6 +23,40 @@ vi.mock("@/server/services/outbox", () => ({
   markOutboxEventFailed: vi.fn(),
 }));
 
+function buildPendingTask(overrides: Partial<any> = {}) {
+  const now = new Date();
+  return {
+    id: overrides.id ?? "task-mock",
+    userId: overrides.userId ?? "u1",
+    taxYear: overrides.taxYear ?? 2025,
+    startMonth: overrides.startMonth ?? 1,
+    endMonth: overrides.endMonth ?? 8,
+    cityId: overrides.cityId ?? null,
+    status: "PENDING",
+    attempts: overrides.attempts ?? 0,
+    scheduledFor: overrides.scheduledFor ?? new Date(now.getTime() - 1_000),
+    processedAt: overrides.processedAt ?? null,
+    lastError: overrides.lastError ?? null,
+    triggeredBy: overrides.triggeredBy ?? "u1",
+    createdAt: overrides.createdAt ?? now,
+    updatedAt: overrides.updatedAt ?? now,
+  };
+}
+
+async function runIncomeWorkerOnce(taskOverrides: Partial<any> = {}) {
+  const { processDueIncomeRecalcTasks } = await import("@/server/services/income-tax/income");
+  const pendingTask = buildPendingTask(taskOverrides);
+  mockPrisma.incomeRecalcTask.findMany.mockResolvedValueOnce([pendingTask]);
+  mockPrisma.incomeRecalcTask.updateMany.mockResolvedValueOnce({ count: 1 });
+  mockPrisma.incomeRecalcTask.update.mockResolvedValueOnce({
+    ...pendingTask,
+    status: "COMPLETED",
+    processedAt: new Date(),
+    updatedAt: new Date(),
+  });
+  await processDueIncomeRecalcTasks();
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   resetPrismaMock();
@@ -33,13 +67,13 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
   it("半年（1-6月）与 5-8 月的应纳税额准确", async () => {
     const recalc = await import("@/app/api/v1/income-tax/recalc/route");
     // 用户（CN）
-  mockPrisma.user.findMany.mockResolvedValueOnce([
-    {
-      id: "u1",
-      currentCityId: "c1",
-      currentCity: { country: "CN" },
-    },
-  ]);
+    mockPrisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: "u1",
+        currentCityId: "c1",
+        currentCity: { country: "CN" },
+      },
+    ]);
     // 工资变更：10000/月
     mockPrisma.incomeChange.findFirst.mockResolvedValue({
       grossMonthly: 10000,
@@ -98,13 +132,14 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
     mockPrisma.incomeRecord.upsert.mockResolvedValue({});
 
     // 回算到 8 月，便于截取 5-8 月
-    const resp = await recalc.POST(
+    const scheduleResp = await recalc.POST(
       makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
         taxYear: 2025,
         endMonth: 8,
       }),
     );
-    expect(resp.status).toBe(200);
+    expect(scheduleResp.status).toBe(202);
+    await runIncomeWorkerOnce({ taxYear: 2025, startMonth: 1, endMonth: 8 });
 
     // 收集 upsert 调用，按 monthDate 映射断言
     const calls = (mockPrisma.incomeRecord.upsert as any).mock.calls as any[];
@@ -148,5 +183,9 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
     for (let m = 5; m <= 8; m++) {
       expect(byMonth[m].incomeTax).toBeCloseTo(expectedTax[m]);
     }
+    expect(writeOutboxEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: "income.recalc.completed" }),
+    );
   });
 });

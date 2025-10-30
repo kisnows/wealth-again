@@ -15,6 +15,40 @@ vi.mock("@/server/services/outbox", () => ({
   markOutboxEventFailed: vi.fn(),
 }));
 
+function buildPendingTask(overrides: Partial<any> = {}) {
+  const now = new Date();
+  return {
+    id: overrides.id ?? "task-mock",
+    userId: overrides.userId ?? "u1",
+    taxYear: overrides.taxYear ?? 2025,
+    startMonth: overrides.startMonth ?? 1,
+    endMonth: overrides.endMonth ?? 12,
+    cityId: overrides.cityId ?? null,
+    status: overrides.status ?? "PENDING",
+    attempts: overrides.attempts ?? 0,
+    scheduledFor: overrides.scheduledFor ?? new Date(now.getTime() - 1_000),
+    processedAt: overrides.processedAt ?? null,
+    lastError: overrides.lastError ?? null,
+    triggeredBy: overrides.triggeredBy ?? "u1",
+    createdAt: overrides.createdAt ?? now,
+    updatedAt: overrides.updatedAt ?? now,
+  };
+}
+
+async function runIncomeWorkerOnce(taskOverrides: Partial<any> = {}) {
+  const { processDueIncomeRecalcTasks } = await import("@/server/services/income-tax/income");
+  const pendingTask = buildPendingTask(taskOverrides);
+  mockPrisma.incomeRecalcTask.findMany.mockResolvedValueOnce([pendingTask]);
+  mockPrisma.incomeRecalcTask.updateMany.mockResolvedValueOnce({ count: 1 });
+  mockPrisma.incomeRecalcTask.update.mockResolvedValueOnce({
+    ...pendingTask,
+    status: "COMPLETED",
+    processedAt: new Date(),
+    updatedAt: new Date(),
+  });
+  await processDueIncomeRecalcTasks();
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   resetPrismaMock();
@@ -25,10 +59,6 @@ beforeEach(() => {
   mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
   mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
   mockPrisma.incomeRecalcTask.findFirst.mockResolvedValue(null);
-  mockPrisma.incomeRecalcTask.create.mockResolvedValue({
-    id: "task-1",
-  });
-  mockPrisma.incomeRecalcTask.update.mockResolvedValue(null);
   mockPrisma.incomeRecalcTask.findMany.mockResolvedValue([]);
   mockPrisma.incomeRecalcTask.updateMany.mockResolvedValue({ count: 0 });
 });
@@ -311,6 +341,17 @@ describe("Income basic endpoints", () => {
       expect.anything(),
       expect.objectContaining({ eventType: "income.recalc.requested" }),
     );
+    await runIncomeWorkerOnce({
+      id: "task-42",
+      userId: "u1",
+      taxYear: 2025,
+      startMonth: 1,
+      endMonth: 2,
+    });
+    expect(writeOutboxEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: "income.recalc.completed" }),
+    );
   });
 
   it("income recalc idempotency reuse returns 409", async () => {
@@ -369,17 +410,23 @@ describe("Income basic endpoints", () => {
       },
     ]);
     mockPrisma.incomeRecord.upsert.mockResolvedValue({});
-    const res = await recalc.POST(
+    const scheduleResp = await recalc.POST(
       makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
         taxYear: 2025,
         endMonth: 2,
       }),
     );
-    expect(res.status).toBe(202);
-    expect(mockPrisma.incomeRecalcTask.create).toHaveBeenCalled();
+    expect(scheduleResp.status).toBe(202);
+    await runIncomeWorkerOnce({ taxYear: 2025, startMonth: 1, endMonth: 2 });
+    const calls = (mockPrisma.incomeRecord.upsert as any).mock.calls as any[];
+    const [firstArg, secondArg] = [calls[0][0], calls[1][0]];
+    const firstTax = (firstArg.update?.incomeTax ?? firstArg.create?.incomeTax) as number;
+    const secondTax = (secondArg.update?.incomeTax ?? secondArg.create?.incomeTax) as number;
+    expect(firstTax).toBeCloseTo(300);
+    expect(secondTax).toBeCloseTo(300);
     expect(writeOutboxEventMock).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ eventType: "income.recalc.requested" }),
+      expect.objectContaining({ eventType: "income.recalc.completed" }),
     );
   });
 });

@@ -18,18 +18,38 @@ describe("Income recalc task service", () => {
     resetPrismaMock();
     writeOutboxEventMock.mockReset();
     mockPrisma.incomeRecalcTask.findFirst.mockResolvedValue(null);
-    mockPrisma.incomeRecalcTask.create.mockResolvedValue({
+    mockPrisma.incomeRecalcTask.create.mockImplementation(async ({ data }: { data: any }) => ({
       id: "task-1",
-      taxYear: 2025,
-      startMonth: 3,
-      endMonth: 12,
-    });
-    mockPrisma.incomeRecalcTask.update.mockResolvedValue({
-      id: "task-1",
-      taxYear: 2025,
-      startMonth: 3,
-      endMonth: 12,
-    });
+      userId: data?.userId ?? "u1",
+      taxYear: data?.taxYear ?? 2025,
+      startMonth: data?.startMonth ?? 3,
+      endMonth: data?.endMonth ?? 12,
+      cityId: data?.cityId ?? null,
+      status: data?.status ?? "PENDING",
+      attempts: data?.attempts ?? 0,
+      scheduledFor: data?.scheduledFor ?? new Date(),
+      processedAt: data?.processedAt ?? null,
+      lastError: data?.lastError ?? null,
+      triggeredBy: data?.triggeredBy ?? "u1",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    mockPrisma.incomeRecalcTask.update.mockImplementation(async ({ data, where }: { data: any; where: any }) => ({
+      id: where?.id ?? "task-1",
+      userId: data?.userId ?? "u1",
+      taxYear: data?.taxYear ?? 2025,
+      startMonth: data?.startMonth ?? 3,
+      endMonth: data?.endMonth ?? 12,
+      cityId: data?.cityId ?? null,
+      status: data?.status ?? "PENDING",
+      attempts: data?.attempts ?? 0,
+      scheduledFor: data?.scheduledFor ?? new Date(),
+      processedAt: data?.processedAt ?? null,
+      lastError: data?.lastError ?? null,
+      triggeredBy: data?.triggeredBy ?? "u1",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
   });
 
   it("creates a new task when none pending", async () => {

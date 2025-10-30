@@ -243,7 +243,7 @@ function IncomeRecalcManualForm() {
           立即回算
         </CardTitle>
         <CardDescription>
-          如需即时查看结果，可在此指定税年与月份触发同步回算。
+          提交后任务会排入后台队列，请在右侧任务列表关注进度或等待 worker 完成处理。
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -306,7 +306,15 @@ function IncomeRecalcManualForm() {
           <div className="rounded-md border border-dashed border-border/70 bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
             <p className="flex items-center gap-2">
               <Clock4Icon className="h-4 w-4" />
-              系统同时保持自动回算队列，手动触发仅在需要即时对账时使用。
+              系统持续监听变更并自动排队，手动触发仅在需要手动扩展范围时使用。
+            </p>
+            <p className="mt-2 flex items-center gap-2">
+              <HistoryIcon className="h-4 w-4" />
+              本地调试请在终端运行
+              <code className="rounded-sm bg-background px-1 py-0.5 font-mono text-[11px]">
+                npm run worker
+              </code>
+              以便及时消费任务。
             </p>
           </div>
           <Button

@@ -1,3 +1,4 @@
+import type { IncomeRecalcTask } from "@prisma/client";
 import { vi } from "vitest";
 import { prisma as prismaInstance } from "@/server/db";
 import { clearTaxContextCache } from "@/server/services/income-tax/tax";
@@ -48,6 +49,27 @@ const delegates = [
 ] as const;
 
 export const prismaMock = prismaInstance as unknown as Record<string, any>;
+
+function buildIncomeRecalcTask(overrides: Partial<IncomeRecalcTask> = {}): IncomeRecalcTask {
+  const now = new Date();
+  return {
+    id: "task-mock",
+    userId: null,
+    taxYear: 2025,
+    startMonth: 1,
+    endMonth: 12,
+    cityId: null,
+    status: "PENDING",
+    scheduledFor: now,
+    attempts: 0,
+    lastError: null,
+    triggeredBy: null,
+    createdAt: now,
+    updatedAt: now,
+    processedAt: null,
+    ...overrides,
+  } satisfies IncomeRecalcTask;
+}
 
 export function resetPrismaMock() {
   for (const name of delegates) {
@@ -118,6 +140,58 @@ export function resetPrismaMock() {
     createdAt: data?.createdAt ?? new Date(),
     updatedAt: data?.updatedAt ?? new Date(),
   }));
+  prismaMock.incomeRecalcTask?.findMany?.mockResolvedValue([]);
+  prismaMock.incomeRecalcTask?.findFirst?.mockResolvedValue(null);
+  prismaMock.incomeRecalcTask?.updateMany?.mockResolvedValue({ count: 0 });
+  if (prismaMock.incomeRecalcTask?.create) {
+    prismaMock.incomeRecalcTask.create.mockImplementation(async ({ data }: { data: any }) =>
+      buildIncomeRecalcTask({
+        id: data?.id ?? "task-mock",
+        userId: data?.userId ?? null,
+        taxYear: data?.taxYear ?? 2025,
+        startMonth: data?.startMonth ?? 1,
+        endMonth: data?.endMonth ?? 12,
+        cityId: data?.cityId ?? null,
+        status: data?.status ?? "PENDING",
+        scheduledFor:
+          data?.scheduledFor instanceof Date ? data.scheduledFor : new Date(),
+        attempts: typeof data?.attempts === "number" ? data.attempts : 0,
+        triggeredBy: data?.triggeredBy ?? null,
+        createdAt:
+          data?.createdAt instanceof Date ? data.createdAt : new Date(),
+        updatedAt:
+          data?.updatedAt instanceof Date ? data.updatedAt : new Date(),
+        processedAt:
+          data?.processedAt instanceof Date ? data.processedAt : null,
+        lastError: data?.lastError ?? null,
+      }),
+    );
+  }
+  if (prismaMock.incomeRecalcTask?.update) {
+    prismaMock.incomeRecalcTask.update.mockImplementation(
+      async ({ data, where }: { data: any; where: any }) =>
+        buildIncomeRecalcTask({
+          id: where?.id ?? "task-mock",
+          userId: data?.userId ?? null,
+          taxYear: data?.taxYear ?? where?.taxYear ?? 2025,
+          startMonth: data?.startMonth ?? where?.startMonth ?? 1,
+          endMonth: data?.endMonth ?? where?.endMonth ?? 12,
+          cityId: data?.cityId ?? null,
+          status: data?.status ?? "PENDING",
+          scheduledFor:
+            data?.scheduledFor instanceof Date ? data.scheduledFor : new Date(),
+          attempts: typeof data?.attempts === "number" ? data.attempts : 0,
+          processedAt:
+            data?.processedAt instanceof Date ? data.processedAt : null,
+          lastError: data?.lastError ?? null,
+          triggeredBy: data?.triggeredBy ?? null,
+          createdAt:
+            data?.createdAt instanceof Date ? data.createdAt : new Date(),
+          updatedAt:
+            data?.updatedAt instanceof Date ? data.updatedAt : new Date(),
+        }),
+    );
+  }
   prismaMock.incomeRecord?.findMany?.mockResolvedValue([]);
   prismaMock.incomeRecord?.findFirst?.mockResolvedValue(null);
   prismaMock.incomeChange?.findMany?.mockResolvedValue([]);

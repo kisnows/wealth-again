@@ -30,6 +30,13 @@
 
 > 以上事件均要求在业务写入的同一事务内落入 `EventOutbox`，以便后续消费者（如报表物化视图、审计同步）可靠消费。
 
+## 运行指引与联调说明
+
+- `/api/v1/income-tax/recalc` 接口现以异步排队形式返回 `202`，响应体包含 `taskId` 与当前状态，前端通过回算任务看板轮询结果。
+- 本地或 CI 环境下需额外启动 `npm run worker`，worker 将轮询 `IncomeRecalcTask` 与 `EventOutbox` 并调用领域服务消费任务；默认 5 秒一次，可通过 `runWorkerIteration` 注入自定义间隔。
+- Worker 执行成功会写回 `income.recalc.completed` 事件，失败则写入 `income.recalc.failed` 并重置 `availableAt`，可用于后续补偿。
+- Vitest 用例通过直接调用 `processDueIncomeRecalcTasks` 验证“入队 → worker → Outbox”流程，并结合 PRD 示例数据对累计预扣金额与社保/公积金数值做回归。
+
 ## 验收标准
 
 - Prisma migration 可成功执行，本地/CI 运行通过。
