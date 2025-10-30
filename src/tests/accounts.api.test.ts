@@ -23,6 +23,7 @@ vi.mock("@/server/services/fx", () => ({
       },
     ],
   }),
+  ensureFxSnapshotBatch: vi.fn().mockResolvedValue([]),
 }));
 // Mock 认证函数，返回测试用户
 vi.mock("@/server/utils/auth", () => ({
@@ -393,16 +394,21 @@ describe("Accounts & Entries routes", () => {
     );
     expect(res.status).toBe(201);
     // 摘要：初始100 + 10 = 110
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "a",
-      userId: "u1",
-      name: "A",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 100,
-      txnLines: [{ amount: 10 }],
-      valuations: [],
-    });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "a",
+        userId: "u1",
+        name: "A",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        status: "ACTIVE",
+        subType: null,
+        description: null,
+        initialBalance: 100,
+        txnLines: [{ amount: 10 }],
+        valuations: [],
+      },
+    ]);
     const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
@@ -434,16 +440,21 @@ describe("Accounts & Entries routes", () => {
     );
     expect(res.status).toBe(201);
     // 摘要：初始100 - 10 = 90
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "a",
-      userId: "u1",
-      name: "A",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 100,
-      txnLines: [{ amount: -10 }],
-      valuations: [],
-    });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "a",
+        userId: "u1",
+        name: "A",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        status: "ACTIVE",
+        subType: null,
+        description: null,
+        initialBalance: 100,
+        txnLines: [{ amount: -10 }],
+        valuations: [],
+      },
+    ]);
     const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
@@ -603,16 +614,29 @@ describe("Accounts & Entries routes", () => {
 describe("Account summary route", () => {
   it("computes principal/valuation/profit/roi", async () => {
     // 用例：账户摘要需同时返回本金、估值、收益与 ROI，本例验证综合字段计算。
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "acc1",
-      userId: "u1",
-      name: "Invest",
-      baseCurrency: "CNY",
-      accountType: "INVESTMENT",
-      initialBalance: 100,
-      txnLines: [{ amount: 50 }, { amount: -10 }],
-      valuations: [{ totalValue: { toNumber: () => 200 } }],
-    });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "acc1",
+        userId: "u1",
+        name: "Invest",
+        baseCurrency: "CNY",
+        accountType: "INVESTMENT",
+        status: "ACTIVE",
+        subType: null,
+        description: null,
+        initialBalance: 100,
+        txnLines: [{ amount: 50 }, { amount: -10 }],
+        valuations: [
+          {
+            asOf: new Date("2025-08-01"),
+            currency: "CNY",
+            fxSnapshotId: null,
+            fxAppliedRate: 1,
+            totalValue: 200,
+          },
+        ],
+      },
+    ]);
     const m = await import("@/app/api/v1/accounts/[id]/summary/route");
     const res = await m.GET(
       makeGet("http://localhost/api/v1/accounts/acc1/summary"),
@@ -661,16 +685,21 @@ describe("Entries transfer success case", () => {
       "@/app/api/v1/accounts/[id]/summary/route"
     );
     // 2) A 账户摘要：初始100 + (-5) = 95
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "a",
-      userId: "u1",
-      name: "A",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 100,
-      txnLines: [{ amount: -5 }],
-      valuations: [],
-    });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "a",
+        userId: "u1",
+        name: "A",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        status: "ACTIVE",
+        subType: null,
+        description: null,
+        initialBalance: 100,
+        txnLines: [{ amount: -5 }],
+        valuations: [],
+      },
+    ]);
     const resA = await summaryRoute.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
       { params: { id: "a" } },
@@ -679,16 +708,21 @@ describe("Entries transfer success case", () => {
     expect(sjA.principal).toBe(95);
 
     // 3) B 账户摘要：初始50 + 5 = 55
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "b",
-      userId: "u1",
-      name: "B",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 50,
-      txnLines: [{ amount: 5 }],
-      valuations: [],
-    });
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        id: "b",
+        userId: "u1",
+        name: "B",
+        baseCurrency: "CNY",
+        accountType: "SAVINGS",
+        status: "ACTIVE",
+        subType: null,
+        description: null,
+        initialBalance: 50,
+        txnLines: [{ amount: 5 }],
+        valuations: [],
+      },
+    ]);
     const resB = await summaryRoute.GET(
       makeGet("http://localhost/api/v1/accounts/b/summary"),
       { params: { id: "b" } },
@@ -746,9 +780,24 @@ describe("Valuations routes", () => {
       accountType: "INVESTMENT",
       initialBalance: 100,
       txnLines: [],
-      valuations: [{ totalValue: { toNumber: () => 120 } }],
+      valuations: [
+        {
+          asOf: new Date("2025-08-01"),
+          currency: "CNY",
+          fxSnapshotId: null,
+          fxAppliedRate: 1,
+          totalValue: 120,
+        },
+      ],
     };
-    mockPrisma.account.findUnique.mockResolvedValueOnce(acc);
+    mockPrisma.account.findMany.mockResolvedValueOnce([
+      {
+        ...acc,
+        status: "ACTIVE",
+        subType: null,
+        description: null,
+      },
+    ]);
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts/a/summary"),
       { params: { id: "a" } },

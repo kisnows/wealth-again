@@ -74,7 +74,9 @@ export async function POST(req: NextRequest) {
         fxAppliedRate: 1,
         note,
         lines: {
-          create: lineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
+          create: [
+            lineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
+          ],
         },
       },
       include: { lines: true },
@@ -99,8 +101,8 @@ export async function POST(req: NextRequest) {
       const newValue = previousValue + depositAmount;
       const snapshotCurrency = latestSnapshot?.currency ?? account.baseCurrency;
       const snapshotFxRateId = latestSnapshot?.fxRateId ?? null;
-       const snapshotFxSnapshotId = latestSnapshot?.fxSnapshotId ?? null;
-       const snapshotFxAppliedRate =
+      const snapshotFxSnapshotId = latestSnapshot?.fxSnapshotId ?? null;
+      const snapshotFxAppliedRate =
         latestSnapshot?.fxAppliedRate != null
           ? Number(latestSnapshot.fxAppliedRate)
           : 1;

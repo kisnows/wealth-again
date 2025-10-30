@@ -89,8 +89,11 @@ export async function POST(req: NextRequest) {
   const sameCurrency =
     fromAccount.baseCurrency.toUpperCase() ===
     toAccount.baseCurrency.toUpperCase();
-  if (sameCurrency && to.amount != null && Number.isFinite(to.amount)) {
-    toAmount = Math.abs(Number(to.amount));
+  if (sameCurrency) {
+    toAmount = absoluteFromAmount;
+    if (to.amount != null && Number.isFinite(to.amount)) {
+      toAmount = Math.abs(Number(to.amount));
+    }
   }
   if (!Number.isFinite(toAmount) || toAmount <= 0) {
     return NextResponse.json(
