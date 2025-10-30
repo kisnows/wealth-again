@@ -73,7 +73,9 @@ export async function POST(req: NextRequest) {
       fxAppliedRate: 1,
       note,
       lines: {
-        create: lineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
+        create: [
+          lineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
+        ],
       },
     },
     include: { lines: true },

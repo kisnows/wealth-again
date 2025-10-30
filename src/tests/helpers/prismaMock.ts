@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import { prisma as prismaInstance } from "@/server/db";
+import { clearTaxContextCache } from "@/server/services/income-tax/tax";
 
 const delegateMethods = [
   "findUnique",
@@ -83,13 +84,68 @@ export function resetPrismaMock() {
   prismaMock.fxSnapshot?.create?.mockImplementation(async (data: unknown) => data);
   prismaMock.incomeRecord?.findMany?.mockResolvedValue([]);
   prismaMock.incomeRecord?.findFirst?.mockResolvedValue(null);
+  prismaMock.incomeChange?.findMany?.mockResolvedValue([]);
+  prismaMock.bonusPlan?.findMany?.mockResolvedValue([]);
+  prismaMock.longTermCashPlan?.findMany?.mockResolvedValue([]);
+  prismaMock.longTermCashPayout?.findMany?.mockResolvedValue([]);
+  prismaMock.equityVest?.findMany?.mockResolvedValue([]);
   prismaMock.user?.findMany?.mockResolvedValue([]);
   prismaMock.user?.findUnique?.mockResolvedValue(null);
   prismaMock.cityChangeRecord?.findMany?.mockResolvedValue([]);
   prismaMock.cityChangeRecord?.findFirst?.mockResolvedValue(null);
   prismaMock.city?.findMany?.mockResolvedValue([]);
   prismaMock.city?.findUnique?.mockResolvedValue(null);
-  prismaMock.taxBracket?.findMany?.mockResolvedValue([]);
+  const buildDefaultTaxConfig = () => ({
+    id: "tax-cn-2025",
+    country: "CN",
+    taxYear: 2025,
+    currency: "CNY",
+    standardDeduction: 5000,
+    specialAdditionalDeduction: 0,
+    effectiveFrom: new Date("2025-01-01T00:00:00Z"),
+    effectiveTo: null as Date | null,
+    brackets: [
+      {
+        id: "tax-cn-2025-1",
+        country: "CN",
+        taxYear: 2025,
+        position: 1,
+        threshold: 36000,
+        taxRate: 0.03,
+        quickDeduction: 0,
+        effectiveFrom: new Date("2025-01-01T00:00:00Z"),
+        effectiveTo: null as Date | null,
+      },
+      {
+        id: "tax-cn-2025-2",
+        country: "CN",
+        taxYear: 2025,
+        position: 2,
+        threshold: 144000,
+        taxRate: 0.1,
+        quickDeduction: 2520,
+        effectiveFrom: new Date("2025-01-01T00:00:00Z"),
+        effectiveTo: null as Date | null,
+      },
+      {
+        id: "tax-cn-2025-3",
+        country: "CN",
+        taxYear: 2025,
+        position: 3,
+        threshold: 300000,
+        taxRate: 0.2,
+        quickDeduction: 16920,
+        effectiveFrom: new Date("2025-01-01T00:00:00Z"),
+        effectiveTo: null as Date | null,
+      },
+    ],
+  });
+  const defaultConfig = buildDefaultTaxConfig();
+  prismaMock.taxConfig?.findFirst?.mockResolvedValue(defaultConfig);
+  prismaMock.taxConfig?.findUnique?.mockResolvedValue(defaultConfig);
+  prismaMock.taxBracket?.findMany?.mockResolvedValue(defaultConfig.brackets);
+  prismaMock.userAnnualDeduction?.findMany?.mockResolvedValue([]);
+  clearTaxContextCache();
 }
 
 export function stubResolved<T>(fn: ReturnType<typeof vi.fn>, value: T) {

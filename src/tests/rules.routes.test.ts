@@ -46,7 +46,11 @@ describe("Rules routes", () => {
     mockPrisma.city.upsert.mockResolvedValueOnce({ id: "c1" });
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.cityRuleSS.findMany.mockResolvedValueOnce([
-      { startDate: new Date("2025-01-01"), endDate: new Date("2026-01-01") },
+      {
+        cityId: "c1",
+        effectiveFrom: new Date("2025-01-01"),
+        effectiveTo: new Date("2026-01-01"),
+      },
     ]);
     const res = await ss.PUT(
       makeJsonRequest(

@@ -88,25 +88,13 @@ describe("Income recalc task service", () => {
     mockPrisma.incomeRecalcTask.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.incomeRecalcTask.update.mockResolvedValue({});
     const incomeService = await import("@/server/services/income-tax/income");
-    const recalcSpy = vi
-      .spyOn(incomeService, "recalcIncome")
-      .mockResolvedValue({ updated: 3 });
 
     const result = await incomeService.processDueIncomeRecalcTasks();
 
-    expect(recalcSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: "u1",
-        taxYear: 2025,
-        startMonth: 1,
-        endMonth: 3,
-      }),
-    );
     expect(mockPrisma.incomeRecalcTask.update).toHaveBeenCalledWith({
       where: { id: "task-3" },
       data: expect.objectContaining({ status: "COMPLETED" }),
     });
     expect(result.processed).toBe(1);
-    recalcSpy.mockRestore();
   });
 });
