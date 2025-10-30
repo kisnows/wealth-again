@@ -7,7 +7,13 @@ const recalcMock = vi.fn().mockResolvedValue({ updated: 0 });
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
-vi.mock("@/server/services/audit", () => ({ logAudit: vi.fn() }));
+vi.mock("@/server/services/audit", () => ({
+  logAudit: vi.fn(),
+  audit: {
+    log: vi.fn(),
+    logAndEmit: vi.fn(),
+  },
+}));
 vi.mock("@/server/services/income-tax/income", () => ({ recalcIncome: recalcMock }));
 
 beforeEach(() => {

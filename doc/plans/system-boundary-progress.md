@@ -8,9 +8,9 @@
 | Task-04 | 测试基线修复（统一 Prisma Mock、补充断言） | ✅ 已完成 |
 | Task-05 | Vitest 失败用例收敛（当前新增） | ✅ 已完成 |
 | Task-06 | API 路由命名空间收敛 | ✅ 已完成 |
-| Task-07 | EventOutbox 与队列平台建设 | ⏳ 待开始 |
-| Task-08 | Reporting & Audit 完善 | ⏳ 待开始 |
+| Task-07 | EventOutbox 与队列平台建设 | ✅ 已完成 |
+| Task-08 | Reporting & Audit 完善 | ✅ 已完成 |
 | Task-09 | FX Provider 封装与缓存策略统一 | ⏳ 待开始 |
 | Task-10 | Settings / Identity 子系统收敛与权限梳理 | ⏳ 待开始 |
 
-> 当前测试基线已恢复全绿，Task-04/05 收尾。Task-06 完成后已删除全部旧版 `/api/v1/*` 兼容路由，调用方须使用新命名空间。下一步进入 Task-07（EventOutbox 与队列平台建设），并按序推进后续任务以满足 `doc/system-boundary-plan.md` 的阶段目标。
+> 当前测试基线已恢复全绿，Task-07/08 已落地 Outbox、队列与报表缓存。下一步进入 Task-09（FX Provider 封装与缓存策略统一），按序推进以满足 `doc/system-boundary-plan.md` 的阶段目标。

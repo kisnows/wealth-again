@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logAudit } from "@/server/services/audit";
+import { audit } from "@/server/services/audit";
 import {
   scheduleIncomeRecalcTask,
 } from "@/server/services/income-tax/income";
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     triggeredBy: actor?.id,
     delayMs: 0,
   });
-  await logAudit("INCOME_RECALC_ENQUEUED", {
+  await audit.logAndEmit("INCOME_RECALC_ENQUEUED", {
     userId: actor?.id ?? null,
     meta: {
       taxYear,
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       userId: targetUserId,
       taskId,
     },
+    eventType: "audit.income.recalc_enqueued",
   });
   await markIdempotencyUsed(key);
   return NextResponse.json({ taskId, status: "PENDING" }, { status: 202 });

@@ -14,6 +14,14 @@ vi.mock("@/server/services/outbox", () => ({
   markOutboxEventDelivered: vi.fn(),
   markOutboxEventFailed: vi.fn(),
 }));
+const auditLogMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/server/services/audit", () => ({
+  logAudit: auditLogMock,
+  audit: {
+    log: auditLogMock,
+    logAndEmit: auditLogMock,
+  },
+}));
 
 const mockTimelineService = {
   buildIncomeTimeline: vi.fn(),

@@ -46,6 +46,7 @@ const delegates = [
   "equityVest",
   "idempotencyKey",
   "cityChangeRecord",
+  "reportDataset",
 ] as const;
 
 export const prismaMock = prismaInstance as unknown as Record<string, any>;
@@ -139,6 +140,39 @@ export function resetPrismaMock() {
     processedAt: data?.processedAt ?? null,
     createdAt: data?.createdAt ?? new Date(),
     updatedAt: data?.updatedAt ?? new Date(),
+  }));
+  if (!prismaMock.reportDataset) {
+    prismaMock.reportDataset = {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      create: vi.fn(),
+    } as unknown as typeof prismaMock.reportDataset;
+  }
+  prismaMock.reportDataset.findUnique.mockResolvedValue(null);
+  prismaMock.reportDataset.upsert.mockImplementation(
+    async ({ create, update, where }: { create: any; update: any; where: any }) => ({
+      id: create?.id ?? "report-dataset",
+      userId: create?.userId ?? update?.userId ?? where?.userId_scope_bucket?.userId ?? "u1",
+      scope: create?.scope ?? update?.scope ?? where?.userId_scope_bucket?.scope ?? "accounts.summary",
+      bucket: create?.bucket ?? update?.bucket ?? where?.userId_scope_bucket?.bucket ?? "default",
+      payload: create?.payload ?? update?.payload ?? {},
+      occurredAt: create?.occurredAt ?? update?.occurredAt ?? null,
+      createdAt: create?.createdAt ?? new Date(),
+      updatedAt: create?.updatedAt ?? new Date(),
+    }),
+  );
+  if (!prismaMock.auditLog) {
+    prismaMock.auditLog = {
+      create: vi.fn(),
+    } as unknown as typeof prismaMock.auditLog;
+  }
+  prismaMock.auditLog.create.mockImplementation(async ({ data }: { data: any }) => ({
+    id: data?.id ?? "audit-mock",
+    action: data?.action ?? "",
+    userId: data?.userId ?? null,
+    meta: data?.meta ?? null,
+    createdAt: data?.createdAt ?? new Date(),
   }));
   prismaMock.incomeRecalcTask?.findMany?.mockResolvedValue([]);
   prismaMock.incomeRecalcTask?.findFirst?.mockResolvedValue(null);

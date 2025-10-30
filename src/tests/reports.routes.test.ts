@@ -72,14 +72,26 @@ describe("Reports routes", () => {
     mockPrisma.incomeRecord.findMany.mockResolvedValueOnce([
       {
         monthDate: new Date("2025-01-01"),
+        currency: "CNY",
         gross: 10000,
         bonus: 0,
         ltcIncome: 0,
         equityIncome: 0,
         socialInsurance: 0,
         housingFund: 0,
+        specialDeductions: 0,
+        otherDeductions: 0,
         incomeTax: 300,
         netIncome: 9700,
+        taxableCurrent: 10000,
+        taxPaidCumulative: 300,
+        taxableCumulative: 10000,
+        taxCumulative: 300,
+        isForecast: false,
+        socialInsuranceBase: null,
+        housingFundBase: null,
+        manualIncomeTax: null,
+        manualNet: null,
       },
     ]);
     const res = await m.GET(

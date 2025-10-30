@@ -3,7 +3,14 @@ import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
 const mockPrisma = prismaMock;
 const logAuditMock = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/server/services/audit", () => ({ logAudit: logAuditMock }));
+const logAndEmitMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/server/services/audit", () => ({
+  logAudit: logAuditMock,
+  audit: {
+    log: logAuditMock,
+    logAndEmit: logAndEmitMock,
+  },
+}));
 const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
 vi.mock("@/server/services/outbox", () => ({
   writeOutboxEvent: writeOutboxEventMock,
@@ -17,6 +24,8 @@ describe("Income recalc task service", () => {
     vi.clearAllMocks();
     resetPrismaMock();
     writeOutboxEventMock.mockReset();
+    logAuditMock.mockReset();
+    logAndEmitMock.mockReset();
     mockPrisma.incomeRecalcTask.findFirst.mockResolvedValue(null);
     mockPrisma.incomeRecalcTask.create.mockImplementation(async ({ data }: { data: any }) => ({
       id: "task-1",

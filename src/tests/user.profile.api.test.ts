@@ -6,7 +6,13 @@ const mockPrisma = prismaMock;
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
-vi.mock("@/server/services/audit", () => ({ logAudit: vi.fn() }));
+vi.mock("@/server/services/audit", () => ({
+  logAudit: vi.fn(),
+  audit: {
+    log: vi.fn(),
+    logAndEmit: vi.fn(),
+  },
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -53,6 +53,33 @@ describe("Reports routes", () => {
     expect(j.totals.netWorth).toBe(700);
   });
 
+  it("accounts summary uses cached dataset when present", async () => {
+    // 场景：缓存存在时直接返回物化数据，避免重复聚合。
+    const route = await import("@/app/api/v1/reporting/accounts/summary/route");
+    mockPrisma.reportDataset.findUnique.mockResolvedValueOnce({
+      id: "ds-accounts",
+      userId: "u1",
+      scope: "accounts.summary",
+      bucket: "default",
+      payload: {
+        generatedAt: "2025-01-01T00:00:00.000Z",
+        totals: { assets: 5000, liabilities: 2000, netWorth: 3000, archived: 0 },
+        displayCurrency: null,
+        items: [],
+      },
+      occurredAt: new Date("2025-01-01T00:00:00Z"),
+      createdAt: new Date("2025-01-01T00:00:00Z"),
+      updatedAt: new Date("2025-01-01T00:00:00Z"),
+    });
+    const res = await route.GET(
+      makeGet("http://localhost/api/v1/reporting/accounts/summary"),
+    );
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.totals.netWorth).toBe(3000);
+    expect(mockPrisma.account.findMany).not.toHaveBeenCalled();
+  });
+
   it("dashboard returns 200", async () => {
     // 用例：Dashboard 报表在无数据时也应返回 200，确保空态可渲染。
     const m = await import("@/app/api/v1/reporting/dashboard/route");
@@ -83,14 +110,26 @@ describe("Reports routes", () => {
     mockPrisma.incomeRecord.findMany.mockResolvedValueOnce([
       {
         monthDate: new Date("2025-01-01"),
+        currency: "CNY",
         gross: 10000,
         bonus: 0,
         ltcIncome: 0,
         equityIncome: 0,
         socialInsurance: 0,
         housingFund: 0,
+        specialDeductions: 0,
+        otherDeductions: 0,
         incomeTax: 300,
         netIncome: 9700,
+        taxableCurrent: 10000,
+        taxPaidCumulative: 300,
+        taxableCumulative: 10000,
+        taxCumulative: 300,
+        isForecast: false,
+        socialInsuranceBase: null,
+        housingFundBase: null,
+        manualIncomeTax: null,
+        manualNet: null,
       },
     ]);
     const res = await m.GET(

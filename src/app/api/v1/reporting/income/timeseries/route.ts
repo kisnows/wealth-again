@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import type { IncomeRecordsSummary } from "@/server/services/income-tax/income";
 import { ensureIncomeRecordsForUser } from "@/server/services/income-tax/income";
 import { buildIncomeTimeline } from "@/server/services/income-tax/income-timeline";
+import { getReportDataset } from "@/server/services/reporting/dataset";
+import { refreshIncomeReportingDataset } from "@/server/services/reporting/updaters";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
@@ -21,15 +23,108 @@ export async function GET(req: NextRequest) {
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
+  const normalizedDisplay = displayCurrency
+    ? displayCurrency.toUpperCase()
+    : null;
+  if (!normalizedDisplay) {
+    const dataset =
+      (await getReportDataset(userId, "income.monthly", "all")) ?? null;
+    let payload: {
+      items?: Array<Record<string, any>>;
+      summary?: Record<string, any>;
+      generatedAt?: string;
+    } | null = dataset?.payload
+      ? (dataset.payload as Record<string, any>)
+      : null;
+    if (!payload) {
+      const refreshed = await refreshIncomeReportingDataset(userId);
+      payload = {
+        items: refreshed.items,
+        summary: refreshed.summary,
+        generatedAt: refreshed.generatedAt.toISOString(),
+      };
+    }
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    const filtered = items.filter((item) => {
+      const monthDate = String(item.monthDate ?? "");
+      return monthDate >= from && monthDate <= to;
+    });
+    const actualItems = filtered.filter(
+      (item) => item.isForecast !== true && item.isForecast !== "true",
+    );
+    const buildSeries = (key: string) =>
+      actualItems.map((item) => ({
+        month: String(item.monthDate),
+        value: Number(item[key] ?? 0),
+      }));
+    const series = {
+      gross: buildSeries("gross"),
+      bonus: buildSeries("bonus"),
+      ltcIncome: buildSeries("ltcIncome"),
+      equityIncome: buildSeries("equityIncome"),
+      socialInsurance: buildSeries("socialInsurance"),
+      housingFund: buildSeries("housingFund"),
+      incomeTax: buildSeries("incomeTax"),
+      netIncome: buildSeries("netIncome"),
+    };
+    const totals = actualItems.reduce(
+      (acc, item) => {
+        acc.totalGross += Number(item.gross ?? 0);
+        acc.totalBonus += Number(item.bonus ?? 0);
+        acc.totalLtc += Number(item.ltcIncome ?? 0);
+        acc.totalEquity += Number(item.equityIncome ?? 0);
+        acc.totalSocialInsurance += Number(item.socialInsurance ?? 0);
+        acc.totalHousingFund += Number(item.housingFund ?? 0);
+        acc.totalSpecialDeductions += Number(item.specialDeductions ?? 0);
+        acc.totalTax += Number(item.incomeTax ?? 0);
+        acc.totalNet += Number(item.netIncome ?? 0);
+        return acc;
+      },
+      {
+        totalGross: 0,
+        totalBonus: 0,
+        totalLtc: 0,
+        totalEquity: 0,
+        totalSocialInsurance: 0,
+        totalHousingFund: 0,
+        totalSpecialDeductions: 0,
+        totalTax: 0,
+        totalNet: 0,
+      },
+    );
+    const totalIncome =
+      totals.totalGross + totals.totalBonus + totals.totalLtc + totals.totalEquity;
+    const latestActual = actualItems[actualItems.length - 1] ?? null;
+    const summary: IncomeRecordsSummary = {
+      months: actualItems.length,
+      currency:
+        (latestActual?.currency as string | undefined) ??
+        (payload?.summary?.currency as string | undefined) ??
+        "CNY",
+      totalGross: totals.totalGross,
+      totalBonus: totals.totalBonus,
+      totalLtc: totals.totalLtc,
+      totalEquity: totals.totalEquity,
+      totalSocialInsurance: totals.totalSocialInsurance,
+      totalHousingFund: totals.totalHousingFund,
+      totalSpecialDeductions: totals.totalSpecialDeductions,
+      totalTax: totals.totalTax,
+      totalNet: totals.totalNet,
+      totalIncome,
+      avgTaxRate: totalIncome > 0 ? (totals.totalTax / totalIncome) * 100 : 0,
+      latestTaxPaid: Number(latestActual?.incomeTax ?? 0),
+      latestTaxCumulative: Number(latestActual?.taxPaidCumulative ?? 0),
+    };
+    return NextResponse.json({ series, summary });
+  }
   await ensureIncomeRecordsForUser(userId);
   const timeline = await buildIncomeTimeline(
     userId,
     from,
     to,
-    displayCurrency ?? undefined,
+    normalizedDisplay,
   );
   const actualItems = timeline.items.filter((item) => !item.isForecast);
-
   const series = {
     gross: actualItems.map((item) => ({
       month: item.monthDate,
@@ -64,7 +159,6 @@ export async function GET(req: NextRequest) {
       value: item.netIncome,
     })),
   };
-
   const totalsActual = timeline.summary.totals.actual;
   const totalIncome =
     totalsActual.gross +
@@ -76,7 +170,6 @@ export async function GET(req: NextRequest) {
     0,
   );
   const latestActual = actualItems[actualItems.length - 1] ?? null;
-
   const summary: IncomeRecordsSummary = {
     months: actualItems.length,
     currency: timeline.summary.currency,
@@ -94,6 +187,5 @@ export async function GET(req: NextRequest) {
     latestTaxPaid: latestActual?.incomeTax ?? 0,
     latestTaxCumulative: latestActual?.taxPaidCumulative ?? 0,
   };
-
   return NextResponse.json({ series, summary });
 }
