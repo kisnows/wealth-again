@@ -6,6 +6,8 @@ import {
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
 
+export const runtime = "nodejs";
+
 /**
  * PUT /api/v1/income-tax/rules/tax/config
  * - upsert 税制（国家 + 税年 + 标准扣除）。

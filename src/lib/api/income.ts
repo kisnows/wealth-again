@@ -329,7 +329,10 @@ export async function postIncomeRecalc(input: {
   userId?: string;
   startMonth?: number;
 }) {
-  const res = await postJson("/api/v1/income-tax/recalc", input);
+  const res = await postJson<{ taskId: string; status: string }>(
+    "/api/v1/income-tax/recalc",
+    input,
+  );
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }

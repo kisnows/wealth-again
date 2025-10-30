@@ -2,11 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
 const mockPrisma = prismaMock;
+const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
+vi.mock("@/server/services/outbox", () => ({
+  writeOutboxEvent: writeOutboxEventMock,
+  fetchPendingOutboxEvents: vi.fn(),
+  markOutboxEventDelivered: vi.fn(),
+  markOutboxEventFailed: vi.fn(),
+}));
 
 describe("Income service · recalcIncome", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetPrismaMock();
+    writeOutboxEventMock.mockReset();
     mockPrisma.userAnnualDeduction.findUnique.mockResolvedValue(null);
     mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
   });

@@ -4,13 +4,27 @@ import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 const mockPrisma = prismaMock;
 const logAuditMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/server/services/audit", () => ({ logAudit: logAuditMock }));
+const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
+vi.mock("@/server/services/outbox", () => ({
+  writeOutboxEvent: writeOutboxEventMock,
+  fetchPendingOutboxEvents: vi.fn(),
+  markOutboxEventDelivered: vi.fn(),
+  markOutboxEventFailed: vi.fn(),
+}));
 
 describe("Income recalc task service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetPrismaMock();
+    writeOutboxEventMock.mockReset();
     mockPrisma.incomeRecalcTask.findFirst.mockResolvedValue(null);
     mockPrisma.incomeRecalcTask.create.mockResolvedValue({
+      id: "task-1",
+      taxYear: 2025,
+      startMonth: 3,
+      endMonth: 12,
+    });
+    mockPrisma.incomeRecalcTask.update.mockResolvedValue({
       id: "task-1",
       taxYear: 2025,
       startMonth: 3,
@@ -39,6 +53,10 @@ describe("Income recalc task service", () => {
         }),
       }),
     );
+    expect(writeOutboxEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: "income.recalc.requested" }),
+    );
   });
 
   it("merges into existing pending task", async () => {
@@ -48,6 +66,15 @@ describe("Income recalc task service", () => {
       taxYear: 2025,
       startMonth: 5,
       endMonth: 8,
+      cityId: "hangzhou",
+      status: "PENDING",
+      scheduledFor: new Date(),
+    });
+    mockPrisma.incomeRecalcTask.update.mockResolvedValue({
+      id: "task-2",
+      taxYear: 2025,
+      startMonth: 3,
+      endMonth: 12,
       cityId: "hangzhou",
       status: "PENDING",
       scheduledFor: new Date(),
@@ -70,6 +97,10 @@ describe("Income recalc task service", () => {
         cityId: "hangzhou",
       }),
     });
+    expect(writeOutboxEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: "income.recalc.requested" }),
+    );
   });
 
   it("processes due tasks and marks them completed", async () => {
@@ -96,5 +127,9 @@ describe("Income recalc task service", () => {
       data: expect.objectContaining({ status: "COMPLETED" }),
     });
     expect(result.processed).toBe(1);
+    expect(writeOutboxEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: "income.recalc.completed" }),
+    );
   });
 });

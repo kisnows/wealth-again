@@ -39,6 +39,7 @@ const delegates = [
   "longTermCashPayout",
   "incomeRecord",
   "incomeRecalcTask",
+  "eventOutbox",
   "displayRebaseTask",
   "equityGrant",
   "equityVest",
@@ -82,6 +83,41 @@ export function resetPrismaMock() {
   prismaMock.fxRate?.findFirst?.mockResolvedValue(null);
   prismaMock.fxSnapshot?.findFirst?.mockResolvedValue(null);
   prismaMock.fxSnapshot?.create?.mockImplementation(async (data: unknown) => data);
+  if (!prismaMock.eventOutbox) {
+    prismaMock.eventOutbox = {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    } as unknown as typeof prismaMock.eventOutbox;
+  }
+  prismaMock.eventOutbox?.findMany?.mockResolvedValue([]);
+  prismaMock.eventOutbox?.update?.mockImplementation(async ({ data, where }: { data: any; where: any }) => ({
+    id: where?.id ?? "evt-mock",
+    eventType: "mock",
+    payload: {},
+    status: data?.status ?? "PENDING",
+    attempts: typeof data?.attempts?.increment === "number" ? data.attempts.increment : data?.attempts ?? 0,
+    lastError: data?.lastError ?? null,
+    occurredAt: data?.occurredAt ?? new Date(),
+    availableAt: data?.availableAt ?? new Date(),
+    processedAt: data?.processedAt ?? null,
+    createdAt: data?.createdAt ?? new Date(),
+    updatedAt: data?.updatedAt ?? new Date(),
+  }));
+  prismaMock.eventOutbox?.create?.mockImplementation(async ({ data }: { data: any }) => ({
+    id: data?.id ?? "evt-mock",
+    eventType: data?.eventType ?? "mock",
+    payload: data?.payload ?? {},
+    status: data?.status ?? "PENDING",
+    attempts: data?.attempts ?? 0,
+    lastError: data?.lastError ?? null,
+    occurredAt: data?.occurredAt ?? new Date(),
+    availableAt: data?.availableAt ?? new Date(),
+    processedAt: data?.processedAt ?? null,
+    createdAt: data?.createdAt ?? new Date(),
+    updatedAt: data?.updatedAt ?? new Date(),
+  }));
   prismaMock.incomeRecord?.findMany?.mockResolvedValue([]);
   prismaMock.incomeRecord?.findFirst?.mockResolvedValue(null);
   prismaMock.incomeChange?.findMany?.mockResolvedValue([]);

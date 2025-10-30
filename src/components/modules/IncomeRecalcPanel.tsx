@@ -222,7 +222,8 @@ function IncomeRecalcManualForm() {
         endMonth: endMonthNumber,
         cityId: form.cityId || undefined,
       });
-      toast.success(`立即回算完成，本次更新 ${result?.updated ?? 0} 条记录`);
+      const taskIdentifier = typeof result?.taskId === "string" ? result.taskId : "--";
+      toast.success(`回算任务已入队（任务号 ${taskIdentifier}）`);
       notifyRecalc();
       await globalMutate(INCOME_RECALC_TASKS_KEY);
     } catch (error) {

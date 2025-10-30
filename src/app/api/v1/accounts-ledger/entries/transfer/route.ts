@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
 import { convert } from "@/server/services/fx";
+import { writeOutboxEvent } from "@/server/services/outbox";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
@@ -207,23 +208,50 @@ export async function POST(req: NextRequest) {
         ? attachmentUrl.trim()
         : undefined,
   } satisfies Record<string, unknown>;
-  const entry = await prisma.txnEntry.create({
-    data: {
-      userId: userId,
-      type: "TRANSFER",
-      occurredAt: occurredAtDate,
-      fxSnapshotId: fromSnapshot?.id ?? toSnapshot?.id ?? null,
-      fxAppliedRate: conversionResult.effectiveRate,
-      note,
-      meta: JSON.stringify(metaPayload),
-      lines: {
-        create: [
-          fromLineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
-          toLineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
-        ],
+  const entry = await prisma.$transaction(async (tx) => {
+    const created = await tx.txnEntry.create({
+      data: {
+        userId: userId,
+        type: "TRANSFER",
+        occurredAt: occurredAtDate,
+        fxSnapshotId: fromSnapshot?.id ?? toSnapshot?.id ?? null,
+        fxAppliedRate: conversionResult.effectiveRate,
+        note,
+        meta: JSON.stringify(metaPayload),
+        lines: {
+          create: [
+            fromLineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
+            toLineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
+          ],
+        },
       },
-    },
-    include: { lines: true },
+      include: { lines: true },
+    });
+    const lines = Array.isArray(created.lines) ? created.lines : [];
+    await writeOutboxEvent(tx, {
+      eventType: "ledger.entry.created",
+      payload: {
+        entryId: created.id,
+        type: "TRANSFER",
+        userId,
+        occurredAt: occurredAtDate.toISOString(),
+        accountIds: lines.map((line) => line.accountId),
+        currency: fromAccount.baseCurrency,
+        counterCurrency: toAccount.baseCurrency,
+        conversion: {
+          ...metaPayload,
+          effectiveRate: conversionResult.effectiveRate,
+        },
+        lines: lines.map((line) => ({
+          id: line.id,
+          accountId: line.accountId,
+          amount: Number(line.amount ?? 0),
+          currency: line.currency,
+          direction: Number(line.amount ?? 0) >= 0 ? "INFLOW" : "OUTFLOW",
+        })),
+      },
+    });
+    return created;
   });
   await logAudit("ENTRY_TRANSFER", {
     userId,

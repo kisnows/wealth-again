@@ -15,10 +15,18 @@ import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 // - 5月 135（跨档后当月税 135）；6月 275；7月 575（含 3k LTC）；8月 275
 
 const mockPrisma = prismaMock;
+const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
+vi.mock("@/server/services/outbox", () => ({
+  writeOutboxEvent: writeOutboxEventMock,
+  fetchPendingOutboxEvents: vi.fn(),
+  markOutboxEventDelivered: vi.fn(),
+  markOutboxEventFailed: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
   resetPrismaMock();
+  writeOutboxEventMock.mockReset();
   mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
   mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
   mockPrisma.userAnnualDeduction.findUnique.mockResolvedValue(null);

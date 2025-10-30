@@ -438,6 +438,23 @@ model IncomeRecalcTask {
   @@index([userId, taxYear, status])
 }
 
+model EventOutbox {
+  id          String   @id @default(uuid())
+  eventType   String
+  payload     Json
+  status      String   @default("PENDING") // PENDING | DELIVERED | FAILED
+  attempts    Int      @default(0)
+  lastError   String?
+  occurredAt  DateTime @default(now())
+  availableAt DateTime @default(now())
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, availableAt])
+  @@index([eventType, status])
+}
+
 // ==== 股权激励（授予与归属） ====
 model EquityGrant {
   id            String   @id @default(uuid())

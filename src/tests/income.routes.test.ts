@@ -7,10 +7,18 @@ const mockPrisma = prismaMock;
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
+const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
+vi.mock("@/server/services/outbox", () => ({
+  writeOutboxEvent: writeOutboxEventMock,
+  fetchPendingOutboxEvents: vi.fn(),
+  markOutboxEventDelivered: vi.fn(),
+  markOutboxEventFailed: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
   resetPrismaMock();
+  writeOutboxEventMock.mockReset();
   mockPrisma.cityChangeRecord.findMany.mockResolvedValue([]);
   mockPrisma.cityChangeRecord.findFirst.mockResolvedValue(null);
   mockPrisma.city.findMany.mockResolvedValue([]);
@@ -277,69 +285,31 @@ describe("Income basic endpoints", () => {
       ).status,
     ).toBe(400);
 
-    // 场景C：回算成功路径（提供最小规则/税制数据）
-    mockPrisma.user.findMany.mockResolvedValueOnce([
-      {
-        id: "u1",
-        currentCityId: "c1",
-        currentCity: { country: "CN" },
-      },
-    ]);
-    mockPrisma.incomeChange.findFirst.mockResolvedValue({
-      grossMonthly: 10000,
-    });
-    mockPrisma.bonusPlan.findMany.mockResolvedValue([]);
-    mockPrisma.longTermCashPayout.findMany.mockResolvedValue([]);
-    mockPrisma.equityVest.findMany.mockResolvedValue([]);
-    mockPrisma.cityRuleSS.findFirst.mockResolvedValue({
-      baseMin: 4000,
-      baseMax: 20000,
-      ratePension: 0.08,
-      rateMedical: 0.02,
-      rateUnemployment: 0.005,
-    });
-    mockPrisma.cityRuleHF.findFirst.mockResolvedValue({
-      baseMin: 2000,
-      baseMax: 40000,
-      rateEmployee: 0.12,
-    });
-    const taxConfigFull = {
-      country: "CN",
+    // 场景C：回算改为入队任务，返回 202
+    mockPrisma.incomeRecalcTask.create.mockResolvedValueOnce({
+      id: "task-42",
+      userId: "u1",
       taxYear: 2025,
-      standardDeduction: 5000,
-      brackets: undefined,
-    };
-    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfigFull);
-    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfigFull);
-    // 当 taxConfig.include 未返回 brackets 时，服务会回退到 taxBracket.findMany
-    mockPrisma.taxBracket.findMany.mockImplementation(async () => [
-      { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
-      { position: 2, threshold: 144000, taxRate: 0.1, quickDeduction: 2520 },
-      {
-        position: 7,
-        threshold: 1000000000,
-        taxRate: 0.45,
-        quickDeduction: 181920,
-      },
-    ]);
-    mockPrisma.incomeRecord.upsert.mockResolvedValue({});
-    expect(
-      (
-        await recalc.POST(
-          makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
-            taxYear: 2025,
-            endMonth: 2,
-          }),
-        )
-      ).status,
-    ).toBe(200);
-    expect(mockPrisma.incomeRecalcTask.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          userId: "u1",
-          taxYear: 2025,
-        }),
+      startMonth: 1,
+      endMonth: 2,
+      cityId: null,
+      status: "PENDING",
+      scheduledFor: new Date("2025-02-01T00:00:00Z"),
+      attempts: 0,
+      triggeredBy: "u1",
+    });
+    const response = await recalc.POST(
+      makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
+        taxYear: 2025,
+        endMonth: 2,
       }),
+    );
+    expect(response.status).toBe(202);
+    const payload = await response.json();
+    expect(payload).toEqual({ taskId: "task-42", status: "PENDING" });
+    expect(writeOutboxEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: "income.recalc.requested" }),
     );
   });
 
@@ -405,16 +375,11 @@ describe("Income basic endpoints", () => {
         endMonth: 2,
       }),
     );
-    expect(res.status).toBe(200);
-    // 断言前两个月税额：10000*3%=300；第二月累计 20000 → 税额 600，月税=300
-    const calls = (mockPrisma.incomeRecord.upsert as any).mock.calls as any[];
-    // 找两次调用的 create 或 update 值
-    const [firstArg, secondArg] = [calls[0][0], calls[1][0]];
-    const firstTax = (firstArg.update?.incomeTax ??
-      firstArg.create?.incomeTax) as number;
-    const secondTax = (secondArg.update?.incomeTax ??
-      secondArg.create?.incomeTax) as number;
-    expect(firstTax).toBeCloseTo(300);
-    expect(secondTax).toBeCloseTo(300);
+    expect(res.status).toBe(202);
+    expect(mockPrisma.incomeRecalcTask.create).toHaveBeenCalled();
+    expect(writeOutboxEventMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: "income.recalc.requested" }),
+    );
   });
 });

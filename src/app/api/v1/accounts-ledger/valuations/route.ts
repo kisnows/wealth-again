@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
 import { ensureFxSnapshot } from "@/server/services/fx";
+import { writeOutboxEvent } from "@/server/services/outbox";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
@@ -76,17 +77,33 @@ export async function POST(req: NextRequest) {
       console.error("valuation fx snapshot ensure failed", error);
     }
   }
-  const created = await prisma.valuationSnapshot.create({
-    data: {
-      accountId,
-      asOf: asOfDate,
-      totalValue,
-      currency: normalizedCurrency,
-      fxRateId: fxRateId || undefined,
-      fxSnapshotId: snapshotId,
-      fxAppliedRate: appliedRate,
-      note,
-    },
+  const created = await prisma.$transaction(async (tx) => {
+    const valuation = await tx.valuationSnapshot.create({
+      data: {
+        accountId,
+        asOf: asOfDate,
+        totalValue,
+        currency: normalizedCurrency,
+        fxRateId: fxRateId || undefined,
+        fxSnapshotId: snapshotId,
+        fxAppliedRate: appliedRate,
+        note,
+      },
+    });
+    await writeOutboxEvent(tx, {
+      eventType: "ledger.valuation.created",
+      payload: {
+        valuationId: valuation.id,
+        accountId,
+        userId: user.id,
+        asOf: asOfDate.toISOString(),
+        totalValue,
+        currency: normalizedCurrency,
+        fxSnapshotId: snapshotId,
+        fxAppliedRate: appliedRate,
+      },
+    });
+    return valuation;
   });
   await logAudit("VALUATION_CREATE", {
     userId: user.id,

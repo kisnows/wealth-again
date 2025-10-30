@@ -112,6 +112,7 @@ async function seed() {
   await prisma.fxSnapshot.deleteMany({
     where: { baseCurrency: { in: ["USD", "CNY"] } },
   });
+  await prisma.eventOutbox.deleteMany({});
 
   // --- 城市规则 ---
   await prisma.cityRuleSS.upsert({

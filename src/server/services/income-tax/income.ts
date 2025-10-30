@@ -1,6 +1,15 @@
 import type { IncomeRecord } from "@prisma/client";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
+import { writeOutboxEvent } from "@/server/services/outbox";
+import {
+  enqueueIncomeRecalcTask as enqueueIncomeRecalcJob,
+  fetchPendingIncomeRecalcTasks,
+  markIncomeRecalcCompleted,
+  markIncomeRecalcFailed,
+  markIncomeRecalcRunning,
+  releaseIncomeRecalcTasks,
+} from "@/server/services/jobs/queue";
 import {
   computeCumulativeTax,
   getTaxContext,
@@ -176,60 +185,28 @@ export async function scheduleIncomeRecalcTask({
   triggeredBy,
   delayMs = RECLAC_DELAY_MS,
 }: ScheduleTaskParams) {
-  const now = new Date();
-  const scheduledFor = new Date(now.getTime() + Math.max(delayMs, 0));
-  const normalizedStart = Math.max(1, Math.min(12, startMonth));
-  const normalizedEnd = Math.max(normalizedStart, Math.min(12, endMonth));
-
-  if (userId) {
-    const existing = await prisma.incomeRecalcTask.findFirst({
-      where: {
-        userId,
-        taxYear,
-        status: "PENDING",
-      },
-      orderBy: { scheduledFor: "asc" },
-    });
-    if (existing) {
-      await prisma.incomeRecalcTask.update({
-        where: { id: existing.id },
-        data: {
-          startMonth: Math.min(existing.startMonth, normalizedStart),
-          endMonth: Math.max(existing.endMonth, normalizedEnd),
-          cityId: cityId ?? existing.cityId,
-          scheduledFor,
-          triggeredBy: triggeredBy ?? existing.triggeredBy,
-          updatedAt: now,
-        },
-      });
-      return existing.id;
-    }
-  }
-
-  const created = await prisma.incomeRecalcTask.create({
-    data: {
-      userId,
-      taxYear,
-      startMonth: normalizedStart,
-      endMonth: normalizedEnd,
-      cityId: cityId ?? null,
-      status: "PENDING",
-      scheduledFor,
-      attempts: 0,
-      triggeredBy: triggeredBy ?? null,
-    },
+  const task = await enqueueIncomeRecalcJob({
+    userId,
+    taxYear,
+    startMonth,
+    endMonth,
+    cityId,
+    triggeredBy,
+    delayMs,
   });
+  const scheduledFor = task.scheduledFor ?? new Date();
   await logAudit("INCOME_RECALC_TASK_SCHEDULED", {
     userId: userId ?? null,
     meta: {
-      taskId: created.id,
+      taskId: task.id,
       taxYear,
-      startMonth: normalizedStart,
-      endMonth: normalizedEnd,
+      startMonth: task.startMonth,
+      endMonth: task.endMonth,
       scheduledFor: scheduledFor.toISOString(),
     },
   });
-  return created.id;
+
+  return task.id;
 }
 
 export async function listIncomeRecalcTasks(userId: string) {
@@ -241,26 +218,11 @@ export async function listIncomeRecalcTasks(userId: string) {
 }
 
 export async function processDueIncomeRecalcTasks(limit = 5) {
-  const now = new Date();
-  const due = await prisma.incomeRecalcTask.findMany({
-    where: {
-      status: "PENDING",
-      scheduledFor: { lte: now },
-    },
-    orderBy: { scheduledFor: "asc" },
-    take: limit,
-  });
+  const due = await fetchPendingIncomeRecalcTasks(limit);
   const results: ProcessResult[] = [];
   for (const task of due) {
-    const claimed = await prisma.incomeRecalcTask.updateMany({
-      where: { id: task.id, status: "PENDING" },
-      data: {
-        status: "RUNNING",
-        attempts: task.attempts + 1,
-        updatedAt: new Date(),
-      },
-    });
-    if (!claimed.count) continue;
+    const claimSucceeded = await markIncomeRecalcRunning(task);
+    if (!claimSucceeded) continue;
     try {
       const res = await recalcIncome({
         taxYear: task.taxYear,
@@ -269,15 +231,7 @@ export async function processDueIncomeRecalcTasks(limit = 5) {
         userId: task.userId ?? undefined,
         cityId: task.cityId ?? undefined,
       });
-      await prisma.incomeRecalcTask.update({
-        where: { id: task.id },
-        data: {
-          status: "COMPLETED",
-          processedAt: new Date(),
-          lastError: null,
-          updatedAt: new Date(),
-        },
-      });
+      await markIncomeRecalcCompleted(task, res.updated);
       await logAudit("INCOME_RECALC_TASK_COMPLETED", {
         userId: task.userId ?? null,
         meta: {
@@ -292,15 +246,8 @@ export async function processDueIncomeRecalcTasks(limit = 5) {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "unknown error";
-      await prisma.incomeRecalcTask.update({
-        where: { id: task.id },
-        data: {
-          status: "FAILED",
-          lastError: message,
-          scheduledFor: new Date(Date.now() + RECLAC_RETRY_DELAY_MS),
-          updatedAt: new Date(),
-        },
-      });
+      const retryAt = new Date(Date.now() + RECLAC_RETRY_DELAY_MS);
+      await markIncomeRecalcFailed(task, message, retryAt);
       await logAudit("INCOME_RECALC_TASK_FAILED", {
         userId: task.userId ?? null,
         meta: { taskId: task.id, error: message },
@@ -324,19 +271,7 @@ export async function settleIncomeRecalcTasks({
   taxYear: number;
 }) {
   if (!userId) return;
-  await prisma.incomeRecalcTask.updateMany({
-    where: {
-      userId,
-      taxYear,
-      status: { in: ["PENDING", "RUNNING", "FAILED"] },
-    },
-    data: {
-      status: "COMPLETED",
-      processedAt: new Date(),
-      lastError: null,
-      updatedAt: new Date(),
-    },
-  });
+  await releaseIncomeRecalcTasks(prisma, userId, taxYear);
 }
 
 export async function recalcIncome({
@@ -847,65 +782,91 @@ export async function recalcIncome({
         record.housingFund -
         monthTax;
 
-      await prisma.incomeRecord.upsert({
-        where: {
-          userId_monthDate: {
+      await prisma.$transaction(async (tx) => {
+        const saved = await tx.incomeRecord.upsert({
+          where: {
+            userId_monthDate: {
+              userId: user.id,
+              monthDate: record.monthDate,
+            },
+          },
+          update: {
+            cityId: record.cityId,
+            currency: record.currency,
+            sourceCurrency: record.sourceCurrency,
+            fxRateId: null,
+            fxSnapshotId: record.fxSnapshotId,
+            fxAppliedRate: record.fxAppliedRate,
+            gross: record.gross,
+            bonus: record.bonus,
+            ltcIncome: record.ltcIncome,
+            equityIncome: record.equityIncome,
+            socialInsurance: record.socialInsurance,
+            socialInsuranceBase: record.socialInsuranceBase ?? 0,
+            housingFund: record.housingFund,
+            housingFundBase: record.housingFundBase ?? 0,
+            specialDeductions: record.special,
+            taxableCurrent: record.taxableCurrent,
+            incomeTax: monthTax,
+            taxPaidCumulative: cumulativePaid,
+            taxableCumulative: cumulativeTaxable,
+            taxCumulative: cumulativeTax,
+            netIncome: record.netIncome,
+            source: "system",
+            isForecast: false,
+          },
+          create: {
             userId: user.id,
             monthDate: record.monthDate,
+            cityId: record.cityId,
+            currency: record.currency,
+            sourceCurrency: record.sourceCurrency,
+            fxRateId: null,
+            fxSnapshotId: record.fxSnapshotId,
+            fxAppliedRate: record.fxAppliedRate,
+            gross: record.gross,
+            bonus: record.bonus,
+            ltcIncome: record.ltcIncome,
+            equityIncome: record.equityIncome,
+            socialInsurance: record.socialInsurance,
+            socialInsuranceBase: record.socialInsuranceBase ?? 0,
+            housingFund: record.housingFund,
+            housingFundBase: record.housingFundBase ?? 0,
+            specialDeductions: record.special,
+            taxableCurrent: record.taxableCurrent,
+            incomeTax: monthTax,
+            taxPaidCumulative: cumulativePaid,
+            taxableCumulative: cumulativeTaxable,
+            taxCumulative: cumulativeTax,
+            netIncome: record.netIncome,
+            source: "system",
+            isForecast: false,
           },
-        },
-        update: {
-          cityId: record.cityId,
-          currency: record.currency,
-          sourceCurrency: record.sourceCurrency,
-          fxRateId: null,
-          fxSnapshotId: record.fxSnapshotId,
-          fxAppliedRate: record.fxAppliedRate,
-          gross: record.gross,
-          bonus: record.bonus,
-          ltcIncome: record.ltcIncome,
-          equityIncome: record.equityIncome,
-          socialInsurance: record.socialInsurance,
-          socialInsuranceBase: record.socialInsuranceBase ?? 0,
-          housingFund: record.housingFund,
-          housingFundBase: record.housingFundBase ?? 0,
-          specialDeductions: record.special,
-          taxableCurrent: record.taxableCurrent,
-          incomeTax: monthTax,
-          taxPaidCumulative: cumulativePaid,
-          taxableCumulative: cumulativeTaxable,
-          taxCumulative: cumulativeTax,
-          netIncome: record.netIncome,
-          source: "system",
-          isForecast: false,
-        },
-        create: {
-          userId: user.id,
-          monthDate: record.monthDate,
-          cityId: record.cityId,
-          currency: record.currency,
-          sourceCurrency: record.sourceCurrency,
-          fxRateId: null,
-          fxSnapshotId: record.fxSnapshotId,
-          fxAppliedRate: record.fxAppliedRate,
-          gross: record.gross,
-          bonus: record.bonus,
-          ltcIncome: record.ltcIncome,
-          equityIncome: record.equityIncome,
-          socialInsurance: record.socialInsurance,
-          socialInsuranceBase: record.socialInsuranceBase ?? 0,
-          housingFund: record.housingFund,
-          housingFundBase: record.housingFundBase ?? 0,
-          specialDeductions: record.special,
-          taxableCurrent: record.taxableCurrent,
-          incomeTax: monthTax,
-          taxPaidCumulative: cumulativePaid,
-          taxableCumulative: cumulativeTaxable,
-          taxCumulative: cumulativeTax,
-          netIncome: record.netIncome,
-          source: "system",
-          isForecast: false,
-        },
+        });
+        await writeOutboxEvent(tx, {
+          eventType: "income.record.updated",
+          payload: {
+            recordId: saved.id,
+            userId: user.id,
+            monthDate: record.monthDate.toISOString(),
+            taxYear,
+            month: m,
+            gross: record.gross,
+            bonus: record.bonus,
+            ltcIncome: record.ltcIncome,
+            equityIncome: record.equityIncome,
+            socialInsurance: record.socialInsurance,
+            housingFund: record.housingFund,
+            taxableCurrent: record.taxableCurrent,
+            taxPaidCumulative: cumulativePaid,
+            taxableCumulative: cumulativeTaxable,
+            taxCumulative: cumulativeTax,
+            netIncome: record.netIncome,
+            cityId: record.cityId,
+            fxSnapshotId: record.fxSnapshotId,
+            fxAppliedRate: record.fxAppliedRate,
+          },
+        });
       });
       updated++;
     }

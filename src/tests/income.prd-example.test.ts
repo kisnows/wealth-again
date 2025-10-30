@@ -12,10 +12,18 @@ import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 // 期望个税：1月 614.91；2月 314.91；3月 4699.28（季度在 1/4/7/10 发放，3 月无 LTC）
 
 const mockPrisma = prismaMock;
+const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
+vi.mock("@/server/services/outbox", () => ({
+  writeOutboxEvent: writeOutboxEventMock,
+  fetchPendingOutboxEvents: vi.fn(),
+  markOutboxEventDelivered: vi.fn(),
+  markOutboxEventFailed: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
   resetPrismaMock();
+  writeOutboxEventMock.mockReset();
 });
 
 describe("PRD 示例（2025 年 1–3 月）", () => {

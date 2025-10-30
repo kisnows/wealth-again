@@ -7,6 +7,13 @@ const mockPrisma = prismaMock;
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
+const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
+vi.mock("@/server/services/outbox", () => ({
+  writeOutboxEvent: writeOutboxEventMock,
+  fetchPendingOutboxEvents: vi.fn(),
+  markOutboxEventDelivered: vi.fn(),
+  markOutboxEventFailed: vi.fn(),
+}));
 
 const mockTimelineService = {
   buildIncomeTimeline: vi.fn(),
@@ -17,6 +24,7 @@ vi.mock("@/server/services/income-tax/income-timeline", () => mockTimelineServic
 beforeEach(async () => {
   vi.clearAllMocks();
   resetPrismaMock();
+  writeOutboxEventMock.mockReset();
   const { clearTaxContextCache } = await import("@/server/services/income-tax/tax");
   clearTaxContextCache();
   mockPrisma.bonusPlan.findMany.mockResolvedValue([]);

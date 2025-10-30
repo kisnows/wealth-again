@@ -6,6 +6,8 @@ import {
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
 
+export const runtime = "nodejs";
+
 /**
  * GET /api/v1/income-tax/rules/tax/brackets?country=CN&taxYear=2025
  * - 查询对应年度税表档。

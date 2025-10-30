@@ -16,10 +16,18 @@ vi.mock("@/server/services/fx", () => ({
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
+const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
+vi.mock("@/server/services/outbox", () => ({
+  writeOutboxEvent: writeOutboxEventMock,
+  fetchPendingOutboxEvents: vi.fn(),
+  markOutboxEventDelivered: vi.fn(),
+  markOutboxEventFailed: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
   resetPrismaMock();
+  writeOutboxEventMock.mockReset();
   convertMock.mockResolvedValue({
     amount: 70,
     effectiveRate: 7,

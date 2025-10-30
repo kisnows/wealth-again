@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
+import { writeOutboxEvent } from "@/server/services/outbox";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
@@ -131,6 +132,28 @@ export async function POST(req: NextRequest) {
         },
       });
     }
+    const lines = Array.isArray(createdEntry.lines)
+      ? createdEntry.lines
+      : [];
+    await writeOutboxEvent(tx, {
+      eventType: "ledger.entry.created",
+      payload: {
+        entryId: createdEntry.id,
+        type: "DEPOSIT",
+        userId: user.id,
+        accountIds: lines.map((line) => line.accountId),
+        occurredAt: occurredAtDate.toISOString(),
+        totalAmount: depositAmount,
+        currency: account.baseCurrency,
+        direction: "INFLOW",
+        lines: lines.map((line) => ({
+          id: line.id,
+          accountId: line.accountId,
+          amount: Number(line.amount ?? 0),
+          currency: line.currency,
+        })),
+      },
+    });
     return createdEntry;
   });
   await logAudit("ENTRY_DEPOSIT", {

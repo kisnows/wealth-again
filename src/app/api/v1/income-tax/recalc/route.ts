@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/server/services/audit";
 import {
-  recalcIncome,
-  settleIncomeRecalcTasks,
+  scheduleIncomeRecalcTask,
 } from "@/server/services/income-tax/income";
 import {
   ensureIdempotent,
@@ -34,24 +33,26 @@ export async function POST(req: NextRequest) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
-  const res = await recalcIncome({
+  const taskId = await scheduleIncomeRecalcTask({
+    userId: targetUserId,
     taxYear,
     endMonth,
-    cityId,
-    userId: targetUserId,
     startMonth,
+    cityId,
+    triggeredBy: actor?.id,
+    delayMs: 0,
   });
-  await settleIncomeRecalcTasks({ userId: targetUserId, taxYear });
-  await logAudit("INCOME_RECALC", {
+  await logAudit("INCOME_RECALC_ENQUEUED", {
+    userId: actor?.id ?? null,
     meta: {
       taxYear,
       endMonth,
+      startMonth: startMonth ?? null,
       cityId,
       userId: targetUserId,
-      startMonth,
-      updated: res.updated,
+      taskId,
     },
   });
   await markIdempotencyUsed(key);
-  return NextResponse.json(res);
+  return NextResponse.json({ taskId, status: "PENDING" }, { status: 202 });
 }
