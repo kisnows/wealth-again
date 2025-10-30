@@ -21,7 +21,7 @@
 - **自动化与延迟执行**：任务不会立即执行，而是会**延迟10分钟**。如果在这10分钟内，用户对同一年份的输入进行了多次修改，这些修改会**合并成一个回算任务**，避免了资源浪费。
 - **手动触发**：系统依然提供“立即回算”的选项，供需要即时看到结果的用户使用。
 - **任务状态追踪**：在 `/income` 页面内的“回算任务中心”区域展示所有回算任务状态（排队中、运行中、已完成、失败），`/income/recalc-status` 保持锚点重定向，方便直接访问。
-- **后台处理**：`scheduleIncomeRecalcTask` 将写入 `IncomeRecalcTask`，`GET /api/v1/income/recalc/tasks` 会在返回前触发到期任务执行，实现“10 分钟合并 + 自动回算”。
+- **后台处理**：`scheduleIncomeRecalcTask` 将写入 `IncomeRecalcTask`，`GET /api/v1/income-tax/recalc/tasks` 会在返回前触发到期任务执行，实现“10 分钟合并 + 自动回算”。
 
 ### 2.2 收入页面 (`/income`) 的整合视图
 
@@ -67,7 +67,7 @@
   - 计算字段：`taxableCurrent`、`taxableCumulative`、`taxCumulative`、`taxPaidCumulative`、`netIncome`。
   - 人工覆盖字段：`manualGross`、`manualTaxable`、`manualIncomeTax`、`manualNet`、`manualNote`；存在人工值时 `source = 'manual'`。
 - 新增 `IncomeRecalcTask` 表：记录自动回算任务的 `status`、`scheduledFor`、`attempts`、`lastError` 等信息，支持合并与重试。
-- API：`GET /api/v1/income/recalc/tasks` 用于列出任务并触发到期任务处理。
+- API：`GET /api/v1/income-tax/recalc/tasks` 用于列出任务并触发到期任务处理。
 
 ### 4.2 计算流程 (累计预扣法)
 

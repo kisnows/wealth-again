@@ -30,7 +30,7 @@ function futureMonth(offset = 2) {
 
 describe("城市迁移 API", () => {
   it("GET 返回当前城市与迁移记录", async () => {
-    const route = await import("@/app/api/v1/city-changes/route");
+    const route = await import("@/app/api/v1/identity/city-changes/route");
     mockPrisma.user.findUnique.mockResolvedValueOnce({
       id: "u1",
       currentCityId: "c1",
@@ -50,7 +50,7 @@ describe("城市迁移 API", () => {
     ]);
 
     const res = await route.GET(
-      makeGet("http://localhost/api/v1/city-changes"),
+      makeGet("http://localhost/api/v1/identity/city-changes"),
     );
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -60,7 +60,7 @@ describe("城市迁移 API", () => {
   });
 
   it("POST 成功创建迁移并触发回算", async () => {
-    const route = await import("@/app/api/v1/city-changes/route");
+    const route = await import("@/app/api/v1/identity/city-changes/route");
     const effective = futureMonth();
     mockPrisma.user.findUnique.mockResolvedValueOnce({
       id: "u1",
@@ -88,7 +88,7 @@ describe("城市迁移 API", () => {
     });
 
     const res = await route.POST(
-      makeJsonRequest("http://localhost/api/v1/city-changes", "POST", {
+      makeJsonRequest("http://localhost/api/v1/identity/city-changes", "POST", {
         toCityId: "c2",
         effectiveMonth: effective.label,
       }),
@@ -118,7 +118,7 @@ describe("城市迁移 API", () => {
   });
 
   it("POST 拒绝跨国家城市迁移", async () => {
-    const route = await import("@/app/api/v1/city-changes/route");
+    const route = await import("@/app/api/v1/identity/city-changes/route");
     const effective = futureMonth();
     mockPrisma.user.findUnique.mockResolvedValueOnce({
       id: "u1",
@@ -132,7 +132,7 @@ describe("城市迁移 API", () => {
     });
 
     const res = await route.POST(
-      makeJsonRequest("http://localhost/api/v1/city-changes", "POST", {
+      makeJsonRequest("http://localhost/api/v1/identity/city-changes", "POST", {
         toCityId: "c3",
         effectiveMonth: effective.label,
       }),
@@ -144,7 +144,7 @@ describe("城市迁移 API", () => {
   });
 
   it("POST 校验生效月份需晚于当月", async () => {
-    const route = await import("@/app/api/v1/city-changes/route");
+    const route = await import("@/app/api/v1/identity/city-changes/route");
     mockPrisma.user.findUnique.mockResolvedValueOnce({
       id: "u1",
       currentCityId: "c1",
@@ -162,7 +162,7 @@ describe("城市迁移 API", () => {
     ).padStart(2, "0")}`;
 
     const res = await route.POST(
-      makeJsonRequest("http://localhost/api/v1/city-changes", "POST", {
+      makeJsonRequest("http://localhost/api/v1/identity/city-changes", "POST", {
         toCityId: "c2",
         effectiveMonth: currentMonth,
       }),

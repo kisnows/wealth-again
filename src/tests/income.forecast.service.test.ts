@@ -27,7 +27,7 @@ beforeEach(() => {
 describe("收入预测与回算（半年 + 5-8 月截取）", () => {
   it("半年（1-6月）与 5-8 月的应纳税额准确", async () => {
     // 用例：以 PRD 给定的假设数据，验证半年与 5-8 月区间的预测税额、社保、公积金扣除均符合预期。
-    const recalc = await import("@/app/api/v1/income/recalc/route");
+    const recalc = await import("@/app/api/v1/income-tax/recalc/route");
     // 用户（CN）
   mockPrisma.user.findMany.mockResolvedValueOnce([
       {
@@ -96,7 +96,7 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
 
     // 回算到 8 月，便于截取 5-8 月
     const resp = await recalc.POST(
-      makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {
+      makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
         taxYear: 2025,
         endMonth: 8,
       }),

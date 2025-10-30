@@ -45,12 +45,12 @@ beforeEach(async () => {
 describe("Income basic endpoints", () => {
   it("salary-changes GET/POST", async () => {
     // 场景：查询与新增工资变更。期望：GET 返回 200；POST 在提供幂等键时成功 201。
-    const sc = await import("@/app/api/v1/income/salary-changes/route");
+    const sc = await import("@/app/api/v1/income-tax/salary-changes/route");
     mockPrisma.incomeChange.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await sc.GET(
-          makeGet("http://localhost/api/v1/income/salary-changes?userId=u1"),
+          makeGet("http://localhost/api/v1/income-tax/salary-changes?userId=u1"),
         )
       ).status,
     ).toBe(200);
@@ -60,7 +60,7 @@ describe("Income basic endpoints", () => {
       (
         await sc.POST(
           makeJsonRequest(
-            "http://localhost/api/v1/income/salary-changes",
+            "http://localhost/api/v1/income-tax/salary-changes",
             "POST",
             { userId: "u1", grossMonthly: 10000, effectiveFrom: "2025-01-01" },
             { "Idempotency-Key": "k1" },
@@ -72,11 +72,11 @@ describe("Income basic endpoints", () => {
 
   it("salary-changes POST idempotency reuse returns 409", async () => {
     // 场景：重复使用幂等键提交工资变更时，应返回 409 并阻止重复插入。
-    const sc = await import("@/app/api/v1/income/salary-changes/route");
+    const sc = await import("@/app/api/v1/income-tax/salary-changes/route");
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce({ key: "k-sc" });
     const res = await sc.POST(
       makeJsonRequest(
-        "http://localhost/api/v1/income/salary-changes",
+        "http://localhost/api/v1/income-tax/salary-changes",
         "POST",
         { userId: "u1", grossMonthly: 10000, effectiveFrom: "2025-01-01" },
         { "Idempotency-Key": "k-sc" },
@@ -87,12 +87,12 @@ describe("Income basic endpoints", () => {
 
   it("bonus GET/POST", async () => {
     // 场景：查询与新增一次性奖金。期望：GET 200；POST 201。
-    const bonus = await import("@/app/api/v1/income/bonus/route");
+    const bonus = await import("@/app/api/v1/income-tax/bonus/route");
     mockPrisma.bonusPlan.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await bonus.GET(
-          makeGet("http://localhost/api/v1/income/bonus?userId=u1"),
+          makeGet("http://localhost/api/v1/income-tax/bonus?userId=u1"),
         )
       ).status,
     ).toBe(200);
@@ -102,7 +102,7 @@ describe("Income basic endpoints", () => {
       (
         await bonus.POST(
           makeJsonRequest(
-            "http://localhost/api/v1/income/bonus",
+            "http://localhost/api/v1/income-tax/bonus",
             "POST",
             { userId: "u1", amount: 20000, effectiveDate: "2025-01-10" },
             { "Idempotency-Key": "k2" },
@@ -114,12 +114,12 @@ describe("Income basic endpoints", () => {
 
   it("ltc plan GET/POST and generate", async () => {
     // 场景：创建长期现金计划并生成发放日程。期望：创建 201；生成 200。
-    const ltc = await import("@/app/api/v1/income/ltc/plans/route");
+    const ltc = await import("@/app/api/v1/income-tax/ltc/plans/route");
     mockPrisma.longTermCashPlan.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await ltc.GET(
-          makeGet("http://localhost/api/v1/income/ltc/plans?userId=u1"),
+          makeGet("http://localhost/api/v1/income-tax/ltc/plans?userId=u1"),
         )
       ).status,
     ).toBe(200);
@@ -137,7 +137,7 @@ describe("Income basic endpoints", () => {
       (
         await ltc.POST(
           makeJsonRequest(
-            "http://localhost/api/v1/income/ltc/plans",
+            "http://localhost/api/v1/income-tax/ltc/plans",
             "POST",
             {
               userId: "u1",
@@ -152,7 +152,7 @@ describe("Income basic endpoints", () => {
       ).status,
     ).toBe(201);
     const gen = await import(
-      "@/app/api/v1/income/ltc/plans/[id]/generate/route"
+      "@/app/api/v1/income-tax/ltc/plans/[id]/generate/route"
     );
     mockPrisma.longTermCashPlan.findUnique.mockResolvedValueOnce({
       id: "p1",
@@ -167,7 +167,7 @@ describe("Income basic endpoints", () => {
     expect(
       (
         await gen.POST(
-          makeGet("http://localhost/api/v1/income/ltc/plans/p1/generate"),
+          makeGet("http://localhost/api/v1/income-tax/ltc/plans/p1/generate"),
           { params: { id: "p1" } },
         )
       ).status,
@@ -176,7 +176,7 @@ describe("Income basic endpoints", () => {
 
   it("income timeline GET merges actual and forecast", async () => {
     // 场景：请求时间线接口，应返回合并的历史+预测数据。
-    const timelineRoute = await import("@/app/api/v1/income/timeline/route");
+    const timelineRoute = await import("@/app/api/v1/income-tax/timeline/route");
     const sample = {
       items: [
         {
@@ -286,7 +286,7 @@ describe("Income basic endpoints", () => {
     mockTimelineService.buildIncomeTimeline.mockResolvedValueOnce(sample);
     const res = await timelineRoute.GET(
       makeGet(
-        "http://localhost/api/v1/income/timeline?from=2025-01-01&to=2025-02-01",
+        "http://localhost/api/v1/income-tax/timeline?from=2025-01-01&to=2025-02-01",
       ),
     );
     expect(res.status).toBe(200);
@@ -301,12 +301,12 @@ describe("Income basic endpoints", () => {
 
   it("equity grants GET/POST, generate, vest patch", async () => {
     // 场景：创建股权授予、生成归属日程、回填归属市值。期望：均成功。
-    const grants = await import("@/app/api/v1/income/equity/grants/route");
+    const grants = await import("@/app/api/v1/income-tax/equity/grants/route");
     mockPrisma.equityGrant.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await grants.GET(
-          makeGet("http://localhost/api/v1/income/equity/grants?userId=u1"),
+          makeGet("http://localhost/api/v1/income-tax/equity/grants?userId=u1"),
         )
       ).status,
     ).toBe(200);
@@ -316,7 +316,7 @@ describe("Income basic endpoints", () => {
       (
         await grants.POST(
           makeJsonRequest(
-            "http://localhost/api/v1/income/equity/grants",
+            "http://localhost/api/v1/income-tax/equity/grants",
             "POST",
             {
               userId: "u1",
@@ -331,7 +331,7 @@ describe("Income basic endpoints", () => {
       ).status,
     ).toBe(201);
     const gen = await import(
-      "@/app/api/v1/income/equity/grants/[id]/generate/route"
+      "@/app/api/v1/income-tax/equity/grants/[id]/generate/route"
     );
     mockPrisma.equityGrant.findUnique.mockResolvedValueOnce({
       id: "g1",
@@ -346,12 +346,12 @@ describe("Income basic endpoints", () => {
     expect(
       (
         await gen.POST(
-          makeGet("http://localhost/api/v1/income/equity/grants/g1/generate"),
+          makeGet("http://localhost/api/v1/income-tax/equity/grants/g1/generate"),
           { params: { id: "g1" } },
         )
       ).status,
     ).toBe(200);
-    const vest = await import("@/app/api/v1/income/equity/vests/[id]/route");
+    const vest = await import("@/app/api/v1/income-tax/equity/vests/[id]/route");
     mockPrisma.equityVest.findUnique.mockResolvedValueOnce({
       id: "v1",
       grant: { id: "g1", userId: "u1" },
@@ -364,7 +364,7 @@ describe("Income basic endpoints", () => {
       (
         await vest.PATCH(
           makeJsonRequest(
-            "http://localhost/api/v1/income/equity/vests/v1",
+            "http://localhost/api/v1/income-tax/equity/vests/v1",
             "PATCH",
             { fairValue: 123, currency: "CNY" },
           ),
@@ -376,18 +376,18 @@ describe("Income basic endpoints", () => {
 
   it("income records GET & PATCH, recalc paths", async () => {
     // 场景A：查询月度快照 + 覆盖基数
-    const recs = await import("@/app/api/v1/income/records/route");
+    const recs = await import("@/app/api/v1/income-tax/records/route");
     mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
     expect(
       (
         await recs.GET(
           makeGet(
-            "http://localhost/api/v1/income/records?userId=u1&from=2025-01-01&to=2025-12-01",
+            "http://localhost/api/v1/income-tax/records?userId=u1&from=2025-01-01&to=2025-12-01",
           ),
         )
       ).status,
     ).toBe(200);
-    const rec = await import("@/app/api/v1/income/records/[id]/route");
+    const rec = await import("@/app/api/v1/income-tax/records/[id]/route");
     mockPrisma.incomeRecord.findUnique.mockResolvedValueOnce({
       id: "r1",
       userId: "u1",
@@ -397,7 +397,7 @@ describe("Income basic endpoints", () => {
       (
         await rec.PATCH(
           makeJsonRequest(
-            "http://localhost/api/v1/income/records/r1",
+            "http://localhost/api/v1/income-tax/records/r1",
             "PATCH",
             { socialInsuranceBase: 5000 },
           ),
@@ -407,11 +407,11 @@ describe("Income basic endpoints", () => {
     ).toBe(200);
 
     // 场景B：回算参数缺失 → 400
-    const recalc = await import("@/app/api/v1/income/recalc/route");
+    const recalc = await import("@/app/api/v1/income-tax/recalc/route");
     expect(
       (
         await recalc.POST(
-          makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {}),
+          makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {}),
         )
       ).status,
     ).toBe(400);
@@ -466,7 +466,7 @@ describe("Income basic endpoints", () => {
     expect(
       (
         await recalc.POST(
-          makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {
+          makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
             taxYear: 2025,
             endMonth: 2,
           }),
@@ -485,13 +485,13 @@ describe("Income basic endpoints", () => {
 
   it("income recalc idempotency reuse returns 409", async () => {
     // 场景：回算接口重复提交相同幂等键时需返回 409，避免重复计算。
-    const recalc = await import("@/app/api/v1/income/recalc/route");
+    const recalc = await import("@/app/api/v1/income-tax/recalc/route");
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce({
       key: "k-recalc",
     });
     const res = await recalc.POST(
       makeJsonRequest(
-        "http://localhost/api/v1/income/recalc",
+        "http://localhost/api/v1/income-tax/recalc",
         "POST",
         { taxYear: 2025, endMonth: 8 },
         { "Idempotency-Key": "k-recalc" },
@@ -502,7 +502,7 @@ describe("Income basic endpoints", () => {
 
   it("income recalc amount assertions with simplified rules", async () => {
     // 场景：在极简税务配置下验证累计预扣逻辑，确保累计税额差分为当月个税。
-    const recalc = await import("@/app/api/v1/income/recalc/route");
+    const recalc = await import("@/app/api/v1/income-tax/recalc/route");
     // 用户
     mockPrisma.user.findMany.mockResolvedValueOnce([
       {
@@ -540,7 +540,7 @@ describe("Income basic endpoints", () => {
     ]);
     mockPrisma.incomeRecord.upsert.mockResolvedValue({});
     const res = await recalc.POST(
-      makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {
+      makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
         taxYear: 2025,
         endMonth: 2,
       }),
@@ -559,7 +559,7 @@ describe("Income basic endpoints", () => {
   });
 
   it("annual deductions endpoint returns list", async () => {
-    const route = await import("@/app/api/v1/user/annual-deductions/route");
+    const route = await import("@/app/api/v1/identity/user/annual-deductions/route");
     const now = new Date("2025-01-01");
     mockPrisma.userAnnualDeduction.findMany.mockResolvedValueOnce([
       {
@@ -574,7 +574,7 @@ describe("Income basic endpoints", () => {
       },
     ]);
     const res = await route.GET(
-      makeGet("http://localhost/api/v1/user/annual-deductions"),
+      makeGet("http://localhost/api/v1/identity/user/annual-deductions"),
     );
     expect(res.status).toBe(200);
     const body = await res.json();

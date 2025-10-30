@@ -12,12 +12,12 @@ beforeEach(() => {
 describe("Rules routes", () => {
   it("cities PUT with idempotency & audit", async () => {
     // 用例：城市配置写入需携带幂等键并记录审计日志，确保重复请求可判别。
-    const m = await import("@/app/api/v1/rules/cities/route");
+    const m = await import("@/app/api/v1/income-tax/rules/cities/route");
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.city.upsert.mockResolvedValue({});
     const res = await m.PUT(
       makeJsonRequest(
-        "http://localhost/api/v1/rules/cities",
+        "http://localhost/api/v1/income-tax/rules/cities",
         "PUT",
         [{ name: "Hangzhou" }],
         { "Idempotency-Key": "k1" },
@@ -29,7 +29,7 @@ describe("Rules routes", () => {
 
   it("ss GET returns rule and PUT overlaps 409", async () => {
     // 用例：查询已存在的社保规则并尝试写入重叠区间时，接口应返回 409。
-    const ss = await import("@/app/api/v1/rules/social-security/route");
+    const ss = await import("@/app/api/v1/income-tax/rules/social-security/route");
     mockPrisma.city.findUnique.mockResolvedValueOnce({
       id: "c1",
       name: "Hangzhou",
@@ -39,7 +39,7 @@ describe("Rules routes", () => {
       (
         await ss.GET(
           makeGet(
-            "http://localhost/api/v1/rules/social-security?city=Hangzhou&on=2025-01-01",
+            "http://localhost/api/v1/income-tax/rules/social-security?city=Hangzhou&on=2025-01-01",
           ),
         )
       ).status,
@@ -56,7 +56,7 @@ describe("Rules routes", () => {
     ]);
     const res = await ss.PUT(
       makeJsonRequest(
-        "http://localhost/api/v1/rules/social-security",
+        "http://localhost/api/v1/income-tax/rules/social-security",
         "PUT",
         [
           {
@@ -78,7 +78,7 @@ describe("Rules routes", () => {
 
   it("hf GET ok and PUT ok", async () => {
     // 用例：公积金规则查询与写入的 happy path，验证返回 200 且数据通过幂等校验。
-    const hf = await import("@/app/api/v1/rules/housing-fund/route");
+    const hf = await import("@/app/api/v1/income-tax/rules/housing-fund/route");
     mockPrisma.city.findUnique.mockResolvedValueOnce({
       id: "c1",
       name: "Hangzhou",
@@ -88,7 +88,7 @@ describe("Rules routes", () => {
       (
         await hf.GET(
           makeGet(
-            "http://localhost/api/v1/rules/housing-fund?city=Hangzhou&on=2025-01-01",
+            "http://localhost/api/v1/income-tax/rules/housing-fund?city=Hangzhou&on=2025-01-01",
           ),
         )
       ).status,
@@ -102,7 +102,7 @@ describe("Rules routes", () => {
       (
         await hf.PUT(
           makeJsonRequest(
-            "http://localhost/api/v1/rules/housing-fund",
+            "http://localhost/api/v1/income-tax/rules/housing-fund",
             "PUT",
             [
               {
@@ -122,14 +122,14 @@ describe("Rules routes", () => {
 
   it("ss PUT non-overlap returns 200", async () => {
     // 用例：当提交区间与现有规则不重叠时，应成功创建并返回 200。
-    const ss = await import("@/app/api/v1/rules/social-security/route");
+    const ss = await import("@/app/api/v1/income-tax/rules/social-security/route");
     mockPrisma.city.upsert.mockResolvedValueOnce({ id: "c1" });
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.cityRuleSS.findMany.mockResolvedValueOnce([]); // 无重叠
     mockPrisma.cityRuleSS.upsert.mockResolvedValueOnce({});
     const res = await ss.PUT(
       makeJsonRequest(
-        "http://localhost/api/v1/rules/social-security",
+        "http://localhost/api/v1/income-tax/rules/social-security",
         "PUT",
         [
           {
@@ -151,7 +151,7 @@ describe("Rules routes", () => {
 
   it("tax config/brackets PUT/GET", async () => {
     // 用例：税制配置与税率表的查询 + 批量写入，用于验证字段完整性与幂等逻辑。
-    const cfg = await import("@/app/api/v1/rules/tax/config/route");
+    const cfg = await import("@/app/api/v1/income-tax/rules/tax/config/route");
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.taxConfig.upsert.mockResolvedValueOnce({
       country: "CN",
@@ -162,7 +162,7 @@ describe("Rules routes", () => {
       (
         await cfg.PUT(
           makeJsonRequest(
-            "http://localhost/api/v1/rules/tax/config",
+            "http://localhost/api/v1/income-tax/rules/tax/config",
             "PUT",
             { country: "CN", taxYear: 2025, standardDeduction: 5000 },
             { "Idempotency-Key": "k-tcfg" },
@@ -171,13 +171,13 @@ describe("Rules routes", () => {
       ).status,
     ).toBe(200);
 
-    const br = await import("@/app/api/v1/rules/tax/brackets/route");
+    const br = await import("@/app/api/v1/income-tax/rules/tax/brackets/route");
     mockPrisma.taxBracket.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await br.GET(
           makeGet(
-            "http://localhost/api/v1/rules/tax/brackets?country=CN&taxYear=2025",
+            "http://localhost/api/v1/income-tax/rules/tax/brackets?country=CN&taxYear=2025",
           ),
         )
       ).status,
@@ -188,7 +188,7 @@ describe("Rules routes", () => {
       (
         await br.PUT(
           makeJsonRequest(
-            "http://localhost/api/v1/rules/tax/brackets",
+            "http://localhost/api/v1/income-tax/rules/tax/brackets",
             "PUT",
             [
               {
@@ -209,13 +209,13 @@ describe("Rules routes", () => {
 
   it("cities PUT idempotency reuse returns 409", async () => {
     // 用例：重复使用相同幂等键写入城市时，应返回 409 阻止重复操作。
-    const m = await import("@/app/api/v1/rules/cities/route");
+    const m = await import("@/app/api/v1/income-tax/rules/cities/route");
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce({
       key: "k-city",
     });
     const res = await m.PUT(
       makeJsonRequest(
-        "http://localhost/api/v1/rules/cities",
+        "http://localhost/api/v1/income-tax/rules/cities",
         "PUT",
         [{ name: "Hangzhou" }],
         { "Idempotency-Key": "k-city" },
@@ -226,18 +226,18 @@ describe("Rules routes", () => {
 
   it("social-security GET missing query returns 400", async () => {
     // 用例：缺少必填查询参数（on）时，社保查询接口返回 400 提示参数错误。
-    const ss = await import("@/app/api/v1/rules/social-security/route");
+    const ss = await import("@/app/api/v1/income-tax/rules/social-security/route");
     const res = await ss.GET(
-      makeGet("http://localhost/api/v1/rules/social-security?city=Hangzhou"),
+      makeGet("http://localhost/api/v1/income-tax/rules/social-security?city=Hangzhou"),
     );
     expect(res.status).toBe(400);
   });
 
   it("tax brackets GET missing params returns 400", async () => {
     // 用例：缺少年份参数时，税率表查询接口返回 400，提醒补齐请求条件。
-    const br = await import("@/app/api/v1/rules/tax/brackets/route");
+    const br = await import("@/app/api/v1/income-tax/rules/tax/brackets/route");
     const res = await br.GET(
-      makeGet("http://localhost/api/v1/rules/tax/brackets?country=CN"),
+      makeGet("http://localhost/api/v1/income-tax/rules/tax/brackets?country=CN"),
     );
     expect(res.status).toBe(400);
   });

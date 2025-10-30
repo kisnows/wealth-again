@@ -22,7 +22,7 @@
 - 更新相关 API（工资/奖金/LTC/城市变更等）在成功写入后调用 `scheduleIncomeRecalc`。
 
 ### 阶段二：计算服务与接口调整
-- `recalcIncome` 接口改为消费任务、写入新字段，区分手动覆盖与自动计算；补充 `GET /api/v1/income/recalc-tasks` 返回任务列表。
+- `recalcIncome` 接口改为消费任务、写入新字段，区分手动覆盖与自动计算；补充 `GET /api/v1/income-tax/recalc-tasks` 返回任务列表。
 - 调整 `calculateTax` 输出以填充 `taxPaidCumulative` 等字段，确保 doc/prd-income.md 示例数据回算一致。
 - 补全 Vitest 用例：任务调度、去重、PRD 示例对账字段。
 

@@ -20,7 +20,9 @@ export async function fetchIncomeForecast(
     searchParams.set("cityId", params.cityId);
   }
 
-  const response = await fetch(`${API_BASE}/income/forecast?${searchParams}`);
+  const response = await fetch(
+    `${API_BASE}/income-tax/forecast?${searchParams}`,
+  );
 
   if (!response.ok) {
     throw new Error(`预测计算失败: ${response.statusText}`);
@@ -44,7 +46,9 @@ export async function fetchIncomeOverview(
     searchParams.set("cityId", cityId);
   }
 
-  const response = await fetch(`${API_BASE}/income/overview?${searchParams}`);
+  const response = await fetch(
+    `${API_BASE}/income-tax/overview?${searchParams}`,
+  );
 
   if (!response.ok) {
     throw new Error(`获取收入概况失败: ${response.statusText}`);
@@ -66,7 +70,7 @@ export async function fetchIncomeTimeseries(
   });
 
   const response = await fetch(
-    `${API_BASE}/reports/income/timeseries?${searchParams}`,
+    `${API_BASE}/reporting/income/timeseries?${searchParams}`,
   );
 
   if (!response.ok) {
@@ -91,7 +95,9 @@ export async function fetchIncomeRecords(
     searchParams.set("userId", userId);
   }
 
-  const response = await fetch(`${API_BASE}/income/records?${searchParams}`);
+  const response = await fetch(
+    `${API_BASE}/income-tax/records?${searchParams}`,
+  );
 
   if (!response.ok) {
     throw new Error(`获取收入记录失败: ${response.statusText}`);

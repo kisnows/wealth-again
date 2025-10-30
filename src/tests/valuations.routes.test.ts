@@ -16,7 +16,7 @@ beforeEach(() => {
 // 覆盖估值接口的两个路径：SAVINGS 禁止、INVESTMENT 允许；并通过摘要验证 ROI。
 describe("Valuations routes", () => {
   it("POST /valuations forbids SAVINGS", async () => {
-    const route = await import("@/app/api/v1/valuations/route");
+    const route = await import("@/app/api/v1/accounts-ledger/valuations/route");
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "a",
       userId: "u1",
@@ -24,7 +24,7 @@ describe("Valuations routes", () => {
       baseCurrency: "CNY",
     });
     const res = await route.POST(
-      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/valuations", "POST", {
         accountId: "a",
         asOf: "2025-08-01",
         totalValue: 100,
@@ -34,7 +34,7 @@ describe("Valuations routes", () => {
   });
 
   it("POST /valuations ok for INVESTMENT and ROI computed in summary", async () => {
-    const route = await import("@/app/api/v1/valuations/route");
+    const route = await import("@/app/api/v1/accounts-ledger/valuations/route");
     mockPrisma.account.findUnique.mockResolvedValueOnce({
       id: "a",
       userId: "u1",
@@ -43,7 +43,7 @@ describe("Valuations routes", () => {
     });
     mockPrisma.valuationSnapshot.create.mockResolvedValueOnce({ id: "v1" });
     const res = await route.POST(
-      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/valuations", "POST", {
         accountId: "a",
         asOf: "2025-08-01",
         totalValue: 120,
@@ -52,7 +52,7 @@ describe("Valuations routes", () => {
     expect(res.status).toBe(201);
 
     // ROI 验证：principal=100，valuation=120 → roi=0.2
-    const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
+    const summary = await import("@/app/api/v1/accounts-ledger/accounts/[id]/summary/route");
     const acc = {
       id: "a",
       userId: "u1",
@@ -67,7 +67,7 @@ describe("Valuations routes", () => {
     mockPrisma.account.findUnique.mockResolvedValueOnce(acc);
     mockPrisma.account.findMany.mockResolvedValueOnce([acc]);
     const resSum = await summary.GET(
-      makeGet("http://localhost/api/v1/accounts/a/summary"),
+      makeGet("http://localhost/api/v1/accounts-ledger/accounts/a/summary"),
       { params: { id: "a" } },
     );
     const j = await resSum.json();
@@ -76,10 +76,10 @@ describe("Valuations routes", () => {
   });
 
   it("POST /valuations 404 when account not found", async () => {
-    const route = await import("@/app/api/v1/valuations/route");
+    const route = await import("@/app/api/v1/accounts-ledger/valuations/route");
     mockPrisma.account.findUnique.mockResolvedValueOnce(null);
     const res = await route.POST(
-      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/valuations", "POST", {
         accountId: "not-exist",
         asOf: "2025-08-01",
         totalValue: 100,
@@ -89,9 +89,9 @@ describe("Valuations routes", () => {
   });
 
   it("POST /valuations invalid body -> 400", async () => {
-    const route = await import("@/app/api/v1/valuations/route");
+    const route = await import("@/app/api/v1/accounts-ledger/valuations/route");
     const res = await route.POST(
-      makeJsonRequest("http://localhost/api/v1/valuations", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/valuations", "POST", {
         accountId: "a",
         totalValue: 100,
       }),

@@ -14,7 +14,7 @@ export interface CurrentUser {
 
 // 获取当前用户信息的hook
 export function useCurrentUser() {
-  return useSWR<CurrentUser>("/api/v1/auth/me", getJson);
+  return useSWR<CurrentUser>("/api/v1/identity/auth/me", getJson);
 }
 
 // 获取当前用户ID的便捷hook

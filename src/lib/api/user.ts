@@ -33,15 +33,15 @@ export type CityChangeResponse = {
   items: CityChangeItem[];
 };
 
-const USER_PROFILE_KEY = "/api/v1/auth/me";
-const CITY_CHANGES_KEY = "/api/v1/city-changes";
+const USER_PROFILE_KEY = "/api/v1/identity/auth/me";
+const CITY_CHANGES_KEY = "/api/v1/identity/city-changes";
 
 export function useCurrentUser() {
   return useSWR<CurrentUser>(USER_PROFILE_KEY, (url) => getJson(url));
 }
 
 export async function updateDisplayCurrency(displayCurrency: string | null) {
-  const result = await patchJson<CurrentUser>("/api/v1/auth/me", {
+  const result = await patchJson<CurrentUser>("/api/v1/identity/auth/me", {
     displayCurrency,
   });
   await globalMutate(USER_PROFILE_KEY);
@@ -66,5 +66,8 @@ export async function createCityChange(input: {
 }
 
 export function useAllCities() {
-  return useSWR<Array<CurrentCity>>("/api/v1/cities", (url) => getJson(url));
+  return useSWR<Array<CurrentCity>>(
+    "/api/v1/identity/cities",
+    (url) => getJson(url),
+  );
 }

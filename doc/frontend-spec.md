@@ -48,7 +48,7 @@
 
 - **/income**: 收入管理中心，以分区方式呈现：
   - **核心配置入口**：页面顶部以紧凑分组呈现工资、奖金、长期现金与税务入口，避免重复按钮并保留快速操作。
-  - **收入时间线**：`IncomeAnalyticsPanel` 统一展示历史与预测的汇总、图表与月度表格，数据源为 `/api/v1/income/timeline`。
+  - **收入时间线**：`IncomeAnalyticsPanel` 统一展示历史与预测的汇总、图表与月度表格，数据源为 `/api/v1/income-tax/timeline`。
   - **回算任务中心**：`IncomeRecalcTaskBoard` 实时展示/触发回算任务（`/income/recalc-status` 指向该锚点），配合即时回算表单。
 
 - **/accounts**: 账户列表页。

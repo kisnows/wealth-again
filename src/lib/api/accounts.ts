@@ -15,10 +15,10 @@ export type Account = {
   initialBalance?: number;
 };
 
-const ACCOUNTS_KEY = "/api/v1/accounts";
-const ACCOUNTS_SUMMARY_PREFIX = "/api/v1/reports/accounts/summary";
+const ACCOUNTS_KEY = "/api/v1/accounts-ledger/accounts";
+const ACCOUNTS_SUMMARY_PREFIX = "/api/v1/reporting/accounts/summary";
 const accountTransactionsKey = (id: string) =>
-  `/api/v1/accounts/${id}/transactions`;
+  `/api/v1/accounts-ledger/accounts/${id}/transactions`;
 
 export function useAccounts() {
   const swr = useSWR<Account[]>(ACCOUNTS_KEY, getJson);
@@ -60,7 +60,9 @@ export type AccountSummary = {
 };
 
 export function useAccountSummary(id: string) {
-  const key = id ? `/api/v1/accounts/${id}/summary` : null;
+  const key = id
+    ? `/api/v1/accounts-ledger/accounts/${id}/summary`
+    : null;
   return useSWR<AccountSummary>(key, getJson);
 }
 
@@ -109,7 +111,7 @@ export function useAccountTimeseries(
   if (from) params.set("from", from);
   if (to) params.set("to", to ?? "");
   const key = id
-    ? `/api/v1/accounts/${id}/timeseries?${params.toString()}`
+    ? `/api/v1/accounts-ledger/accounts/${id}/timeseries?${params.toString()}`
     : null;
   return useSWR<{ points: Array<{ asOf: string; value: number }> }>(
     key,
@@ -118,7 +120,10 @@ export function useAccountTimeseries(
 }
 
 export async function createAccount(input: Omit<Account, "id" | "userId">) {
-  const created = await postJson<Account>("/api/v1/accounts", input);
+  const created = await postJson<Account>(
+    "/api/v1/accounts-ledger/accounts",
+    input,
+  );
   await revalidateAccountsData();
   return created;
 }
@@ -127,19 +132,27 @@ export async function updateAccount(
   id: string,
   patch: Partial<Pick<Account, "name" | "subType" | "description" | "status">>,
 ) {
-  const updated = await patchJson<Account>(`/api/v1/accounts/${id}`, patch);
+  const updated = await patchJson<Account>(
+    `/api/v1/accounts-ledger/accounts/${id}`,
+    patch,
+  );
   await revalidateAccountsData();
   return updated;
 }
 
 export async function archiveAccount(id: string) {
-  const res = await postJson(`/api/v1/accounts/${id}/archive`, {});
+  const res = await postJson(
+    `/api/v1/accounts-ledger/accounts/${id}/archive`,
+    {},
+  );
   await revalidateAccountsData();
   return res;
 }
 
 export async function deleteAccount(id: string) {
-  const res = await deleteJson<{ id: string }>(`/api/v1/accounts/${id}`);
+  const res = await deleteJson<{ id: string }>(
+    `/api/v1/accounts-ledger/accounts/${id}`,
+  );
   await revalidateAccountsData();
   return res;
 }
@@ -151,7 +164,10 @@ export async function postDeposit(input: {
   note?: string;
   attachmentUrl?: string;
 }) {
-  const res = await postJson("/api/v1/entries/deposit", input);
+  const res = await postJson(
+    "/api/v1/accounts-ledger/entries/deposit",
+    input,
+  );
   await revalidateAccountsData({ skipList: true });
   await revalidateAccountTransactions(input.accountId);
   return res;
@@ -164,7 +180,10 @@ export async function postWithdraw(input: {
   note?: string;
   attachmentUrl?: string;
 }) {
-  const res = await postJson("/api/v1/entries/withdraw", input);
+  const res = await postJson(
+    "/api/v1/accounts-ledger/entries/withdraw",
+    input,
+  );
   await revalidateAccountsData({ skipList: true });
   await revalidateAccountTransactions(input.accountId);
   return res;
@@ -178,7 +197,10 @@ export async function postTransfer(input: {
   asOf?: string;
   attachmentUrl?: string;
 }) {
-  const res = await postJson("/api/v1/entries/transfer", input);
+  const res = await postJson(
+    "/api/v1/accounts-ledger/entries/transfer",
+    input,
+  );
   await revalidateAccountsData({ skipList: true });
   await revalidateAccountTransactions([
     input.from.accountId,
@@ -195,7 +217,10 @@ export async function postValuation(input: {
   fxRateId?: string;
   note?: string;
 }) {
-  const res = await postJson("/api/v1/valuations", input);
+  const res = await postJson(
+    "/api/v1/accounts-ledger/valuations",
+    input,
+  );
   await revalidateAccountsData({ skipList: true });
   return res;
 }

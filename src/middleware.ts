@@ -4,7 +4,7 @@ import { auth } from "@/server/auth";
 const PUBLIC_PATHS = [
   "/signin",
   "/api/auth",
-  "/api/v1/auth",
+  "/api/v1/identity/auth",
   "/api/health",
 ];
 

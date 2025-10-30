@@ -12,7 +12,7 @@ beforeEach(() => {
 describe("FX routes", () => {
   it("GET /fxrates returns nearest asOf match", async () => {
     // 用例：查询指定日期的汇率快照时，接口应返回最近的匹配记录。
-    const m = await import("@/app/api/v1/fxrates/route");
+    const m = await import("@/app/api/v1/fx/rates/route");
     mockPrisma.fxRate.findFirst.mockResolvedValueOnce({
       id: "r1",
       base: "USD",
@@ -24,7 +24,7 @@ describe("FX routes", () => {
     });
     const res = await m.GET(
       makeGet(
-        "http://localhost/api/v1/fxrates?base=USD&quote=CNY&on=2025-08-01",
+        "http://localhost/api/v1/fx/rates?base=USD&quote=CNY&on=2025-08-01",
       ),
     );
     expect(res.status).toBe(200);
@@ -34,16 +34,16 @@ describe("FX routes", () => {
 
   it("GET /fxrates missing quote -> 400", async () => {
     // 用例：缺少 quote 参数时需返回 400，提示请求不完整。
-    const m = await import("@/app/api/v1/fxrates/route");
+    const m = await import("@/app/api/v1/fx/rates/route");
     const res = await m.GET(
-      makeGet("http://localhost/api/v1/fxrates?base=USD"),
+      makeGet("http://localhost/api/v1/fx/rates?base=USD"),
     );
     expect(res.status).toBe(400);
   });
 
   it("GET /fxrates without on returns latest snapshot", async () => {
     // 用例：未提供 on 参数时，接口应回落到最新快照。
-    const m = await import("@/app/api/v1/fxrates/route");
+    const m = await import("@/app/api/v1/fx/rates/route");
     mockPrisma.fxRate.findFirst.mockResolvedValueOnce({
       id: "r-latest",
       base: "USD",
@@ -54,7 +54,7 @@ describe("FX routes", () => {
       createdAt: new Date("2025-08-01"),
     });
     const res = await m.GET(
-      makeGet("http://localhost/api/v1/fxrates?base=USD&quote=EUR"),
+      makeGet("http://localhost/api/v1/fx/rates?base=USD&quote=EUR"),
     );
     expect(res.status).toBe(200);
     const j = await res.json();
@@ -63,9 +63,9 @@ describe("FX routes", () => {
 
   it("POST /fxrates invalid body -> 400", async () => {
     // 用例：POST 请求缺省必填字段时返回 400，阻止写入。
-    const m = await import("@/app/api/v1/fxrates/route");
+    const m = await import("@/app/api/v1/fx/rates/route");
     const res = await m.POST(
-      makeJsonRequest("http://localhost/api/v1/fxrates", "POST", {
+      makeJsonRequest("http://localhost/api/v1/fx/rates", "POST", {
         base: "USD",
       }),
     );
@@ -74,7 +74,7 @@ describe("FX routes", () => {
 
   it("POST /fxrates creates snapshot", async () => {
     // 用例：POST 提交完整参数时成功创建汇率快照并返回 201。
-    const m = await import("@/app/api/v1/fxrates/route");
+    const m = await import("@/app/api/v1/fx/rates/route");
     mockPrisma.fxRate.findFirst
       .mockResolvedValueOnce(null) // existingSameStart
       .mockResolvedValueOnce(null); // overlapping lookup
@@ -90,7 +90,7 @@ describe("FX routes", () => {
     };
     mockPrisma.fxRate.create.mockResolvedValueOnce(created);
     const res = await m.POST(
-      makeJsonRequest("http://localhost/api/v1/fxrates", "POST", {
+      makeJsonRequest("http://localhost/api/v1/fx/rates", "POST", {
         base: "USD",
         quote: "CNY",
         rate: 7.1,
@@ -103,7 +103,7 @@ describe("FX routes", () => {
 
   it("GET /fxrates/latest aggregates latest snapshot per currency", async () => {
     // 用例：批量查询时需返回每个币种最新的 USD 中间价，缺失的币种以 null 标记。
-    const m = await import("@/app/api/v1/fxrates/latest/route");
+    const m = await import("@/app/api/v1/fx/rates/latest/route");
     mockPrisma.fxRate.findMany.mockResolvedValueOnce([
       {
         base: "USD",
@@ -121,7 +121,7 @@ describe("FX routes", () => {
       },
     ]);
     const res = await m.GET(
-      makeGet("http://localhost/api/v1/fxrates/latest?quotes=CNY,HKD"),
+      makeGet("http://localhost/api/v1/fx/rates/latest?quotes=CNY,HKD"),
     );
     expect(res.status).toBe(200);
     const body = await res.json();

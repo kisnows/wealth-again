@@ -49,18 +49,18 @@ describe("Accounts & Entries routes", () => {
     mockPrisma.account.findMany
       .mockResolvedValueOnce([]) // 第一次调用 (workaround query)
       .mockResolvedValueOnce([]); // 第二次调用 (实际查询)
-    const m = await import("@/app/api/v1/accounts/route");
-    const res = await m.GET(makeGet("http://localhost/api/v1/accounts"));
+    const m = await import("@/app/api/v1/accounts-ledger/accounts/route");
+    const res = await m.GET(makeGet("http://localhost/api/v1/accounts-ledger/accounts"));
     expect(res.status).toBe(200);
   });
 
   it("POST /accounts creates account with idempotency & audit", async () => {
     mockPrisma.account.create.mockResolvedValueOnce({ id: "a1", name: "X" });
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    const m = await import("@/app/api/v1/accounts/route");
+    const m = await import("@/app/api/v1/accounts-ledger/accounts/route");
     const res = await m.POST(
       makeJsonRequest(
-        "http://localhost/api/v1/accounts",
+        "http://localhost/api/v1/accounts-ledger/accounts",
         "POST",
         {
           userId: "u1",
@@ -82,9 +82,9 @@ describe("Accounts & Entries routes", () => {
       userId: "u1",
       baseCurrency: "CNY",
     });
-    const m = await import("@/app/api/v1/accounts/[id]/route");
+    const m = await import("@/app/api/v1/accounts-ledger/accounts/[id]/route");
     const res = await m.PATCH(
-      makeJsonRequest("http://localhost/api/v1/accounts/a1", "PATCH", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/accounts/a1", "PATCH", {
         baseCurrency: "USD",
       }),
       { params: { id: "a1" } },
@@ -102,9 +102,9 @@ describe("Accounts & Entries routes", () => {
       id: "a1",
       status: "ARCHIVED",
     });
-    const m = await import("@/app/api/v1/accounts/[id]/archive/route");
+    const m = await import("@/app/api/v1/accounts-ledger/accounts/[id]/archive/route");
     const res = await m.POST(
-      makeGet("http://localhost/api/v1/accounts/a1/archive"),
+      makeGet("http://localhost/api/v1/accounts-ledger/accounts/a1/archive"),
       { params: { id: "a1" } },
     );
     expect(res.status).toBe(200);
@@ -118,10 +118,10 @@ describe("Accounts & Entries routes", () => {
     mockPrisma.valuationSnapshot.findMany.mockResolvedValueOnce([
       { asOf: new Date("2025-08-01"), totalValue: 100 },
     ]);
-    const m = await import("@/app/api/v1/accounts/[id]/timeseries/route");
+    const m = await import("@/app/api/v1/accounts-ledger/accounts/[id]/timeseries/route");
     const res = await m.GET(
       makeGet(
-        "http://localhost/api/v1/accounts/acc1/timeseries?metric=valuation&from=2025-08-01&to=2025-08-31",
+        "http://localhost/api/v1/accounts-ledger/accounts/acc1/timeseries?metric=valuation&from=2025-08-01&to=2025-08-31",
       ),
       { params: { id: "acc1" } },
     );
@@ -131,7 +131,7 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("GET /accounts/:id/timeseries principal point uses toDate filter", async () => {
-    const m = await import("@/app/api/v1/accounts/[id]/timeseries/route");
+    const m = await import("@/app/api/v1/accounts-ledger/accounts/[id]/timeseries/route");
     // 两条分录：一条在 toDate 之前，一条在之后；应仅计入之前那条
     mockPrisma.account.findUnique
       .mockResolvedValueOnce({
@@ -155,7 +155,7 @@ describe("Accounts & Entries routes", () => {
       }); // 第二次调用：获取详细数据
     const res = await m.GET(
       makeGet(
-        "http://localhost/api/v1/accounts/a/timeseries?metric=principal&to=2025-09-01",
+        "http://localhost/api/v1/accounts-ledger/accounts/a/timeseries?metric=principal&to=2025-09-01",
       ),
       { params: { id: "a" } },
     );
@@ -172,9 +172,9 @@ describe("Accounts & Entries routes", () => {
       name: "Old",
     });
     mockPrisma.account.update.mockResolvedValueOnce({ id: "a", name: "New" });
-    const route = await import("@/app/api/v1/accounts/[id]/route");
+    const route = await import("@/app/api/v1/accounts-ledger/accounts/[id]/route");
     const res = await route.PATCH(
-      makeJsonRequest("http://localhost/api/v1/accounts/a", "PATCH", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/accounts/a", "PATCH", {
         name: "New",
       }),
       { params: { id: "a" } },
@@ -186,9 +186,9 @@ describe("Accounts & Entries routes", () => {
 
   it("POST /entries/deposit 404 when account missing", async () => {
     mockPrisma.account.findUnique.mockResolvedValueOnce(null);
-    const m = await import("@/app/api/v1/entries/deposit/route");
+    const m = await import("@/app/api/v1/accounts-ledger/entries/deposit/route");
     const res = await m.POST(
-      makeJsonRequest("http://localhost/api/v1/entries/deposit", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/deposit", "POST", {
         accountId: "x",
         amount: 1,
         occurredAt: new Date().toISOString(),
@@ -205,10 +205,10 @@ describe("Accounts & Entries routes", () => {
     });
     mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     mockPrisma.txnEntry.create.mockResolvedValueOnce({ id: "e1" });
-    const m = await import("@/app/api/v1/entries/deposit/route");
+    const m = await import("@/app/api/v1/accounts-ledger/entries/deposit/route");
     const res = await m.POST(
       makeJsonRequest(
-        "http://localhost/api/v1/entries/deposit",
+        "http://localhost/api/v1/accounts-ledger/entries/deposit",
         "POST",
         {
           accountId: "acc1",
@@ -225,9 +225,9 @@ describe("Accounts & Entries routes", () => {
 
   it("POST /entries/transfer returns 404 when account missing; cross currency allowed with explicit to.amount", async () => {
     mockPrisma.account.findUnique.mockResolvedValueOnce(null);
-    let m = await import("@/app/api/v1/entries/transfer/route");
+    let m = await import("@/app/api/v1/accounts-ledger/entries/transfer/route");
     let res = await m.POST(
-      makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/transfer", "POST", {
         from: { accountId: "a", amount: 10 },
         to: { accountId: "b" },
         occurredAt: new Date().toISOString(),
@@ -242,9 +242,9 @@ describe("Accounts & Entries routes", () => {
       id: "entry1",
       lines: [],
     });
-    m = await import("@/app/api/v1/entries/transfer/route");
+    m = await import("@/app/api/v1/accounts-ledger/entries/transfer/route");
     res = await m.POST(
-      makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/transfer", "POST", {
         from: { accountId: "a", amount: 10 },
         to: { accountId: "b", amount: 10 },
         occurredAt: new Date().toISOString(),
@@ -263,9 +263,9 @@ describe("Accounts & Entries routes", () => {
       id: "e1",
       lines: [{ accountId: "a", amount: 10 }],
     });
-    const dep = await import("@/app/api/v1/entries/deposit/route");
+    const dep = await import("@/app/api/v1/accounts-ledger/entries/deposit/route");
     const res = await dep.POST(
-      makeJsonRequest("http://localhost/api/v1/entries/deposit", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/deposit", "POST", {
         accountId: "a",
         amount: 10,
         occurredAt: new Date().toISOString(),
@@ -295,9 +295,9 @@ describe("Accounts & Entries routes", () => {
         valuations: [],
       },
     ]);
-    const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
+    const summary = await import("@/app/api/v1/accounts-ledger/accounts/[id]/summary/route");
     const resSum = await summary.GET(
-      makeGet("http://localhost/api/v1/accounts/a/summary"),
+      makeGet("http://localhost/api/v1/accounts-ledger/accounts/a/summary"),
       { params: { id: "a" } },
     );
     const j = await resSum.json();
@@ -314,9 +314,9 @@ describe("Accounts & Entries routes", () => {
       id: "e1",
       lines: [{ accountId: "a", amount: -10 }],
     });
-    const wd = await import("@/app/api/v1/entries/withdraw/route");
+    const wd = await import("@/app/api/v1/accounts-ledger/entries/withdraw/route");
     const res = await wd.POST(
-      makeJsonRequest("http://localhost/api/v1/entries/withdraw", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/withdraw", "POST", {
         accountId: "a",
         amount: 10,
         occurredAt: new Date().toISOString(),
@@ -346,9 +346,9 @@ describe("Accounts & Entries routes", () => {
         valuations: [],
       },
     ]);
-    const summary = await import("@/app/api/v1/accounts/[id]/summary/route");
+    const summary = await import("@/app/api/v1/accounts-ledger/accounts/[id]/summary/route");
     const resSum = await summary.GET(
-      makeGet("http://localhost/api/v1/accounts/a/summary"),
+      makeGet("http://localhost/api/v1/accounts-ledger/accounts/a/summary"),
       { params: { id: "a" } },
     );
     const j = await resSum.json();
@@ -373,9 +373,9 @@ describe("Accounts & Entries routes", () => {
         meta: data.meta,
       }),
     );
-    const transfer = await import("@/app/api/v1/entries/transfer/route");
+    const transfer = await import("@/app/api/v1/accounts-ledger/entries/transfer/route");
     const res = await transfer.POST(
-      makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/transfer", "POST", {
         from: { accountId: "a", amount: 10 },
         to: { accountId: "b" },
         asOf: new Date().toISOString(),
@@ -423,9 +423,9 @@ describe("Account summary route", () => {
     };
     mockPrisma.account.findUnique.mockResolvedValueOnce(summaryAccount);
     mockPrisma.account.findMany.mockResolvedValueOnce([summaryAccount]);
-    const m = await import("@/app/api/v1/accounts/[id]/summary/route");
+    const m = await import("@/app/api/v1/accounts-ledger/accounts/[id]/summary/route");
     const res = await m.GET(
-      makeGet("http://localhost/api/v1/accounts/acc1/summary"),
+      makeGet("http://localhost/api/v1/accounts-ledger/accounts/acc1/summary"),
       { params: { id: "acc1" } },
     );
     expect(res.status).toBe(200);
@@ -465,9 +465,9 @@ describe("Entries transfer success case", () => {
         meta: data.meta,
       }),
     );
-    const transfer = await import("@/app/api/v1/entries/transfer/route");
+    const transfer = await import("@/app/api/v1/accounts-ledger/entries/transfer/route");
     const res = await transfer.POST(
-      makeJsonRequest("http://localhost/api/v1/entries/transfer", "POST", {
+      makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/transfer", "POST", {
         from: { accountId: "a", amount: 5 },
         to: { accountId: "b" },
         occurredAt: new Date().toISOString(),
@@ -493,7 +493,7 @@ describe("Entries transfer success case", () => {
     });
 
     const summaryRoute = await import(
-      "@/app/api/v1/accounts/[id]/summary/route"
+      "@/app/api/v1/accounts-ledger/accounts/[id]/summary/route"
     );
     // 2) A 账户摘要：初始100 + (-5) = 95
     mockPrisma.account.findUnique.mockResolvedValueOnce({
@@ -519,7 +519,7 @@ describe("Entries transfer success case", () => {
       },
     ]);
     const resA = await summaryRoute.GET(
-      makeGet("http://localhost/api/v1/accounts/a/summary"),
+      makeGet("http://localhost/api/v1/accounts-ledger/accounts/a/summary"),
       { params: { id: "a" } },
     );
     const sjA = await resA.json();
@@ -549,7 +549,7 @@ describe("Entries transfer success case", () => {
       },
     ]);
     const resB = await summaryRoute.GET(
-      makeGet("http://localhost/api/v1/accounts/b/summary"),
+      makeGet("http://localhost/api/v1/accounts-ledger/accounts/b/summary"),
       { params: { id: "b" } },
     );
     const sjB = await resB.json();

@@ -24,7 +24,7 @@ export default function UserAvatar() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/v1/auth/me")
+    fetch("/api/v1/identity/auth/me")
       .then((res) => {
         if (res.ok) {
           return res.json();

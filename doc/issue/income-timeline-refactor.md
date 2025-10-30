@@ -6,7 +6,7 @@
 - 用户希望历史与未来收入在前端使用统一组件展示：所选区间若落在过去，即显示历史记录；若跨越未来月份，则自动补齐预测数据，并在同一张表、同一套图表中标识来源。
 
 ## 改造目标
-1. **单一数据接口**：新增 `/api/v1/income/timeline`，服务端统一拼装 `IncomeRecord`（历史）与预测结果，保持累计计税逻辑一致。
+1. **单一数据接口**：新增 `/api/v1/income-tax/timeline`，服务端统一拼装 `IncomeRecord`（历史）与预测结果，保持累计计税逻辑一致。
 2. **单一展示组件**：改造 `IncomeAnalyticsPanel`，让其成为统一时间线组件并下线 `IncomeForecastModule`。
 3. **去重入口**：移除 `IncomeRecordsDialog` 及 `/income/records` 路由，头部仅保留跳转锚点与配置入口；预测与回算信息保持在 `/income` 单页聚合。
 4. **一致性标注**：统一在前端标识实际数据与预测数据来源，确保用户能够快速识别不同月份的状态。
@@ -19,7 +19,7 @@
   - 查询选区内的 `IncomeRecord`。
   - 对缺失月份调用预测服务补齐，输出统一结构（含 `taxableCurrent`、`taxableCumulative` 等字段）。
   - 汇总实际/预测/合计的统计信息。
-- 暴露 `GET /api/v1/income/timeline`，返回 `{ items, summary, meta }`。
+- 暴露 `GET /api/v1/income-tax/timeline`，返回 `{ items, summary, meta }`。
 
 ### 2. 前端
 - 新建 `IncomeTimelinePanel`（或改造现有组件）读取 `/income/timeline`，提供日期区间选择、汇总卡片、堆叠图、月度表格。

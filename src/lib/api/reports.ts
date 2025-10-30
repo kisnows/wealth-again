@@ -42,12 +42,12 @@ export function useDashboard(asOf?: string, displayCurrency?: string) {
   const params = new URLSearchParams();
   if (asOf) params.set("asOf", asOf);
   if (displayCurrency) params.set("displayCurrency", displayCurrency);
-  const key = `/api/v1/reports/dashboard${params.toString() ? `?${params}` : ""}`;
+  const key = `/api/v1/reporting/dashboard${params.toString() ? `?${params}` : ""}`;
   return useSWR<any>(key, getJson);
 }
 
 export function useAccountsSummary(displayCurrency?: string) {
-  const key = `/api/v1/reports/accounts/summary${displayCurrency ? `?displayCurrency=${displayCurrency}` : ""}`;
+  const key = `/api/v1/reporting/accounts/summary${displayCurrency ? `?displayCurrency=${displayCurrency}` : ""}`;
   return useSWR<AccountsSummaryResponse>(key, getJson);
 }
 
@@ -64,7 +64,7 @@ export function useIncomeTimeseries(
   if (displayCurrency) params.set("displayCurrency", displayCurrency);
   const key =
     from && to
-      ? `/api/v1/reports/income/timeseries?${params.toString()}`
+      ? `/api/v1/reporting/income/timeseries?${params.toString()}`
       : null;
   return useSWR<{
     series: Record<string, Array<{ month: string; value: number }>>;

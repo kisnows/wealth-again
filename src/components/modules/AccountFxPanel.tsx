@@ -86,8 +86,8 @@ export default function AccountFxPanel({
   }, [effectiveCurrencies, data]);
 
   const summaryKey = displayCurrency
-    ? `/api/v1/reports/accounts/summary?displayCurrency=${displayCurrency}`
-    : "/api/v1/reports/accounts/summary";
+    ? `/api/v1/reporting/accounts/summary?displayCurrency=${displayCurrency}`
+    : "/api/v1/reporting/accounts/summary";
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (
     event,

@@ -11,7 +11,7 @@
   - `income-tax`: `/api/v1/income-tax/*`
   - `identity`: `/api/v1/identity/*`（城市迁移、个人设置等）
   - `fx`: `/api/v1/fx/*`
-  - `rules`: `/api/v1/rules/*`（或归并至 `income-tax` 按需求）
+  - `rules`: `/api/v1/income-tax/rules/*`（或归并至 `income-tax` 按需求）
 - 调整 Route Handler 文件结构（`src/app/api/v1/...`），并提供旧路径到新路径的兼容层或重定向。
 - 更新前端调用、SWR Key、测试用例，使其匹配新的命名空间。
 
@@ -21,6 +21,18 @@
 2. 在 `src/app/api/v1` 中创建新命名空间目录，将 Route Handler 文件迁移（或重新导出），同时保留过渡期别名（例如通过 re-export 或轻量 redirect）。
 3. 更新客户端 API 调用层（`src/lib/api/*`）、SWR Key 与测试中的请求 URL；同步调整前端路由/Hook（例如 `/settings`、`/accounts`、`/income` 等页面中的请求封装）。
 4. 运行现有后端、前端（SWR/页面）测试或 smoke，确认行为未回归；必要时在文档中记录兼容策略与迁移时间线。
+
+### 旧路径 → 新命名空间对照表（旧路径已完全删除）
+
+| 子系统 | 已废弃路径 | 当前路径 |
+| --- | --- | --- |
+| Accounts & Ledger | `/api/v1/accounts`<br>`/api/v1/accounts/[id]/*`<br>`/api/v1/entries/*`<br>`/api/v1/valuations` | `/api/v1/accounts-ledger/accounts`<br>`/api/v1/accounts-ledger/accounts/[id]/*`<br>`/api/v1/accounts-ledger/entries/*`<br>`/api/v1/accounts-ledger/valuations` |
+| Income & Tax | `/api/v1/income/*`<br>`/api/v1/rules/*` | `/api/v1/income-tax/*`<br>`/api/v1/income-tax/rules/*` |
+| Identity & Settings | `/api/v1/auth/me`<br>`/api/v1/user/*`<br>`/api/v1/city-changes`<br>`/api/v1/cities`<br>`/api/v1/countries` | `/api/v1/identity/auth/me`<br>`/api/v1/identity/user/*`<br>`/api/v1/identity/city-changes`<br>`/api/v1/identity/cities`<br>`/api/v1/identity/countries` |
+| FX | `/api/v1/fxrates` | `/api/v1/fx/rates` |
+| Reporting | `/api/v1/reporting/dashboard`（原 `/api/v1/reports/dashboard`）<br>`/api/v1/reporting/income/timeseries`（原 `/api/v1/reports/income/timeseries`）<br>`/api/v1/reporting/accounts/summary`（原 `/api/v1/reports/accounts/summary`） | `/api/v1/reporting/*` |
+
+> 说明：2025-02-XX 起，旧路径已经在代码仓库中移除，所有调用方必须使用右列命名空间。
 
 ## 验收标准
 

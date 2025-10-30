@@ -159,7 +159,7 @@ export type IncomeRecalcTask = {
   processedAt: string | null;
 };
 
-export const INCOME_RECALC_TASKS_KEY = "/api/v1/income/recalc/tasks";
+export const INCOME_RECALC_TASKS_KEY = "/api/v1/income-tax/recalc/tasks";
 
 export function useIncomeRecalcTasks(config?: {
   refreshInterval?: number;
@@ -178,7 +178,7 @@ export function useIncomeRecords(
 ) {
   const key =
     from && to
-      ? `/api/v1/income/records?from=${from}&to=${to}${
+      ? `/api/v1/income-tax/records?from=${from}&to=${to}${
           userId ? `&userId=${userId}` : ""
         }`
       : null;
@@ -198,7 +198,7 @@ export function useIncomeTimeline(
   if (to) params.set("to", to);
   if (displayCurrency) params.set("displayCurrency", displayCurrency);
   const key =
-    from && to ? `/api/v1/income/timeline?${params.toString()}` : null;
+    from && to ? `/api/v1/income-tax/timeline?${params.toString()}` : null;
   return useSWR<IncomeTimelineResponse>(key, getJson);
 }
 
@@ -212,11 +212,11 @@ export async function updateIncomeRecord(
     manualNote: string | null;
   }>,
 ) {
-  return patchJson(`/api/v1/income/records/${id}`, payload);
+  return patchJson(`/api/v1/income-tax/records/${id}`, payload);
 }
 
 export function useSalaryChanges(userId?: string) {
-  const key = `/api/v1/income/salary-changes${
+  const key = `/api/v1/income-tax/salary-changes${
     userId ? `?userId=${userId}` : ""
   }`;
   return useSWR<{ items: SalaryChange[] }>(key, getJson);
@@ -229,16 +229,16 @@ export async function createSalaryChange(input: {
   effectiveFrom: string;
 }) {
   const res = await postJson<SalaryChange>(
-    "/api/v1/income/salary-changes",
+    "/api/v1/income-tax/salary-changes",
     input,
   );
-  await globalMutate(`/api/v1/income/salary-changes?userId=${input.userId}`);
+  await globalMutate(`/api/v1/income-tax/salary-changes?userId=${input.userId}`);
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
 export function useBonus(userId?: string) {
-  const key = `/api/v1/income/bonus${userId ? `?userId=${userId}` : ""}`;
+  const key = `/api/v1/income-tax/bonus${userId ? `?userId=${userId}` : ""}`;
   return useSWR<{ items: BonusPlan[] }>(key, getJson);
 }
 
@@ -249,14 +249,14 @@ export async function createBonus(input: {
   taxMethod?: string;
   effectiveDate: string;
 }) {
-  const res = await postJson<BonusPlan>("/api/v1/income/bonus", input);
-  await globalMutate(`/api/v1/income/bonus?userId=${input.userId}`);
+  const res = await postJson<BonusPlan>("/api/v1/income-tax/bonus", input);
+  await globalMutate(`/api/v1/income-tax/bonus?userId=${input.userId}`);
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
 export function useLTCPlans(userId?: string) {
-  const key = `/api/v1/income/ltc/plans${userId ? `?userId=${userId}` : ""}`;
+  const key = `/api/v1/income-tax/ltc/plans${userId ? `?userId=${userId}` : ""}`;
   return useSWR<{ items: LongTermCashPlan[] }>(key, getJson);
 }
 
@@ -269,22 +269,22 @@ export async function createLTCPlan(input: {
   recurrence: string;
 }) {
   const res = await postJson<LongTermCashPlan>(
-    "/api/v1/income/ltc/plans",
+    "/api/v1/income-tax/ltc/plans",
     input,
   );
-  await globalMutate(`/api/v1/income/ltc/plans?userId=${input.userId}`);
+  await globalMutate(`/api/v1/income-tax/ltc/plans?userId=${input.userId}`);
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
 export async function generateLTCPayouts(id: string) {
-  const res = await postJson(`/api/v1/income/ltc/plans/${id}/generate`, {});
+  const res = await postJson(`/api/v1/income-tax/ltc/plans/${id}/generate`, {});
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
 export function useEquityGrants(userId?: string) {
-  const key = `/api/v1/income/equity/grants${
+  const key = `/api/v1/income-tax/equity/grants${
     userId ? `?userId=${userId}` : ""
   }`;
   return useSWR<{ items: EquityGrant[] }>(key, getJson);
@@ -299,16 +299,16 @@ export async function createEquityGrant(input: {
   vestInterval: string;
 }) {
   const res = await postJson<EquityGrant>(
-    "/api/v1/income/equity/grants",
+    "/api/v1/income-tax/equity/grants",
     input,
   );
-  await globalMutate(`/api/v1/income/equity/grants?userId=${input.userId}`);
+  await globalMutate(`/api/v1/income-tax/equity/grants?userId=${input.userId}`);
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
 export async function generateEquityVests(id: string) {
-  const res = await postJson(`/api/v1/income/equity/grants/${id}/generate`, {});
+  const res = await postJson(`/api/v1/income-tax/equity/grants/${id}/generate`, {});
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
@@ -317,7 +317,7 @@ export async function updateEquityVest(
   id: string,
   input: { fairValue: number; currency: string },
 ) {
-  const res = await patchJson(`/api/v1/income/equity/vests/${id}`, input);
+  const res = await patchJson(`/api/v1/income-tax/equity/vests/${id}`, input);
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
@@ -329,14 +329,14 @@ export async function postIncomeRecalc(input: {
   userId?: string;
   startMonth?: number;
 }) {
-  const res = await postJson("/api/v1/income/recalc", input);
+  const res = await postJson("/api/v1/income-tax/recalc", input);
   await globalMutate(INCOME_RECALC_TASKS_KEY);
   return res;
 }
 
 // 删除工资变更记录
 export async function deleteSalaryChange(id: string) {
-  const response = await fetch(`/api/v1/income/salary-changes/${id}`, {
+  const response = await fetch(`/api/v1/income-tax/salary-changes/${id}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -347,7 +347,7 @@ export async function deleteSalaryChange(id: string) {
 
 // 删除奖金记录
 export async function deleteBonus(id: string) {
-  const response = await fetch(`/api/v1/income/bonus/${id}`, {
+  const response = await fetch(`/api/v1/income-tax/bonus/${id}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -358,7 +358,7 @@ export async function deleteBonus(id: string) {
 
 // 删除长期现金计划
 export async function deleteLTCPlan(id: string) {
-  const response = await fetch(`/api/v1/income/ltc/plans/${id}`, {
+  const response = await fetch(`/api/v1/income-tax/ltc/plans/${id}`, {
     method: "DELETE",
   });
   if (!response.ok) {

@@ -46,33 +46,33 @@
 - Accounts & Ledger
   - 前端页面（RSC / React）：`src/app/accounts/*`（账户列表、账户详情 `/accounts/[id]`, 新建 `/accounts/new`）
   - API 路由（实际路径）：
-    - `POST/GET /api/v1/accounts` -> `src/app/api/v1/accounts/route.ts`
-    - `GET/PUT /api/v1/accounts/[id]` -> `src/app/api/v1/accounts/[id]/route.ts`
-    - 子路由：`archive`、`summary`、`timeseries`、`transactions` -> `src/app/api/v1/accounts/[id]/*`
-  - 交易入口：`src/app/api/v1/entries/{deposit,withdraw,transfer}/route.ts`
-  - 估值路由：`src/app/api/v1/valuations/route.ts`
+    - `POST/GET /api/v1/accounts-ledger/accounts` -> `src/app/api/v1/accounts-ledger/accounts/route.ts`
+    - `GET/PUT /api/v1/accounts-ledger/accounts/[id]` -> `src/app/api/v1/accounts-ledger/accounts/[id]/route.ts`
+    - 子路由：`archive`、`summary`、`timeseries`、`transactions` -> `src/app/api/v1/accounts-ledger/accounts/[id]/*`
+  - 交易入口：`src/app/api/v1/accounts-ledger/entries/{deposit,withdraw,transfer}/route.ts`
+  - 估值路由：`src/app/api/v1/accounts-ledger/valuations/route.ts`
   - 服务实现位置：`src/server/services/ledger*` 系列（注意：当前仓库中服务可能分散于多个文件，重构建议见下文）
   - 重要 Prisma 表：`Account`, `TxnLine`, `ValuationSnapshot`, `AccountValuationCurve`（参见 `prisma/schema.prisma`）
   - 重要 Prisma 表（与当前 schema 对齐）：`Account`, `TxnLine`, `ValuationSnapshot`（曲线为由快照聚合得到的视图/查询结果，不是独立表）
 
 - Income & Tax
   - 前端页面：`src/app/income/*`（包括 `recalc-status`、`salary-changes`、`overview` 等）
-  - API 路由：`src/app/api/v1/income/*`（records、recalc、overview、timeline、forecast、bonus、equity、ltc 等）
+  - API 路由：`src/app/api/v1/income-tax/*`（records、recalc、overview、timeline、forecast、bonus、equity、ltc 等）
   - 服务实现位置：`src/server/services/income*`, `tax*`（仓库已有 `income` 相关服务与测试，详见 `src/tests`）
   - 重要 Prisma 表：`IncomeRecord`, `IncomeRecalcTask`, `TaxConfig`, `TaxBracket` 等
 
 - FX & Market Data
-  - 前端与路由：`src/app/api/v1/fxrates/route.ts`、`/latest/route.ts`，页面层少量使用（例如账户估值或汇率显示）
+  - 前端与路由：`src/app/api/v1/fx/rates/route.ts`、`/latest/route.ts`，页面层少量使用（例如账户估值或汇率显示）
   - 服务实现位置：`src/server/services/fx*`
   - 重要 Prisma 表（与当前 schema 对齐）：`FxRate`, `FxSnapshot`
 
 - Reporting & Analytics
-  - API 路由（当前轻量聚合）：`src/app/api/v1/reports/*`（dashboard、income timeseries、accounts summary）
+  - API 路由（当前轻量聚合）：`src/app/api/v1/reporting/*`（dashboard、income timeseries、accounts summary）
   - 前端页面：`src/app/dashboard/page.tsx`、各业务页嵌入的报表组件
   - 当前状态：以查询聚合为主，尚未采用物化视图或独立报表服务
 
 - Identity & Audit
-  - API 路由：`src/app/api/auth/[...nextauth]/route.ts`, `src/app/api/v1/auth/me/route.ts`
+  - API 路由：`src/app/api/auth/[...nextauth]/route.ts`, `src/app/api/v1/identity/auth/me/route.ts`
   - 服务实现位置：`src/server/auth.ts`, `src/server/auth.config.ts`, `src/server/services/audit*`
   - 重要 Prisma 表：`User`, `AuditLog`（会话由 NextAuth 维护，若采用 Prisma Adapter 则会引入 `Session` 等模型；当前 schema 未定义）
 
@@ -82,8 +82,8 @@
 
 - Rules & Reference Data（规则与参考数据）
   - API 路由：
-    - 规则：`/api/v1/rules/tax/config`, `/api/v1/rules/tax/brackets`, `/api/v1/rules/social-security`, `/api/v1/rules/housing-fund`
-    - 地理/参考：`/api/v1/countries`, `/api/v1/cities`, `/api/v1/city-changes`
+    - 规则：`/api/v1/income-tax/rules/tax/config`, `/api/v1/income-tax/rules/tax/brackets`, `/api/v1/income-tax/rules/social-security`, `/api/v1/income-tax/rules/housing-fund`
+    - 地理/参考：`/api/v1/identity/countries`, `/api/v1/identity/cities`, `/api/v1/identity/city-changes`
   - 服务实现位置：`src/server/services/tax*`、与规则读取/校验相关的服务
   - 重要 Prisma 表：`TaxConfig`, `TaxBracket`, `City`, `CityRuleSS`, `CityRuleHF`, `CityChangeRecord`
 
@@ -105,7 +105,7 @@
   - AnnualDeductions（专项附加扣除）：按 PRD 字段维护（如子女教育、住房贷款等），对应 API 已存在。
 
 - API 与页面（仓库现状）
-  - API：`GET/PUT /api/v1/user/profile`、`GET/PUT /api/v1/user/annual-deductions`
+  - API：`GET/PUT /api/v1/identity/user/profile`、`GET/PUT /api/v1/identity/user/annual-deductions`
   - 页面：`/settings`（集中维护设置项），其它页面只读或提供跳转。
 
 实现现状与演进建议：
@@ -322,10 +322,10 @@
   - Tests: `src/tests/outbox.test.ts`
 
 - PR-005：Local queue + income-recalc worker
-  - Files: `src/server/services/jobs/*`, modifications to `src/app/api/v1/income/recalc/route.ts`
+  - Files: `src/server/services/jobs/*`, modifications to `src/app/api/v1/income-tax/recalc/route.ts`
   - Tests: `src/tests/income.recalc-task.service.test.ts`
 - PR-006：FX provider 抽象与路由改造
-  - Files: `src/server/services/fx/provider.ts`, `src/server/services/fx.ts`, `src/app/api/v1/fxrates/*`, 以及调用方
+  - Files: `src/server/services/fx/provider.ts`, `src/server/services/fx.ts`, `src/app/api/v1/fx/rates/*`, 以及调用方
   - Tests: `src/tests/fx.service.test.ts`, 新增 provider 缓存与降级测试
 
 低优先（后续优化）：
@@ -371,13 +371,13 @@
 
 ## 影响矩阵（样例）
 
-- /api/v1/entries/deposit|withdraw|transfer → services: ledger/transactions → tests: `src/tests/entries.*.test.ts`
-- /api/v1/income/recalc → services: income-tax/recalc + jobs/queue → tests: `src/tests/income.recalc-task.service.test.ts`
-- /api/v1/fxrates/* → services: fx/provider → tests: `src/tests/fx.service.test.ts`
-- /api/v1/reports/* → services: reporting/outbox-consumer（后续） → tests: `src/tests/reports.*.test.ts`
-- /api/v1/rules/* → services: tax/* + rules readers → tests: `src/tests/rules.api.test.ts`
-- /api/v1/country|countries, /api/v1/cities → services: reference data → tests: `src/tests/city-changes.api.test.ts`（城市相关）
-- /api/v1/city-changes → services: city changes + income recalculation impact → tests: `src/tests/city-changes.api.test.ts`
+- /api/v1/accounts-ledger/entries/deposit|withdraw|transfer → services: ledger/transactions → tests: `src/tests/entries.*.test.ts`
+- /api/v1/income-tax/recalc → services: income-tax/recalc + jobs/queue → tests: `src/tests/income.recalc-task.service.test.ts`
+- /api/v1/fx/rates/* → services: fx/provider → tests: `src/tests/fx.service.test.ts`
+- /api/v1/reporting/* → services: reporting/outbox-consumer（后续） → tests: `src/tests/reports.*.test.ts`
+- /api/v1/income-tax/rules/* → services: tax/* + rules readers → tests: `src/tests/rules.api.test.ts`
+- /api/v1/country|countries, /api/v1/identity/cities → services: reference data → tests: `src/tests/city-changes.api.test.ts`（城市相关）
+- /api/v1/identity/city-changes → services: city changes + income recalculation impact → tests: `src/tests/city-changes.api.test.ts`
 
 （建议在实施过程中逐步完善为完整矩阵）
 
@@ -518,7 +518,7 @@
   - 文件：`src/tests/fx.service.test.ts`
 
 - 最新报价与时间序列
-  - 场景：`/api/v1/fxrates/latest` 与 `getTimeSeries`。
+  - 场景：`/api/v1/fx/rates/latest` 与 `getTimeSeries`。
   - 断言：latest 返回最近的 snapshot；timeSeries 返回时间序列（允许缺口，按设计处理 null/缺失）。
   - 文件：`src/tests/fx.service.test.ts`
 
@@ -532,12 +532,12 @@
 必测用例
 - Dashboard 汇总的正确性
   - 场景：生成若干交易与收入，触发估值。
-  - 断言：`/api/v1/reports/dashboard` 返回的净资产/收入等汇总与基于 `TxnLine/IncomeRecord` 的快照一致（使用业务快照汇率，不使用实时 FX）。
+  - 断言：`/api/v1/reporting/dashboard` 返回的净资产/收入等汇总与基于 `TxnLine/IncomeRecord` 的快照一致（使用业务快照汇率，不使用实时 FX）。
   - 文件：`src/tests/reports.api.test.ts` 或 `src/tests/reports.routes.test.ts`
 
 - 收入时序的准确性
   - 场景：多月收入、奖金混合。
-  - 断言：`/api/v1/reports/income/timeseries` 中每月净收入等于对应 `IncomeRecord` 聚合。
+  - 断言：`/api/v1/reporting/income/timeseries` 中每月净收入等于对应 `IncomeRecord` 聚合。
   - 文件：`src/tests/reports.api.test.ts`
 
 - Outbox → 物化视图更新（阶段 3 生效）
@@ -549,7 +549,7 @@
 
 必测用例
 - 用户信息与鉴权
-  - 场景：登录后访问 `/api/v1/auth/me`。
+  - 场景：登录后访问 `/api/v1/identity/auth/me`。
   - 断言：返回用户 profile；未登录返回 401。
   - 文件：`src/tests/user.profile.api.test.ts`
 

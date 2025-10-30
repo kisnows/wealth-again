@@ -15,7 +15,7 @@ beforeEach(() => {
 
 describe("用户资料 API", () => {
   it("允许更新姓名", async () => {
-    const route = await import("@/app/api/v1/user/profile/route");
+    const route = await import("@/app/api/v1/identity/user/profile/route");
     mockPrisma.user.update.mockResolvedValueOnce({
       id: "u1",
       email: "demo@example.com",
@@ -25,7 +25,7 @@ describe("用户资料 API", () => {
     });
 
     const res = await route.PATCH(
-      makeJsonRequest("http://localhost/api/v1/user/profile", "PATCH", {
+      makeJsonRequest("http://localhost/api/v1/identity/user/profile", "PATCH", {
         name: "Tester",
       }),
     );
@@ -37,9 +37,9 @@ describe("用户资料 API", () => {
   });
 
   it("拒绝更新基础币种", async () => {
-    const route = await import("@/app/api/v1/user/profile/route");
+    const route = await import("@/app/api/v1/identity/user/profile/route");
     const res = await route.PATCH(
-      makeJsonRequest("http://localhost/api/v1/user/profile", "PATCH", {
+      makeJsonRequest("http://localhost/api/v1/identity/user/profile", "PATCH", {
         baseCurrency: "USD",
       }),
     );
@@ -48,10 +48,10 @@ describe("用户资料 API", () => {
   });
 
   it("拒绝通过资料接口修改城市", async () => {
-    const route = await import("@/app/api/v1/user/profile/route");
+    const route = await import("@/app/api/v1/identity/user/profile/route");
 
     const res = await route.PATCH(
-      makeJsonRequest("http://localhost/api/v1/user/profile", "PATCH", {
+      makeJsonRequest("http://localhost/api/v1/identity/user/profile", "PATCH", {
         currentCityId: "c2",
       }),
     );

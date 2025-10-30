@@ -20,7 +20,7 @@ beforeEach(() => {
 describe("Reports routes", () => {
   it("accounts summary returns 200", async () => {
     // 用例：账户报表需结合估值与汇率折算展示，验证接口正常返回并完成汇率换算。
-    const m = await import("@/app/api/v1/reports/accounts/summary/route");
+    const m = await import("@/app/api/v1/reporting/accounts/summary/route");
     mockPrisma.account.findMany.mockResolvedValueOnce([
       {
         id: "a",
@@ -38,7 +38,7 @@ describe("Reports routes", () => {
     ]);
     const res = await m.GET(
       makeGet(
-        "http://localhost/api/v1/reports/accounts/summary?displayCurrency=CNY",
+        "http://localhost/api/v1/reporting/accounts/summary?displayCurrency=CNY",
       ),
     );
     expect(res.status).toBe(200);
@@ -55,11 +55,11 @@ describe("Reports routes", () => {
 
   it("dashboard returns 200", async () => {
     // 用例：Dashboard 报表在无数据时也应返回 200，确保空态可渲染。
-    const m = await import("@/app/api/v1/reports/dashboard/route");
+    const m = await import("@/app/api/v1/reporting/dashboard/route");
     mockPrisma.account.findMany.mockResolvedValueOnce([]);
     mockPrisma.fxRate.findMany.mockResolvedValueOnce([]);
     const res = await m.GET(
-      makeGet("http://localhost/api/v1/reports/dashboard?displayCurrency=CNY"),
+      makeGet("http://localhost/api/v1/reporting/dashboard?displayCurrency=CNY"),
     );
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -74,7 +74,7 @@ describe("Reports routes", () => {
 
   it("income timeseries returns series for given range", async () => {
     // 用例：收入时序接口按时间范围返回单月数据，需包含税额与净收入序列。
-    const m = await import("@/app/api/v1/reports/income/timeseries/route");
+    const m = await import("@/app/api/v1/reporting/income/timeseries/route");
     mockPrisma.user.findUnique.mockResolvedValueOnce({
       id: "u1",
       currentCityId: "c1",
@@ -95,7 +95,7 @@ describe("Reports routes", () => {
     ]);
     const res = await m.GET(
       makeGet(
-        "http://localhost/api/v1/reports/income/timeseries?from=2025-01-01&to=2025-12-01&userId=u1",
+        "http://localhost/api/v1/reporting/income/timeseries?from=2025-01-01&to=2025-12-01&userId=u1",
       ),
     );
     expect(res.status).toBe(200);

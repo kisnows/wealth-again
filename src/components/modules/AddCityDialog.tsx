@@ -122,7 +122,7 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
         };
       }
 
-      const response = await fetch("/api/v1/cities", {
+      const response = await fetch("/api/v1/identity/cities", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

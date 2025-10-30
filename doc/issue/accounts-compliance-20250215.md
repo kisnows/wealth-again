@@ -8,7 +8,7 @@
 
 1. **账户类型缺失 OTHER**
    - `src/lib/api/accounts.ts` 与前端表单未暴露 `OTHER` 选项，无法创建“其他”类型账户。
-   - `POST /api/v1/accounts` 未校验 `accountType`，存在脏数据风险。
+   - `POST /api/v1/accounts-ledger/accounts` 未校验 `accountType`，存在脏数据风险。
    - **任务**：补齐枚举、前端表单选项与后端校验。
 
 2. **归档账户仍可执行交易 / 估值**

@@ -37,11 +37,11 @@
   - 确保预测/回算任务使用快照而非实时汇率；必要时在任务执行前批量预取快照，或调用 `ensureFxSnapshotBatch`。
 
 #### 2. API Route Handlers
-- [ ] `/api/v1/entries/deposit`、`/api/v1/entries/withdraw`、`/api/v1/entries/transfer`
+- [ ] `/api/v1/accounts-ledger/entries/deposit`、`/api/v1/accounts-ledger/entries/withdraw`、`/api/v1/accounts-ledger/entries/transfer`
   - 与服务层保持一致：补充快照字段、错误码、attachment 写入。
   - 更新 meta 中的 `rateSnapshots` 结构（当前对 `capturedAt` 有日期假设）。
-- [ ] `/api/v1/valuations`：引入 `fxSnapshotId` / `fxAppliedRate` 字段，兼容回填脚本。
-- [ ] `/api/v1/reports/accounts/summary`：目前服务层已更新，但测试 mock 仍期待旧字段，需要同步修正（见下文）。
+- [ ] `/api/v1/accounts-ledger/valuations`：引入 `fxSnapshotId` / `fxAppliedRate` 字段，兼容回填脚本。
+- [ ] `/api/v1/reporting/accounts/summary`：目前服务层已更新，但测试 mock 仍期待旧字段，需要同步修正（见下文）。
 - [x] `/api/v1/settings/*`：仅保留展示币种偏好设置，基础币种相关功能已取消。
 
 #### 3. 前端（Next.js App Router）

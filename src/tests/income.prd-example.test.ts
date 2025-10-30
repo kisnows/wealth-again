@@ -20,7 +20,7 @@ beforeEach(() => {
 
 describe("PRD 示例（2025 年 1–3 月）", () => {
   it("当月个税匹配 PRD 数字", async () => {
-    const recalc = await import("@/app/api/v1/income/recalc/route");
+    const recalc = await import("@/app/api/v1/income-tax/recalc/route");
     // 用户（CN/HZ）
   mockPrisma.user.findMany.mockResolvedValueOnce([
     {
@@ -89,7 +89,7 @@ describe("PRD 示例（2025 年 1–3 月）", () => {
     mockPrisma.incomeRecord.upsert.mockResolvedValue({});
 
     const resp = await recalc.POST(
-      makeJsonRequest("http://localhost/api/v1/income/recalc", "POST", {
+      makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
         taxYear: 2025,
         endMonth: 3,
       }),

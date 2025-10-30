@@ -81,7 +81,7 @@ function SalaryChangesSection({ currency }: { currency: string }) {
       await deleteSalaryChange(id);
       toast.success("工资变更记录已删除");
       // 重新获取数据
-      mutate("/api/v1/income/salary-changes");
+      mutate("/api/v1/income-tax/salary-changes");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "删除失败");
     } finally {
@@ -201,7 +201,7 @@ function BonusSection({ currency }: { currency: string }) {
       await deleteBonus(id);
       toast.success("奖金记录已删除");
       // 重新获取数据
-      mutate("/api/v1/income/bonus");
+      mutate("/api/v1/income-tax/bonus");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "删除失败");
     } finally {
@@ -340,7 +340,7 @@ function LongTermCashSection({ currency }: { currency: string }) {
       await deleteLTCPlan(id);
       toast.success("长期现金计划已删除");
       // 重新获取数据
-      mutate("/api/v1/income/ltc/plans");
+      mutate("/api/v1/income-tax/ltc/plans");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "删除失败");
     } finally {
