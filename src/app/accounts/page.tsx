@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import AccountTable from "@/components/modules/AccountTable";
-import CreateAccountDialog from "@/components/modules/CreateAccountDialog";
-import DepositDialog from "@/components/modules/DepositDialog";
-import TransferDialog from "@/components/modules/TransferDialog";
-import ValuationFormDialog from "@/components/modules/ValuationFormDialog";
-import WithdrawDialog from "@/components/modules/WithdrawDialog";
+import AccountTable from "@/components/modules/accounts/AccountTable";
+import CreateAccountDialog from "@/components/modules/accounts/CreateAccountDialog";
+import DepositDialog from "@/components/modules/accounts/DepositDialog";
+import TransferDialog from "@/components/modules/accounts/TransferDialog";
+import ValuationFormDialog from "@/components/modules/accounts/ValuationFormDialog";
+import WithdrawDialog from "@/components/modules/accounts/WithdrawDialog";
 import { AccountsSummaryTable } from "@/components/modules/accounts/AccountsSummaryTable";
 import {
   PageContainer,
   PageHeader,
   PageSection,
-} from "@/components/modules/PageLayout";
+} from "@/components/modules/layout/PageLayout";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/lib/api/accounts";
 import { useAccountsSummary } from "@/lib/api/reports";
-import { useUserPrefsStore } from "@/lib/state/user-prefs";
+import { useUserPrefsStore } from "@/lib/state/identity";
 
 const SUMMARY_CARDS = [
   { key: "assets", label: "资产总额", badge: { label: "资产", variant: "secondary" as const } },

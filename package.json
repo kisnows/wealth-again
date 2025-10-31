@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "biome lint",
     "format": "biome ci --formatter-enabled=true --linter-enabled=true --assist-enabled=true --enforce-assist=true",
+    "openapi:types": "node scripts/generate-openapi-types.mjs",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage ",

@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR, { mutate as globalMutate } from "swr";
+import type { AdminUserItem as AdminUserItemSchema } from "@/types/openapi";
 import { getJson, patchJson, postJson } from "@/lib/utils/fetcher";
 
 export type CurrentUser = {
@@ -37,6 +38,8 @@ export type CityChangeCreateResponse = {
   cityChange: CityChangeItem;
   task?: { id: string; status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" };
 };
+
+export type AdminUserItem = AdminUserItemSchema;
 
 const USER_PROFILE_KEY = "/api/v1/identity/auth/me";
 const CITY_CHANGES_KEY = "/api/v1/identity/city-changes";
@@ -76,6 +79,13 @@ export async function createCityChange(input: {
 export function useAllCities() {
   return useSWR<Array<CurrentCity>>(
     "/api/v1/identity/cities",
+    (url) => getJson(url),
+  );
+}
+
+export function useAdminUsers() {
+  return useSWR<{ items: AdminUserItem[] }>(
+    "/api/v1/identity/admin/users",
     (url) => getJson(url),
   );
 }

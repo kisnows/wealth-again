@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { SalaryChangesDialog } from "@/components/modules/IncomeDialogs";
+import { SalaryChangesDialog } from "@/components/modules/income/IncomeDialogs";
 
 export default function SalaryChangesPage() {
   const router = useRouter();

@@ -4,7 +4,7 @@ CREATE TABLE "ReportDataset" (
     "userId" TEXT NOT NULL,
     "scope" TEXT NOT NULL,
     "bucket" TEXT NOT NULL DEFAULT 'default',
-    "payload" JSONB NOT NULL,
+    "payload" JSON NOT NULL,
     "occurredAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,

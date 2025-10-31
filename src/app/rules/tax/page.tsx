@@ -2,7 +2,7 @@
 
 import { CalculatorIcon, InfoIcon, Loader2, SettingsIcon } from "lucide-react";
 import { useState } from "react";
-import RulesUpsertForm from "@/components/modules/RulesUpsertForm";
+import RulesUpsertForm from "@/components/modules/identity/RulesUpsertForm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

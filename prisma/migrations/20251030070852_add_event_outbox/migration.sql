@@ -2,7 +2,7 @@
 CREATE TABLE "EventOutbox" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "eventType" TEXT NOT NULL,
-    "payload" JSONB NOT NULL,
+    "payload" JSON NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "attempts" INTEGER NOT NULL DEFAULT 0,
     "lastError" TEXT,

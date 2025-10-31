@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import RulesUpsertForm from "@/components/modules/RulesUpsertForm";
+import RulesUpsertForm from "@/components/modules/identity/RulesUpsertForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { upsertHousingFund, useHousingFund } from "@/lib/api/rules";

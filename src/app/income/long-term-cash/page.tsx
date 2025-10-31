@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LongTermCashDialog } from "@/components/modules/IncomeDialogs";
+import { LongTermCashDialog } from "@/components/modules/income/IncomeDialogs";
 
 export default function LongTermCashPage() {
   const router = useRouter();

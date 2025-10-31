@@ -7,7 +7,7 @@ import {
   ShieldCheckIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import RulesUpsertForm from "@/components/modules/RulesUpsertForm";
+import RulesUpsertForm from "@/components/modules/identity/RulesUpsertForm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

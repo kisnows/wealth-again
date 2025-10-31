@@ -2,23 +2,23 @@
 
 import { useMemo } from "react";
 import { useParams } from "next/navigation";
-import NetWorthLine from "@/components/modules/Charts/NetWorthLine";
-import DepositDialog from "@/components/modules/DepositDialog";
-import TransferDialog from "@/components/modules/TransferDialog";
-import ValuationFormDialog from "@/components/modules/ValuationFormDialog";
-import WithdrawDialog from "@/components/modules/WithdrawDialog";
+import NetWorthLine from "@/components/modules/reporting/Charts/NetWorthLine";
+import DepositDialog from "@/components/modules/accounts/DepositDialog";
+import TransferDialog from "@/components/modules/accounts/TransferDialog";
+import ValuationFormDialog from "@/components/modules/accounts/ValuationFormDialog";
+import WithdrawDialog from "@/components/modules/accounts/WithdrawDialog";
 import {
   PageContainer,
   PageHeader,
   PageSection,
-} from "@/components/modules/PageLayout";
+} from "@/components/modules/layout/PageLayout";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AccountTransactionsTable } from "@/components/modules/accounts/AccountTransactionsTable";
 import { useAccountSummary, useAccountTimeseries } from "@/lib/api/accounts";
 import { useAccountsSummary } from "@/lib/api/reports";
-import { useUserPrefsStore } from "@/lib/state/user-prefs";
+import { useUserPrefsStore } from "@/lib/state/identity";
 import { formatAmount, formatPercent } from "@/components/modules/accounts/account-format";
 import { ACCOUNT_TYPE_LABELS, STATUS_LABELS } from "@/components/modules/accounts/account-table-utils";
 

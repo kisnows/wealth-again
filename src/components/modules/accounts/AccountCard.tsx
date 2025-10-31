@@ -22,10 +22,10 @@ import {
   formatPercent,
 } from "./account-format";
 import { cn } from "@/lib/utils";
-import DepositDialog from "../DepositDialog";
-import TransferDialog from "../TransferDialog";
-import ValuationFormDialog from "../ValuationFormDialog";
-import WithdrawDialog from "../WithdrawDialog";
+import DepositDialog from "./DepositDialog";
+import TransferDialog from "./TransferDialog";
+import ValuationFormDialog from "./ValuationFormDialog";
+import WithdrawDialog from "./WithdrawDialog";
 import { AccountTransactionsList } from "./AccountTransactionsList";
 
 type PendingAction = "archive" | "restore" | "delete";

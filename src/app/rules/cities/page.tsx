@@ -1,6 +1,6 @@
 "use client";
 
-import RulesUpsertForm from "@/components/modules/RulesUpsertForm";
+import RulesUpsertForm from "@/components/modules/identity/RulesUpsertForm";
 import { upsertCities } from "@/lib/api/rules";
 
 export default function CitiesRulesPage() {

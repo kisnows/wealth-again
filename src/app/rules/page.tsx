@@ -6,7 +6,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
-} from "@/components/modules/PageLayout";
+} from "@/components/modules/layout/PageLayout";
 import {
   Card,
   CardContent,

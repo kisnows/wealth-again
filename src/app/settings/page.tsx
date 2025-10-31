@@ -6,13 +6,13 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import AccountFxPanel from "@/components/modules/AccountFxPanel";
-import CitySelect from "@/components/modules/CitySelect";
+import AccountFxPanel from "@/components/modules/fx/AccountFxPanel";
+import CitySelect from "@/components/modules/identity/CitySelect";
 import {
   PageContainer,
   PageHeader,
   PageSection,
-} from "@/components/modules/PageLayout";
+} from "@/components/modules/layout/PageLayout";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -55,7 +55,7 @@ import {
   useCurrentUser,
 } from "@/lib/api/user";
 import { formatMoney } from "@/lib/domain/money";
-import { useUserPrefsStore } from "@/lib/state/user-prefs";
+import { useUserPrefsStore } from "@/lib/state/identity";
 import { useAccountsSummary } from "@/lib/api/reports";
 
 const countryLabels: Record<string, string> = {

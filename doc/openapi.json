@@ -183,6 +183,32 @@
         }
       }
     },
+    "/api/v1/identity/admin/users": {
+      "get": {
+        "tags": ["Identity"],
+        "summary": "List users (admin)",
+        "responses": {
+          "200": {
+            "description": "Admin user list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AdminUserItem" }
+                    }
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
     "/api/v1/accounts-ledger/accounts": {
       "get": {
         "tags": ["Accounts & Ledger"],
@@ -651,6 +677,40 @@
           "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
+    },
+    "/api/v1/reporting/datasets": {
+      "get": {
+        "tags": ["Reporting"],
+        "summary": "List cached report datasets",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dataset list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ReportDatasetItem" }
+                    }
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
     }
   },
   "components": {
@@ -738,6 +798,40 @@
           "fxSnapshotId": { "type": ["string", "null"] }
         },
         "required": ["id", "accountId", "asOf", "totalValue", "currency"]
+      },
+      "ReportDatasetItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "scope": { "type": "string" },
+          "bucket": { "type": "string" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "occurredAt": { "type": ["string", "null"], "format": "date-time" },
+          "payload": { "type": ["object", "null"], "additionalProperties": true }
+        },
+        "required": ["id", "scope", "bucket", "updatedAt", "payload"]
+      },
+      "AdminUserItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "email": { "type": "string" },
+          "name": { "type": ["string", "null"] },
+          "displayCurrency": { "type": ["string", "null"] },
+          "currentCityId": { "type": "string" },
+          "isActive": { "type": "boolean" },
+          "currentCity": { "$ref": "#/components/schemas/CitySummary" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": [
+          "id",
+          "email",
+          "currentCityId",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ]
       },
       "WithdrawRequest": {
         "type": "object",

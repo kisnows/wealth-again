@@ -13,18 +13,18 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useMemo } from "react";
-import AllocPie from "@/components/modules/Charts/AllocPie";
-import NetWorthLine from "@/components/modules/Charts/NetWorthLine";
-import TopAccounts from "@/components/modules/TopAccounts";
+import AllocPie from "@/components/modules/reporting/Charts/AllocPie";
+import NetWorthLine from "@/components/modules/reporting/Charts/NetWorthLine";
+import TopAccounts from "@/components/modules/reporting/TopAccounts";
 import {
   PageContainer,
   PageHeader,
   PageSection,
-} from "@/components/modules/PageLayout";
-import DepositDialog from "@/components/modules/DepositDialog";
-import TransferDialog from "@/components/modules/TransferDialog";
-import ValuationFormDialog from "@/components/modules/ValuationFormDialog";
-import WithdrawDialog from "@/components/modules/WithdrawDialog";
+} from "@/components/modules/layout/PageLayout";
+import DepositDialog from "@/components/modules/accounts/DepositDialog";
+import TransferDialog from "@/components/modules/accounts/TransferDialog";
+import ValuationFormDialog from "@/components/modules/accounts/ValuationFormDialog";
+import WithdrawDialog from "@/components/modules/accounts/WithdrawDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +35,7 @@ import {
 } from "@/lib/api/reports";
 import { formatMoney } from "@/lib/domain/money";
 import { cn } from "@/lib/utils";
-import { useUserPrefsStore } from "@/lib/state/user-prefs";
+import { useUserPrefsStore } from "@/lib/state/identity";
 
 const metricStyles = {
   primary: {

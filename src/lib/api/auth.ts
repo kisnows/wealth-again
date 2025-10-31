@@ -10,6 +10,8 @@ export interface CurrentUser {
   name?: string;
   currentCityId: string;
   displayCurrency: string | null;
+  role?: string | null;
+  isAdmin?: boolean;
 }
 
 // 获取当前用户信息的hook

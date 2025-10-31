@@ -23,6 +23,7 @@ function getReportDelegate(client: PrismaClientLike) {
   return delegate as {
     upsert?: typeof prisma.reportDataset.upsert;
     findUnique?: typeof prisma.reportDataset.findUnique;
+    findMany?: typeof prisma.reportDataset.findMany;
   };
 }
 
@@ -89,6 +90,15 @@ export async function getReportDataset(
         bucket,
       },
     },
+  });
+}
+
+export async function listReportDatasets(userId: string) {
+  const delegate = getReportDelegate(prisma);
+  if (!delegate?.findMany) return [] as ReportDataset[];
+  return delegate.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
   });
 }
 

@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { EquityGrantForm } from "@/components/modules/IncomeForms";
-import VestFairValueForm from "@/components/modules/VestFairValueForm";
+import { EquityGrantForm } from "@/components/modules/income/IncomeForms";
+import VestFairValueForm from "@/components/modules/income/VestFairValueForm";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

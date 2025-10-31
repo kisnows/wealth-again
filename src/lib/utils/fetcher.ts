@@ -11,6 +11,10 @@ export type FetchJsonOptions = {
   headers?: HeadersInit;
 };
 
+export type MutationOptions = Omit<FetchJsonOptions, "method"> & {
+  method?: "POST" | "PUT" | "PATCH" | "DELETE";
+};
+
 export async function fetchJson<T = unknown>(
   url: string,
   opts: FetchJsonOptions = {},
@@ -32,6 +36,17 @@ export async function fetchJson<T = unknown>(
   });
   if (!res.ok) {
     if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        const currentPath = window.location.pathname;
+        if (!currentPath.startsWith("/signin")) {
+          const loginUrl = new URL("/signin", window.location.origin);
+          const callback = currentPath + window.location.search;
+          if (callback && callback !== "/signin") {
+            loginUrl.searchParams.set("callbackUrl", callback);
+          }
+          window.location.href = loginUrl.toString();
+        }
+      }
       throw new Error("请先登录后再执行此操作");
     }
     const text = await res.text().catch(() => "");
@@ -44,15 +59,27 @@ export async function getJson<T = unknown>(url: string, headers?: HeadersInit) {
   return fetchJson<T>(url, { method: "GET", headers });
 }
 
+export async function mutation<T = unknown>(
+  url: string,
+  options: MutationOptions = {},
+) {
+  const { method = "POST", idempotent, ...rest } = options;
+  const resolvedIdempotent =
+    idempotent ?? (method !== "DELETE" && method !== "GET");
+  return fetchJson<T>(url, {
+    ...rest,
+    method,
+    idempotent: resolvedIdempotent,
+  });
+}
+
 export async function postJson<T = unknown>(
   url: string,
   body: unknown,
   idempotencyKey?: string,
 ) {
-  return fetchJson<T>(url, {
-    method: "POST",
+  return mutation<T>(url, {
     body,
-    idempotent: true,
     idempotencyKey,
   });
 }
@@ -62,10 +89,9 @@ export async function putJson<T = unknown>(
   body: unknown,
   idempotencyKey?: string,
 ) {
-  return fetchJson<T>(url, {
+  return mutation<T>(url, {
     method: "PUT",
     body,
-    idempotent: true,
     idempotencyKey,
   });
 }
@@ -75,14 +101,13 @@ export async function patchJson<T = unknown>(
   body: unknown,
   idempotencyKey?: string,
 ) {
-  return fetchJson<T>(url, {
+  return mutation<T>(url, {
     method: "PATCH",
     body,
-    idempotent: true,
     idempotencyKey,
   });
 }
 
 export async function deleteJson<T = unknown>(url: string) {
-  return fetchJson<T>(url, { method: "DELETE" });
+  return mutation<T>(url, { method: "DELETE", idempotent: false });
 }

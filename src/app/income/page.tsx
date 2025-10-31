@@ -17,16 +17,17 @@ import {
   BonusDialog,
   LongTermCashDialog,
   SalaryChangesDialog,
-} from "@/components/modules/IncomeDialogs";
-import IncomeAnalyticsPanel from "@/components/modules/IncomeAnalyticsPanel";
-import { IncomeRecalcTaskBoard } from "@/components/modules/IncomeRecalcPanel";
+} from "@/components/modules/income/IncomeDialogs";
+import IncomeAnalyticsPanel from "@/components/modules/income/IncomeAnalyticsPanel";
+import { IncomeRecalcTaskBoard } from "@/components/modules/income/IncomeRecalcPanel";
 import {
   PageContainer,
   PageHeader,
   PageSection,
-} from "@/components/modules/PageLayout";
+} from "@/components/modules/layout/PageLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useUserPrefsStore } from "@/lib/state/identity";
 
 const MODAL_KEYS = ["salary", "bonus", "ltc"] as const;
 type ModalKey = (typeof MODAL_KEYS)[number];
@@ -40,6 +41,11 @@ export default function IncomePage() {
   const searchParams = useSearchParams();
   const searchParamsString = searchParams.toString();
   const dialogParam = searchParams.get("dialog");
+  const { pendingTasks, lastDataSyncAt } = useUserPrefsStore((state) => ({
+    pendingTasks: state.pendingTasks,
+    lastDataSyncAt: state.lastDataSyncAt,
+  }));
+  const syncLabel = formatRelativeTime(lastDataSyncAt);
 
   const [activeModal, setActiveModal] = useState<ModalKey | null>(null);
 
@@ -99,9 +105,28 @@ export default function IncomePage() {
         actions={actionButtons}
         description="统一维护工资、激励、社保、公积金与个税配置，所有展示均来自服务端实时回算结果。"
         meta={
-          <Badge variant="outline" data-testid="income-ui-badge">
-            Income
-          </Badge>
+          <div
+            className="flex flex-wrap items-center gap-2"
+            data-testid="income-ui-badge"
+          >
+            <Badge variant="outline">Income</Badge>
+            <Badge
+              data-testid="income-ui-recalc-status"
+              variant={pendingTasks > 0 ? "secondary" : "default"}
+            >
+              {pendingTasks > 0
+                ? `回算待处理 ${pendingTasks}`
+                : "回算队列已空"}
+            </Badge>
+            {syncLabel ? (
+              <span
+                className="text-xs text-muted-foreground"
+                data-testid="income-ui-sync-label"
+              >
+                最近同步 {syncLabel}
+              </span>
+            ) : null}
+          </div>
         }
         overline="Income"
         testId="income-ui-header"
@@ -219,6 +244,21 @@ export default function IncomePage() {
       ) : null}
     </PageContainer>
   );
+}
+
+function formatRelativeTime(timestamp: string | null) {
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs <= 0) return "刚刚";
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return "刚刚";
+  if (diffMinutes < 60) return `${diffMinutes} 分钟前`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} 小时前`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} 天前`;
 }
 
 function RealtimeSourceSummary() {

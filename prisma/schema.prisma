@@ -38,6 +38,7 @@ model User {
   cityChanges   CityChangeRecord[]
   annualDeductions UserAnnualDeduction[]
   recalcTasks      IncomeRecalcTask[]
+  reportDatasets  ReportDataset[]
 
   @@index([email])
   @@index([isActive])

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { BonusDialog } from "@/components/modules/IncomeDialogs";
+import { BonusDialog } from "@/components/modules/income/IncomeDialogs";
 
 export default function BonusPage() {
   const router = useRouter();
