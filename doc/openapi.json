@@ -1,0 +1,895 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Wealth Again API",
+    "version": "0.1.0",
+    "description": "Service contracts for Accounts & Ledger, Income & Tax, FX, Reporting, and Identity subsystems."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Identity" },
+    { "name": "Accounts & Ledger" },
+    { "name": "Income & Tax" },
+    { "name": "FX" },
+    { "name": "Reporting" }
+  ],
+  "paths": {
+    "/api/v1/identity/auth/me": {
+      "get": {
+        "tags": ["Identity"],
+        "summary": "Get current user profile",
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserProfile" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "patch": {
+        "tags": ["Identity"],
+        "summary": "Update display currency preference",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayCurrency": {
+                    "type": ["string", "null"],
+                    "enum": ["CNY", "USD", "EUR", "HKD", "JPY", null]
+                  }
+                },
+                "required": ["displayCurrency"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preference updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserProfile" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/identity/user/profile": {
+      "patch": {
+        "tags": ["Identity"],
+        "summary": "Update user profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserProfile" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/identity/city-changes": {
+      "get": {
+        "tags": ["Identity"],
+        "summary": "List city change records",
+        "responses": {
+          "200": {
+            "description": "City change history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currentCity": { "$ref": "#/components/schemas/CitySummary" },
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/CityChange" }
+                    }
+                  },
+                  "required": ["currentCity", "items"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Identity"],
+        "summary": "Create city change record",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "toCityId": { "type": "string" },
+                  "effectiveMonth": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Month start date, e.g. 2025-05-01"
+                  },
+                  "reason": { "type": "string", "maxLength": 120 }
+                },
+                "required": ["toCityId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "City change recorded and income recalc task queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cityChange": { "$ref": "#/components/schemas/CityChange" },
+                    "task": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "status": {
+                          "type": "string",
+                          "enum": ["PENDING", "RUNNING", "COMPLETED", "FAILED"]
+                        }
+                      },
+                      "required": ["id", "status"]
+                    }
+                  },
+                  "required": ["cityChange", "task"]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/accounts-ledger/accounts": {
+      "get": {
+        "tags": ["Accounts & Ledger"],
+        "summary": "List accounts",
+        "parameters": [
+          {
+            "name": "displayCurrency",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account summary",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AccountsSummary" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/accounts-ledger/entries/deposit": {
+      "post": {
+        "tags": ["Accounts & Ledger"],
+        "summary": "Create deposit entry",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accountId": { "type": "string" },
+                  "amount": { "type": "number" },
+                  "currency": { "type": "string" },
+                  "occurredAt": { "type": "string", "format": "date-time" },
+                  "note": { "type": "string" }
+                },
+                "required": ["accountId", "amount", "currency", "occurredAt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Entry created" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/accounts-ledger/entries/withdraw": {
+      "post": {
+        "tags": ["Accounts & Ledger"],
+        "summary": "Create withdraw entry",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WithdrawRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Entry created" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/accounts-ledger/entries/transfer": {
+      "post": {
+        "tags": ["Accounts & Ledger"],
+        "summary": "Create transfer entry",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "object",
+                    "properties": {
+                      "accountId": { "type": "string" },
+                      "amount": { "type": "number" }
+                    },
+                    "required": ["accountId", "amount"]
+                  },
+                  "to": {
+                    "type": "object",
+                    "properties": {
+                      "accountId": { "type": "string" },
+                      "amount": { "type": "number" }
+                    },
+                    "required": ["accountId"]
+                  },
+                  "occurredAt": { "type": "string", "format": "date-time" },
+                  "note": { "type": "string" }
+                },
+                "required": ["from", "to", "occurredAt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Entry created" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/accounts-ledger/valuations": {
+      "post": {
+        "tags": ["Accounts & Ledger"],
+        "summary": "Create valuation snapshot",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accountId": { "type": "string" },
+                  "asOf": { "type": "string", "format": "date-time" },
+                  "totalValue": { "type": "number" },
+                  "currency": { "type": "string" },
+                  "note": { "type": "string" }
+                },
+                "required": ["accountId", "asOf", "totalValue"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Valuation snapshot",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValuationSnapshot" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/income-tax/records": {
+      "get": {
+        "tags": ["Income & Tax"],
+        "summary": "List income records",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": { "type": "string", "format": "date" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": { "type": "string", "format": "date" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Income records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/IncomeRecord" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/income-tax/recalc": {
+      "post": {
+        "tags": ["Income & Tax"],
+        "summary": "Schedule income recalculation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taxYear": { "type": "integer" },
+                  "endMonth": { "type": "integer", "minimum": 1, "maximum": 12 },
+                  "startMonth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 12
+                  },
+                  "cityId": { "type": "string" },
+                  "userId": { "type": "string" }
+                },
+                "required": ["taxYear", "endMonth"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Task scheduled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taskId": { "type": "string" },
+                    "status": { "type": "string" }
+                  },
+                  "required": ["taskId", "status"]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/income-tax/salary-changes": {
+      "post": {
+        "tags": ["Income & Tax"],
+        "summary": "Create salary change",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": { "type": "string" },
+                  "grossMonthly": { "type": "number" },
+                  "effectiveFrom": { "type": "string", "format": "date" }
+                },
+                "required": ["userId", "grossMonthly", "effectiveFrom"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Change recorded" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/fx/rates": {
+      "get": {
+        "tags": ["FX"],
+        "summary": "Get FX rate",
+        "parameters": [
+          { "name": "base", "in": "query", "schema": { "type": "string" } },
+          { "name": "quote", "in": "query", "schema": { "type": "string" } },
+          {
+            "name": "on",
+            "in": "query",
+            "schema": { "type": "string", "format": "date" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rate snapshot",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FxRate" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "post": {
+        "tags": ["FX"],
+        "summary": "Create FX rate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "base": { "type": "string" },
+                  "quote": { "type": "string" },
+                  "rate": { "type": "number" },
+                  "effectiveFrom": { "type": "string", "format": "date-time" },
+                  "effectiveTo": { "type": "string", "format": "date-time" }
+                },
+                "required": ["base", "quote", "rate", "effectiveFrom"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rate created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FxRate" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/api/v1/fx/rates/latest": {
+      "get": {
+        "tags": ["FX"],
+        "summary": "Get latest FX rates",
+        "parameters": [
+          {
+            "name": "quotes",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Latest rates per quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "base": { "type": "string" },
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/FxLatestRate" }
+                    }
+                  },
+                  "required": ["base", "items"]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/v1/reporting/dashboard": {
+      "get": {
+        "tags": ["Reporting"],
+        "summary": "Get dashboard overview",
+        "parameters": [
+          {
+            "name": "displayCurrency",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard totals",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/reporting/accounts/summary": {
+      "get": {
+        "tags": ["Reporting"],
+        "summary": "Get accounts summary",
+        "parameters": [
+          {
+            "name": "displayCurrency",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Summary response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AccountsSummary" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/reporting/income/timeseries": {
+      "get": {
+        "tags": ["Reporting"],
+        "summary": "Get income time series",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "date" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "date" }
+          },
+          {
+            "name": "displayCurrency",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Income time series data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "series": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "month": { "type": "string" },
+                            "value": { "type": "number" }
+                          },
+                          "required": ["month", "value"]
+                        }
+                      }
+                    },
+                    "summary": { "$ref": "#/components/schemas/IncomeSummary" }
+                  },
+                  "required": ["series", "summary"]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UserProfile": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "email": { "type": "string" },
+          "name": { "type": ["string", "null"] },
+          "currentCityId": { "type": ["string", "null"] },
+          "displayCurrency": { "type": ["string", "null"] }
+        },
+        "required": ["id", "email", "currentCityId", "displayCurrency"]
+      },
+      "CitySummary": {
+        "type": ["object", "null"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "country": { "type": "string" }
+        },
+        "required": ["id", "name", "country"]
+      },
+      "CityChange": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "toCityId": { "type": "string" },
+          "effectiveMonth": { "type": "string", "format": "date-time" },
+          "reason": { "type": ["string", "null"] },
+          "toCity": { "$ref": "#/components/schemas/CitySummary" },
+          "fromCity": { "$ref": "#/components/schemas/CitySummary" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "toCityId", "effectiveMonth", "toCity", "createdAt"]
+      },
+      "AccountsSummary": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AccountSummaryItem" }
+          },
+          "displayCurrency": { "type": ["string", "null"] },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "assets": { "type": "number" },
+              "liabilities": { "type": "number" },
+              "netWorth": { "type": "number" },
+              "archived": { "type": "number" }
+            },
+            "required": ["assets", "liabilities", "netWorth", "archived"]
+          }
+        },
+        "required": ["items", "displayCurrency", "totals"]
+      },
+      "AccountSummaryItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "accountType": { "type": "string" },
+          "currency": { "type": "string" },
+          "principal": { "type": "number" },
+          "valuation": { "type": "number" },
+          "profit": { "type": ["number", "null"] },
+          "roi": { "type": ["number", "null"] },
+          "displayValue": { "type": ["number", "null"] },
+          "displayPrincipal": { "type": ["number", "null"] },
+          "displayProfit": { "type": ["number", "null"] },
+          "valuationCurrency": { "type": ["string", "null"] }
+        },
+        "required": ["id", "name", "accountType", "currency", "principal", "valuation"]
+      },
+      "ValuationSnapshot": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "accountId": { "type": "string" },
+          "asOf": { "type": "string", "format": "date-time" },
+          "totalValue": { "type": "number" },
+          "currency": { "type": "string" },
+          "fxSnapshotId": { "type": ["string", "null"] }
+        },
+        "required": ["id", "accountId", "asOf", "totalValue", "currency"]
+      },
+      "WithdrawRequest": {
+        "type": "object",
+        "properties": {
+          "accountId": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string" },
+          "occurredAt": { "type": "string", "format": "date-time" },
+          "note": { "type": "string" }
+        },
+        "required": ["accountId", "amount", "currency", "occurredAt"]
+      },
+      "IncomeRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "monthDate": { "type": "string", "format": "date-time" },
+          "currency": { "type": "string" },
+          "gross": { "type": "number" },
+          "bonus": { "type": "number" },
+          "ltcIncome": { "type": "number" },
+          "equityIncome": { "type": "number" },
+          "socialInsurance": { "type": "number" },
+          "housingFund": { "type": "number" },
+          "incomeTax": { "type": "number" },
+          "netIncome": { "type": "number" },
+          "taxPaidCumulative": { "type": "number" }
+        },
+        "required": [
+          "id",
+          "userId",
+          "monthDate",
+          "currency",
+          "gross",
+          "bonus",
+          "ltcIncome",
+          "equityIncome",
+          "socialInsurance",
+          "housingFund",
+          "incomeTax",
+          "netIncome",
+          "taxPaidCumulative"
+        ]
+      },
+      "IncomeSummary": {
+        "type": "object",
+        "properties": {
+          "months": { "type": "integer" },
+          "currency": { "type": "string" },
+          "totalGross": { "type": "number" },
+          "totalBonus": { "type": "number" },
+          "totalLtc": { "type": "number" },
+          "totalEquity": { "type": "number" },
+          "totalSocialInsurance": { "type": "number" },
+          "totalHousingFund": { "type": "number" },
+          "totalSpecialDeductions": { "type": "number" },
+          "totalTax": { "type": "number" },
+          "totalNet": { "type": "number" },
+          "totalIncome": { "type": "number" },
+          "avgTaxRate": { "type": "number" },
+          "latestTaxPaid": { "type": "number" },
+          "latestTaxCumulative": { "type": "number" }
+        },
+        "required": [
+          "months",
+          "currency",
+          "totalGross",
+          "totalBonus",
+          "totalLtc",
+          "totalEquity",
+          "totalSocialInsurance",
+          "totalHousingFund",
+          "totalSpecialDeductions",
+          "totalTax",
+          "totalNet",
+          "totalIncome",
+          "avgTaxRate",
+          "latestTaxPaid",
+          "latestTaxCumulative"
+        ]
+      },
+      "FxRate": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "base": { "type": "string" },
+          "quote": { "type": "string" },
+          "rate": { "type": "number" },
+          "effectiveFrom": { "type": "string", "format": "date-time" },
+          "effectiveTo": { "type": ["string", "null"], "format": "date-time" }
+        },
+        "required": ["id", "base", "quote", "rate", "effectiveFrom"]
+      },
+      "FxLatestRate": {
+        "type": "object",
+        "properties": {
+          "quote": { "type": "string" },
+          "rate": { "type": ["number", "null"] },
+          "effectiveFrom": { "type": ["string", "null"], "format": "date-time" },
+          "effectiveTo": { "type": ["string", "null"], "format": "date-time" }
+        },
+        "required": ["quote", "rate", "effectiveFrom", "effectiveTo"]
+      },
+      "DashboardResponse": {
+        "type": "object",
+        "properties": {
+          "totals": {
+            "type": "object",
+            "properties": {
+              "assets": { "type": "number" },
+              "liabilities": { "type": "number" },
+              "netWorth": { "type": "number" },
+              "archived": { "type": "number" }
+            },
+            "required": ["assets", "liabilities", "netWorth", "archived"]
+          },
+          "displayCurrency": { "type": ["string", "null"] },
+          "allocations": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "timeseries": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "generatedAt": { "type": ["string", "null"], "format": "date-time" },
+          "accountCount": { "type": ["integer", "null"] }
+        },
+        "required": ["totals", "displayCurrency", "allocations", "timeseries"]
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Unauthorized"
+      },
+      "BadRequest": {
+        "description": "Bad request"
+      },
+      "NotFound": {
+        "description": "Resource not found"
+      },
+      "IdempotencyConflict": {
+        "description": "Idempotency key conflict"
+      }
+    },
+    "securitySchemes": {
+      "sessionAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "next-auth.session-token"
+      }
+    }
+  }
+}

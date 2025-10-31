@@ -4,7 +4,7 @@ import {
   convert,
   ensureFxSnapshotBatch,
   type FxSnapshotInfo,
-} from "@/server/services/fx";
+} from "@/server/services/fx/provider";
 
 const BASE_CURRENCY = "USD";
 

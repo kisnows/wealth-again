@@ -372,7 +372,7 @@ export async function deleteLTCPlan(id: string) {
 
 export function useAnnualDeductions(userId?: string) {
   const key = userId
-    ? `/api/v1/user/annual-deductions?userId=${userId}`
-    : "/api/v1/user/annual-deductions";
+    ? `/api/v1/identity/user/annual-deductions?userId=${userId}`
+    : "/api/v1/identity/user/annual-deductions";
   return useSWR<{ items: AnnualDeduction[] }>(key, getJson);
 }

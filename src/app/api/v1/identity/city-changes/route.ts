@@ -1,8 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
-import { logAudit } from "@/server/services/audit";
-import { recalcIncome } from "@/server/services/income-tax/income";
+import { audit } from "@/server/services/audit";
+import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
+import {
+  ensureIdempotent,
+  markIdempotencyUsed,
+} from "@/server/utils/idempotency";
 
 function getNextUtcMonthStart(base = new Date()) {
   return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1));
@@ -145,52 +149,76 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 创建城市变更记录
-    const cityChange = await prisma.cityChangeRecord.create({
-      data: {
-        userId,
-        toCityId,
-        fromCityId: me.currentCityId ?? null,
-        effectiveMonth,
-        reason: reason || null,
-      },
-      include: {
-        toCity: {
-          select: { id: true, name: true, country: true },
-        },
-        fromCity: {
-          select: { id: true, name: true, country: true },
-        },
-      },
-    });
+    const { key, existed } = await ensureIdempotent(
+      req,
+      userId,
+      `${userId}:${toCityId}:${effectiveMonth.toISOString()}`,
+    );
+    if (existed) {
+      return NextResponse.json(
+        { error: "Idempotency key reused" },
+        { status: 409 },
+      );
+    }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { currentCityId: toCityId },
+    const result = await prisma.$transaction(async (tx) => {
+      const cityChange = await tx.cityChangeRecord.create({
+        data: {
+          userId,
+          toCityId,
+          fromCityId: me.currentCityId ?? null,
+          effectiveMonth,
+          reason: reason || null,
+        },
+        include: {
+          toCity: {
+            select: { id: true, name: true, country: true },
+          },
+          fromCity: {
+            select: { id: true, name: true, country: true },
+          },
+        },
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { currentCityId: toCityId },
+      });
+
+      return cityChange;
     });
 
     const taxYear = effectiveMonth.getUTCFullYear();
     const monthIndex = effectiveMonth.getUTCMonth() + 1;
-    await recalcIncome({
+    const taskId = await scheduleIncomeRecalcTask({
       userId,
       taxYear,
       startMonth: monthIndex,
       endMonth: 12,
+      cityId: toCityId,
+      triggeredBy: userId,
+      delayMs: 0,
     });
 
-    // 记录审计日志
-    await logAudit("CITY_CHANGE_CREATE", {
+    await audit.logAndEmit("CITY_CHANGE_CREATE", {
       userId,
       meta: {
-        cityChangeId: cityChange.id,
+        cityChangeId: result.id,
         toCityId,
         fromCityId: me.currentCityId ?? null,
         effectiveMonth: effectiveMonth.toISOString(),
         reason,
+        taskId,
       },
+      eventType: "audit.identity.city_change_created",
     });
 
-    return NextResponse.json(cityChange, { status: 201 });
+    await markIdempotencyUsed(key);
+
+    return NextResponse.json(
+      { cityChange: result, task: { id: taskId, status: "PENDING" } },
+      { status: 202 },
+    );
   } catch (error) {
     console.error("Create city change error:", error);
     return NextResponse.json(

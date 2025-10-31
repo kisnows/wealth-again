@@ -105,7 +105,21 @@ export function resetPrismaMock() {
   prismaMock.fxRate?.findMany?.mockResolvedValue([]);
   prismaMock.fxRate?.findFirst?.mockResolvedValue(null);
   prismaMock.fxSnapshot?.findFirst?.mockResolvedValue(null);
-  prismaMock.fxSnapshot?.create?.mockImplementation(async (data: unknown) => data);
+  prismaMock.fxSnapshot?.create?.mockImplementation(
+    async ({ data }: { data: any }) => ({
+      id: data?.id ?? "snap-mock",
+      baseCurrency: data?.baseCurrency ?? "USD",
+      quoteCurrency: data?.quoteCurrency ?? "CNY",
+      rate: data?.rate ?? 1,
+      capturedAt:
+        data?.capturedAt instanceof Date ? data.capturedAt : new Date(),
+      sourceRateId: data?.sourceRateId ?? "rate-mock",
+      effectiveFrom:
+        data?.effectiveFrom instanceof Date ? data.effectiveFrom : null,
+      effectiveTo:
+        data?.effectiveTo instanceof Date ? data.effectiveTo : null,
+    }),
+  );
   if (!prismaMock.eventOutbox) {
     prismaMock.eventOutbox = {
       create: vi.fn(),

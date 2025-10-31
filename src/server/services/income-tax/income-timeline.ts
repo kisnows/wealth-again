@@ -13,7 +13,7 @@ import {
   type TaxComputationInput,
   type TaxContext,
 } from "./tax";
-import { convert } from "@/server/services/fx";
+import { convert } from "@/server/services/fx/provider";
 
 type TimelineSource = "system" | "manual" | "forecast";
 

@@ -10,7 +10,7 @@
 | Task-06 | API 路由命名空间收敛 | ✅ 已完成 |
 | Task-07 | EventOutbox 与队列平台建设 | ✅ 已完成 |
 | Task-08 | Reporting & Audit 完善 | ✅ 已完成 |
-| Task-09 | FX Provider 封装与缓存策略统一 | ⏳ 待开始 |
-| Task-10 | Settings / Identity 子系统收敛与权限梳理 | ⏳ 待开始 |
+| Task-09 | FX Provider 封装与缓存策略统一 | ✅ 已完成 |
+| Task-10 | Settings / Identity 子系统收敛与权限梳理 | ✅ 已完成 |
 
-> 当前测试基线已恢复全绿，Task-07/08 已落地 Outbox、队列与报表缓存。下一步进入 Task-09（FX Provider 封装与缓存策略统一），按序推进以满足 `doc/system-boundary-plan.md` 的阶段目标。
+> 当前测试基线保持全绿，Task-07/08/09/10 已分别完成 Outbox、报表缓存、FX Provider 与 Settings/Identity 收敛。后续按阶段计划推进剩余任务。

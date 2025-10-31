@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
-import { convert } from "@/server/services/fx";
+import { convert } from "@/server/services/fx/provider";
 import { writeOutboxEvent } from "@/server/services/outbox";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {

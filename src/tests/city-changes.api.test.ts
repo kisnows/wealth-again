@@ -3,7 +3,7 @@ import { makeGet, makeJsonRequest } from "@/tests/helpers";
 import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
 const mockPrisma = prismaMock;
-const recalcMock = vi.fn().mockResolvedValue({ updated: 0 });
+const scheduleMock = vi.fn().mockResolvedValue("task-1");
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
@@ -14,12 +14,14 @@ vi.mock("@/server/services/audit", () => ({
     logAndEmit: vi.fn(),
   },
 }));
-vi.mock("@/server/services/income-tax/income", () => ({ recalcIncome: recalcMock }));
+vi.mock("@/server/services/income-tax/income", () => ({
+  scheduleIncomeRecalcTask: scheduleMock,
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
   resetPrismaMock();
-  recalcMock.mockResolvedValue({ updated: 0 });
+  scheduleMock.mockResolvedValue("task-1");
 });
 
 function futureMonth(offset = 2) {
@@ -65,7 +67,7 @@ describe("城市迁移 API", () => {
     expect(payload.items[0].toCity.name).toBe("上海");
   });
 
-  it("POST 成功创建迁移并触发回算", async () => {
+  it("POST 成功创建迁移并排队回算任务", async () => {
     const route = await import("@/app/api/v1/identity/city-changes/route");
     const effective = futureMonth();
     mockPrisma.user.findUnique.mockResolvedValueOnce({
@@ -100,7 +102,7 @@ describe("城市迁移 API", () => {
       }),
     );
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(202);
     expect(mockPrisma.cityChangeRecord.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -114,13 +116,17 @@ describe("城市迁移 API", () => {
         data: { currentCityId: "c2" },
       }),
     );
-    expect(recalcMock).toHaveBeenCalledWith(
+    expect(scheduleMock).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "u1",
         taxYear: effective.year,
         startMonth: effective.month,
+        cityId: "c2",
+        endMonth: 12,
       }),
     );
+    const payload = await res.json();
+    expect(payload.task.id).toBe("task-1");
   });
 
   it("POST 拒绝跨国家城市迁移", async () => {

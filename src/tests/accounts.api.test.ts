@@ -4,7 +4,7 @@ import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
 // 跨币种自动折算路径中，直接 mock 转换函数，避免依赖汇率表
 const mockFxSnapshotDate = new Date("2025-01-01T00:00:00.000Z");
-vi.mock("@/server/services/fx", () => ({
+vi.mock("@/server/services/fx/provider", () => ({
   convert: vi.fn().mockResolvedValue({
     amount: 70,
     effectiveRate: 7,

@@ -19,7 +19,7 @@ import {
 import {
   convert,
   type FxSnapshotInfo,
-} from "@/server/services/fx";
+} from "@/server/services/fx/provider";
 
 type RecalcParams = {
   taxYear: number;

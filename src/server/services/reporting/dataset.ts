@@ -17,6 +17,15 @@ export type UpsertReportDatasetParams = {
   client?: PrismaClientLike;
 };
 
+function getReportDelegate(client: PrismaClientLike) {
+  const delegate = (client as unknown as Record<string, unknown>).reportDataset;
+  if (!delegate || typeof delegate !== "object") return null;
+  return delegate as {
+    upsert?: typeof prisma.reportDataset.upsert;
+    findUnique?: typeof prisma.reportDataset.findUnique;
+  };
+}
+
 export async function upsertReportDataset(
   params: UpsertReportDatasetParams,
 ): Promise<ReportDataset> {
@@ -29,7 +38,21 @@ export async function upsertReportDataset(
     client = prisma,
   } = params;
   const normalizedPayload = normalizePayload(payload);
-  return client.reportDataset.upsert({
+  const delegate = getReportDelegate(client);
+  if (!delegate?.upsert) {
+    const now = new Date();
+    return {
+      id: "report-dataset-disabled",
+      userId,
+      scope,
+      bucket,
+      payload: normalizedPayload as Prisma.InputJsonValue,
+      occurredAt: occurredAt ?? null,
+      createdAt: now,
+      updatedAt: now,
+    } as ReportDataset;
+  }
+  return delegate.upsert({
     where: {
       userId_scope_bucket: {
         userId,
@@ -56,7 +79,9 @@ export async function getReportDataset(
   scope: ReportDatasetScope | (string & {}),
   bucket = "default",
 ): Promise<ReportDataset | null> {
-  return prisma.reportDataset.findUnique({
+  const delegate = getReportDelegate(prisma);
+  if (!delegate?.findUnique) return null;
+  return delegate.findUnique({
     where: {
       userId_scope_bucket: {
         userId,

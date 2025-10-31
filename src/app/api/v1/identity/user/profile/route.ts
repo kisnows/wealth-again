@@ -3,8 +3,12 @@ import type { User } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 
 import prisma from "@/server/db";
-import { logAudit } from "@/server/services/audit";
+import { audit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
+import {
+  ensureIdempotent,
+  markIdempotencyUsed,
+} from "@/server/utils/idempotency";
 
 /**
  * PATCH /api/v1/identity/user/profile
@@ -19,7 +23,9 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const data = (await req.json()) as Partial<Pick<User, "currentCityId" | "name">>;
+    const data = (await req.json()) as Partial<
+      Pick<User, "currentCityId" | "name">
+    >;
     const { currentCityId, name } = data;
     const userId = user.id;
 
@@ -45,6 +51,18 @@ export async function PATCH(req: NextRequest) {
     }
 
     // 更新用户信息
+    const { key, existed } = await ensureIdempotent(
+      req,
+      userId,
+      `${userId}:${updateData.name ?? ""}`,
+    );
+    if (existed) {
+      return NextResponse.json(
+        { error: "Idempotency key reused" },
+        { status: 409 },
+      );
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -58,10 +76,12 @@ export async function PATCH(req: NextRequest) {
     });
 
     // 记录审计日志
-    await logAudit("USER_PROFILE_UPDATE", {
+    await audit.logAndEmit("USER_PROFILE_UPDATE", {
       userId,
       meta: updateData,
+      eventType: "audit.identity.profile_updated",
     });
+    await markIdempotencyUsed(key);
 
     return NextResponse.json(updatedUser);
   } catch (error) {

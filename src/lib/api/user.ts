@@ -33,6 +33,11 @@ export type CityChangeResponse = {
   items: CityChangeItem[];
 };
 
+export type CityChangeCreateResponse = {
+  cityChange: CityChangeItem;
+  task?: { id: string; status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" };
+};
+
 const USER_PROFILE_KEY = "/api/v1/identity/auth/me";
 const CITY_CHANGES_KEY = "/api/v1/identity/city-changes";
 
@@ -56,8 +61,11 @@ export async function createCityChange(input: {
   toCityId: string;
   effectiveMonth?: string;
   reason?: string;
-}) {
-  const result = await postJson(CITY_CHANGES_KEY, input);
+}): Promise<CityChangeCreateResponse> {
+  const result = await postJson<CityChangeCreateResponse>(
+    CITY_CHANGES_KEY,
+    input,
+  );
   await Promise.all([
     globalMutate(CITY_CHANGES_KEY),
     globalMutate(USER_PROFILE_KEY),

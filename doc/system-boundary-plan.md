@@ -378,6 +378,7 @@
 - /api/v1/income-tax/rules/* → services: tax/* + rules readers → tests: `src/tests/rules.api.test.ts`
 - /api/v1/country|countries, /api/v1/identity/cities → services: reference data → tests: `src/tests/city-changes.api.test.ts`（城市相关）
 - /api/v1/identity/city-changes → services: city changes + income recalculation impact → tests: `src/tests/city-changes.api.test.ts`
+- OpenAPI 契约 → 文档：`doc/openapi.json`（按子系统分组），测试：`src/tests/openapi.contract.test.ts`，在变更接口时需同步更新契约文件并确保测试通过。
 
 （建议在实施过程中逐步完善为完整矩阵）
 

@@ -2,11 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
 import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 
+vi.mock("@/server/services/audit", () => ({
+  audit: {
+    log: vi.fn(),
+    logAndEmit: vi.fn(),
+  },
+  logAudit: vi.fn(),
+}));
+
 const mockPrisma = prismaMock;
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   resetPrismaMock();
+  const { clearFxCache } = await import("@/server/services/fx/provider");
+  clearFxCache();
 });
 
 describe("FX routes", () => {
@@ -145,7 +155,7 @@ describe("FX routes", () => {
 describe("FX service", () => {
   it("convert uses USD pivot for CNY→EUR", async () => {
     // 用例：服务层应通过 USD 中间价转换，将 CNY 金额折算为 EUR。
-    const { convert } = await import("@/server/services/fx");
+    const { convert } = await import("@/server/services/fx/provider");
     const asOf = new Date("2025-08-01");
     mockPrisma.fxRate.findFirst
       .mockResolvedValueOnce({
@@ -196,8 +206,8 @@ describe("FX service", () => {
 
   it("getLatestRates returns latest record per quote and fills missing", async () => {
     // 用例：服务层批量查询需取每个币种的最新快照，并保留缺失项。
-    const { getLatestRates } = await import("@/server/services/fx");
-    mockPrisma.fxRate.findMany.mockResolvedValueOnce([
+    const { getLatestRates } = await import("@/server/services/fx/provider");
+    prismaMock.fxRate.findMany.mockResolvedValueOnce([
       {
         base: "USD",
         quote: "CNY",
@@ -236,5 +246,52 @@ describe("FX service", () => {
         effectiveTo: null,
       },
     ]);
+  });
+
+  it("getQuote caches result within TTL", async () => {
+    const { getQuote } = await import("@/server/services/fx/provider");
+    prismaMock.fxRate.findFirst.mockResolvedValueOnce({
+      id: "rate-cny",
+      base: "USD",
+      quote: "CNY",
+      rate: 7,
+      effectiveFrom: new Date("2025-08-01"),
+      effectiveTo: null,
+    });
+    const first = await getQuote({ base: "USD", quote: "CNY" });
+    expect(first?.rate).toBe(7);
+    prismaMock.fxRate.findFirst.mockRejectedValueOnce(
+      new Error("cache should prevent second fetch"),
+    );
+    const second = await getQuote({ base: "USD", quote: "CNY" });
+    expect(second?.rate).toBe(7);
+  });
+
+  it("getTimeSeries returns ordered points", async () => {
+    const { getTimeSeries } = await import("@/server/services/fx/provider");
+    const from = new Date("2025-01-01T00:00:00Z");
+    const to = new Date("2025-03-01T00:00:00Z");
+    prismaMock.fxRate.findMany.mockResolvedValueOnce([
+      {
+        id: "r1",
+        base: "USD",
+        quote: "CNY",
+        rate: 7,
+        effectiveFrom: new Date("2025-01-01T00:00:00Z"),
+        effectiveTo: new Date("2025-02-01T00:00:00Z"),
+      },
+      {
+        id: "r2",
+        base: "USD",
+        quote: "CNY",
+        rate: 6.9,
+        effectiveFrom: new Date("2025-02-01T00:00:00Z"),
+        effectiveTo: null,
+      },
+    ]);
+    const series = await getTimeSeries({ base: "USD", quote: "CNY", from, to });
+    expect(series).toHaveLength(2);
+    expect(series[0].rate).toBe(7);
+    expect(series[1].effectiveFrom.toISOString()).toBe("2025-02-01T00:00:00.000Z");
   });
 });

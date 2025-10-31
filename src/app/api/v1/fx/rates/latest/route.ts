@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getLatestRates } from "@/server/services/fx";
+import { getLatestRates } from "@/server/services/fx/provider";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

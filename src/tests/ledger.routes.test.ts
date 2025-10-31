@@ -8,7 +8,7 @@ const mockFxSnapshotDate = new Date("2025-01-01T00:00:00.000Z");
 
 const convertMock = vi.fn();
 const ensureFxSnapshotBatchMock = vi.fn(async () => []);
-vi.mock("@/server/services/fx", () => ({
+vi.mock("@/server/services/fx/provider", () => ({
   convert: convertMock,
   ensureFxSnapshotBatch: ensureFxSnapshotBatchMock,
 }));

@@ -231,12 +231,17 @@ export default function SettingsPage() {
   const onSubmitCityChange = async (values: CityChangeFormValues) => {
     setCitySubmitting(true);
     try {
-      await createCityChange({
+      const result = await createCityChange({
         toCityId: values.toCityId,
         effectiveMonth: toIsoMonthStart(values.effectiveMonth),
         reason: values.reason,
       });
-      toast.success("城市迁移记录已创建，将于生效月份起应用新规则");
+      const taskId = result?.task?.id;
+      toast.success(
+        taskId
+          ? `城市迁移记录已创建，回算任务已排队（任务号 ${taskId}）`
+          : "城市迁移记录已创建，回算任务已排队",
+      );
       changeForm.reset({
         toCityId: "",
         effectiveMonth: values.effectiveMonth,

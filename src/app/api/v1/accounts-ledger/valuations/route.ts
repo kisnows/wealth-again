@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
-import { ensureFxSnapshot } from "@/server/services/fx";
+import { ensureFxSnapshot } from "@/server/services/fx/provider";
 import { writeOutboxEvent } from "@/server/services/outbox";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {

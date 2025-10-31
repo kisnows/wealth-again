@@ -4,7 +4,7 @@ import {
   computeAccountSummaryById,
   type AccountSummaryItem,
 } from "@/server/services/accounts-ledger/accounts";
-import { convert } from "@/server/services/fx";
+import { convert } from "@/server/services/fx/provider";
 import { logAudit } from "@/server/services/audit";
 
 export async function getAccountSummary(id: string) {

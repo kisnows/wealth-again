@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
+import { audit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
+import {
+  ensureIdempotent,
+  markIdempotencyUsed,
+} from "@/server/utils/idempotency";
 
 /**
  * GET /api/v1/identity/auth/me
@@ -79,6 +84,18 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
+    const { key, existed } = await ensureIdempotent(
+      req,
+      user.id,
+      `${user.id}:${normalized ?? "AUTO"}`,
+    );
+    if (existed) {
+      return NextResponse.json(
+        { error: "Idempotency key reused" },
+        { status: 409 },
+      );
+    }
+
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: { displayCurrency: normalized },
@@ -90,6 +107,14 @@ export async function PATCH(req: NextRequest) {
         displayCurrency: true,
       },
     });
+
+    await audit.logAndEmit("USER_DISPLAY_CURRENCY_UPDATE", {
+      userId: user.id,
+      meta: { displayCurrency: updated.displayCurrency },
+      eventType: "audit.identity.display_currency_updated",
+    });
+    await markIdempotencyUsed(key);
+
     return NextResponse.json(updated);
   } catch (_error) {
     return NextResponse.json({ error: "failed_to_update_user" }, { status: 500 });
