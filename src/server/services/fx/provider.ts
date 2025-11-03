@@ -380,7 +380,7 @@ export class FxProvider {
     quote: string;
     asOf?: Date;
   }): Promise<FxRateRecord | null> {
-    const delegate = (prisma as unknown as Record<string, any>).fxRate;
+    const delegate = prisma.fxRate;
     if (!delegate) return null;
     if (typeof delegate.findFirst === "function") {
       if (params.asOf) {
@@ -428,7 +428,7 @@ export class FxProvider {
     at: Date,
   ): Promise<FxLatestRate[]> {
     if (quotes.length === 0) return [];
-    const delegate = (prisma as unknown as Record<string, any>).fxRate;
+    const delegate = prisma.fxRate;
     let rows: FxRateRecord[] = [];
     if (delegate && typeof delegate.findMany === "function") {
       rows = await delegate.findMany({
@@ -472,7 +472,7 @@ export class FxProvider {
     from: Date;
     to?: Date;
   }): Promise<FxTimeSeriesPoint[]> {
-    const delegate = (prisma as unknown as Record<string, any>).fxRate;
+    const delegate = prisma.fxRate;
     if (!delegate || typeof delegate.findMany !== "function") return [];
     const where: Record<string, unknown> = {
       base: params.base,
@@ -610,7 +610,7 @@ export class FxProvider {
   private async fxSnapshotFindFirst(
     args: Record<string, unknown>,
   ): Promise<FxSnapshotRecord | null> {
-    const delegate = (prisma as unknown as Record<string, any>).fxSnapshot;
+    const delegate = prisma.fxSnapshot;
     if (delegate && typeof delegate.findFirst === "function") {
       return delegate.findFirst(args);
     }

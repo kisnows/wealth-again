@@ -57,10 +57,18 @@ export type CitySummary = {
 
 export type DashboardResponse = {
   accountCount?: number | null;
-  allocations: Array<Record<string, unknown>>;
+  allocations: Array<{
+    accountType: string;
+    value: number;
+  }>;
   displayCurrency: string | null;
   generatedAt?: string | null;
-  timeseries: Array<Record<string, unknown>>;
+  netWorthTrend: Array<{
+    month: string;
+    netWorth: number;
+    assets?: number;
+    liabilities?: number;
+  }>;
   totals: {
     archived: number;
     assets: number;

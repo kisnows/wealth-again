@@ -50,7 +50,7 @@ export default function AppShell({ children }: Props) {
     ) {
       setDisplayCurrency(currentUser.displayCurrency);
     }
-  }, [currentUser?.displayCurrency, displayCurrency, setDisplayCurrency]);
+  }, [currentUser, displayCurrency, setDisplayCurrency]);
   const isAdmin = Boolean(currentUser?.isAdmin || currentUser?.role === "ADMIN");
   const currencyLabel = displayCurrency ?? "自动";
 

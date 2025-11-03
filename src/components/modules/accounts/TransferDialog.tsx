@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,23 +42,26 @@ export function TransferDialog({
     () => (accounts ?? []).filter((a) => a.status !== "ARCHIVED"),
     [accounts],
   );
-  const buildInitialForm = () => ({
-    fromAccount: defaultFromId ?? accountOptions[0]?.id ?? "",
-    toAccount:
-      defaultToId ??
-      (accountOptions.length > 1
-        ? (accountOptions[1]?.id ?? accountOptions[0]?.id ?? "")
-        : (accountOptions[0]?.id ?? "")),
-    amount: "",
-    occurredAt: toInputDatetimeValue(new Date()),
-    note: "",
-    attachmentUrl: "",
-  });
+  const buildInitialForm = useCallback(
+    () => ({
+      fromAccount: defaultFromId ?? accountOptions[0]?.id ?? "",
+      toAccount:
+        defaultToId ??
+        (accountOptions.length > 1
+          ? (accountOptions[1]?.id ?? accountOptions[0]?.id ?? "")
+          : accountOptions[0]?.id ?? ""),
+      amount: "",
+      occurredAt: toInputDatetimeValue(new Date()),
+      note: "",
+      attachmentUrl: "",
+    }),
+    [accountOptions, defaultFromId, defaultToId],
+  );
   const [form, setForm] = useState(buildInitialForm);
   useEffect(() => {
     if (!open) return;
     setForm(buildInitialForm());
-  }, [open, defaultFromId, defaultToId, accountOptions]);
+  }, [open, buildInitialForm]);
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
   const onSubmit = async (e: React.FormEvent) => {

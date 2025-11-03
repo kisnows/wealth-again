@@ -26,18 +26,24 @@ export default function AllocPie({ data = [] as Slice[] }: { data?: Slice[] }) {
     start = end;
     const color =
       d.color ?? ["#60a5fa", "#34d399", "#f472b6", "#fbbf24"][i % 4];
-    return { path, color, name: d.name, pct: Math.round(frac * 100) };
+    return {
+      key: `${d.name}-${i}`,
+      path,
+      color,
+      name: d.name,
+      pct: Math.round(frac * 100),
+    };
   });
   return (
     <div className="flex gap-4 items-center border rounded p-3">
       <svg height={180} width={180}>
-        {slices.map((s, i) => (
-          <path className="opacity-90" d={s.path} fill={s.color} key={i} />
+        {slices.map((s) => (
+          <path className="opacity-90" d={s.path} fill={s.color} key={s.key} />
         ))}
       </svg>
       <ul className="text-sm">
-        {slices.map((s, i) => (
-          <li className="flex items-center gap-2" key={i}>
+        {slices.map((s) => (
+          <li className="flex items-center gap-2" key={s.key}>
             <span
               className="inline-block w-3 h-3 rounded"
               style={{ background: s.color }}

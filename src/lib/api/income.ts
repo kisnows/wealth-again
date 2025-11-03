@@ -1,5 +1,6 @@
 "use client";
 
+import type { IncomeRecord } from "@prisma/client";
 import useSWR, { mutate as globalMutate } from "swr";
 import { getJson, patchJson, postJson } from "@/lib/utils/fetcher";
 
@@ -183,7 +184,7 @@ export function useIncomeRecords(
         }`
       : null;
   return useSWR<{
-    items: any[];
+    items: IncomeRecord[];
     summary: IncomeRecordsSummary;
   }>(key, getJson);
 }

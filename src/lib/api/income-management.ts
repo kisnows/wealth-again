@@ -3,6 +3,7 @@ import type {
   ForecastResult,
   OverviewStats,
 } from "@/lib/state/income";
+import type { IncomeRecord } from "@prisma/client";
 
 // API 基础配置
 const API_BASE = "/api/v1";
@@ -85,7 +86,7 @@ export async function fetchIncomeRecords(
   startDate: string,
   endDate: string,
   userId?: string,
-): Promise<{ items: any[] }> {
+): Promise<{ items: IncomeRecord[] }> {
   const searchParams = new URLSearchParams({
     from: startDate,
     to: endDate,

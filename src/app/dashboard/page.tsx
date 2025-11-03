@@ -4,7 +4,6 @@ import {
   ArrowRightIcon,
   BanknoteIcon,
   CalculatorIcon,
-  CalendarIcon,
   DollarSignIcon,
   PiggyBankIcon,
   SettingsIcon,
@@ -26,7 +25,7 @@ import TransferDialog from "@/components/modules/accounts/TransferDialog";
 import ValuationFormDialog from "@/components/modules/accounts/ValuationFormDialog";
 import WithdrawDialog from "@/components/modules/accounts/WithdrawDialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   useAccountsSummary,
@@ -119,15 +118,24 @@ export default function DashboardPage() {
   const dashboardCurrency =
     dashboardData?.displayCurrency ?? displayCurrency ?? "CNY";
 
+  const netWorthSeries = useMemo(() => {
+    if (!dashboardData?.netWorthTrend?.length) return [];
+    return dashboardData.netWorthTrend
+      .map((point) => {
+        const netWorth = Number(point.netWorth);
+        if (!Number.isFinite(netWorth)) return null;
+        return { x: String(point.month), y: netWorth };
+      })
+      .filter((item): item is { x: string; y: number } => item !== null);
+  }, [dashboardData?.netWorthTrend]);
+
   const allocEntries = useMemo(
     () =>
       Object.entries(
         (accountsSummary?.items ?? []).reduce(
-          (acc: Record<string, number>, it: any) => {
-            const key = (it as any).accountType ?? "OTHER";
-            const v = Number(
-              (it as any).displayValue ?? (it as any).valuation ?? 0,
-            );
+          (acc: Record<string, number>, item) => {
+            const key = item.accountType ?? "OTHER";
+            const v = Number(item.displayValue ?? item.valuation ?? 0);
             acc[key] = (acc[key] ?? 0) + v;
             return acc;
           },
@@ -387,7 +395,7 @@ export default function DashboardPage() {
               加载中...
             </div>
           ) : (
-            <NetWorthLine data={dashboardData?.netWorthTrend ?? []} />
+            <NetWorthLine data={netWorthSeries} />
           )}
         </PageSection>
         <PageSection

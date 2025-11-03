@@ -954,14 +954,23 @@
             "type": "array",
             "items": { "type": "object" }
           },
-          "timeseries": {
+          "netWorthTrend": {
             "type": "array",
-            "items": { "type": "object" }
+            "items": {
+              "type": "object",
+              "properties": {
+                "month": { "type": "string", "format": "date" },
+                "netWorth": { "type": "number" },
+                "assets": { "type": "number" },
+                "liabilities": { "type": "number" }
+              },
+              "required": ["month", "netWorth"]
+            }
           },
           "generatedAt": { "type": ["string", "null"], "format": "date-time" },
           "accountCount": { "type": ["integer", "null"] }
         },
-        "required": ["totals", "displayCurrency", "allocations", "timeseries"]
+        "required": ["totals", "displayCurrency", "allocations", "netWorthTrend"]
       }
     },
     "responses": {

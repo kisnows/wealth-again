@@ -26,7 +26,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { upsertSocialSecurity, useSocialSecurity } from "@/lib/api/rules";
+import {
+  type SocialSecurityRuleInput,
+  upsertSocialSecurity,
+  useSocialSecurity,
+} from "@/lib/api/rules";
 import { formatMoney } from "@/lib/domain/money";
 
 // 示例数据
@@ -78,9 +82,79 @@ const EXAMPLE_DATA = [
   },
 ];
 
+function isSocialSecurityRuleInput(
+  value: unknown,
+): value is SocialSecurityRuleInput {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.city !== "string" || record.city.trim() === "") return false;
+  const requiredNumbers: Array<keyof SocialSecurityRuleInput> = [
+    "baseMin",
+    "baseMax",
+    "ratePension",
+    "rateMedical",
+    "rateUnemployment",
+  ];
+  if (
+    requiredNumbers.some((key) => {
+      const candidate = record[key as string];
+      return typeof candidate !== "number" || Number.isNaN(candidate);
+    })
+  ) {
+    return false;
+  }
+  const optionalNumber = record.fixedMedicalPersonal;
+  if (
+    optionalNumber !== undefined &&
+    optionalNumber !== null &&
+    (typeof optionalNumber !== "number" || Number.isNaN(optionalNumber))
+  ) {
+    return false;
+  }
+  const optionalStrings: Array<keyof SocialSecurityRuleInput> = [
+    "country",
+    "currency",
+    "startDate",
+    "endDate",
+    "effectiveFrom",
+    "effectiveTo",
+  ];
+  return optionalStrings.every((key) => {
+    const candidate = record[key as string];
+    return (
+      candidate === undefined ||
+      candidate === null ||
+      typeof candidate === "string"
+    );
+  });
+}
+
 export default function SocialSecurityRulesPage() {
   const [query, setQuery] = useState({ city: "Hangzhou", on: "2025-01-01" });
   const { data, isLoading } = useSocialSecurity(query.city, query.on);
+  const handleSubmit = async (items: unknown[]) => {
+    const parsed: SocialSecurityRuleInput[] = items.map((item) => {
+      if (!isSocialSecurityRuleInput(item)) {
+        throw new Error("社保规则格式不正确，需包含城市与费率字段。");
+      }
+      return {
+        city: item.city,
+        country: item.country,
+        baseMin: item.baseMin,
+        baseMax: item.baseMax,
+        ratePension: item.ratePension,
+        rateMedical: item.rateMedical,
+        rateUnemployment: item.rateUnemployment,
+        fixedMedicalPersonal: item.fixedMedicalPersonal ?? null,
+        currency: item.currency,
+        startDate: item.startDate,
+        endDate: item.endDate,
+        effectiveFrom: item.effectiveFrom,
+        effectiveTo: item.effectiveTo,
+      } satisfies SocialSecurityRuleInput;
+    });
+    await upsertSocialSecurity(parsed);
+  };
 
   // 计算社保费用示例（基于20000工资）
   const exampleCalculation = useMemo(() => {
@@ -92,9 +166,8 @@ export default function SocialSecurityRulesPage() {
     const socialBase = Math.max(baseMin, Math.min(baseMax, salary));
 
     const pension = socialBase * Number(data.ratePension);
-    const medical =
-      socialBase * Number(data.rateMedical) +
-      Number((data as any).fixedMedicalPersonal || 0);
+    const fixedMedical = Number(data.fixedMedicalPersonal ?? 0);
+    const medical = socialBase * Number(data.rateMedical) + fixedMedical;
     const unemployment = socialBase * Number(data.rateUnemployment);
     const total = pension + medical + unemployment;
 
@@ -202,7 +275,7 @@ export default function SocialSecurityRulesPage() {
                     <span className="text-gray-600">医疗保险：</span>
                     <div className="font-mono text-green-600">
                       {(Number(data.rateMedical) * 100).toFixed(1)}% +{" "}
-                      {Number((data as any).fixedMedicalPersonal || 0)}元
+                      {Number(data.fixedMedicalPersonal ?? 0)}元
                     </div>
                   </div>
                   <div>
@@ -258,7 +331,7 @@ export default function SocialSecurityRulesPage() {
       <RulesUpsertForm
         description="支持同时配置多个城市或多个时间段的社保规则"
         examples={EXAMPLE_DATA}
-        onSubmit={(items) => upsertSocialSecurity(items as any)}
+        onSubmit={handleSubmit}
         placeholder={`示例格式：
 [
   {

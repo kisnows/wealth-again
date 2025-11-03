@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,13 +36,16 @@ export default function DepositDialog({
 }: DepositDialogProps) {
   const [open, setOpen] = useState(false);
   const { data: accounts, isLoading } = useAccounts();
-  const buildInitialForm = () => ({
-    accountId: defaultAccountId ?? "",
-    amount: "",
-    occurredAt: toInputDatetimeValue(new Date()),
-    note: "",
-    attachmentUrl: "",
-  });
+  const buildInitialForm = useCallback(
+    () => ({
+      accountId: defaultAccountId ?? "",
+      amount: "",
+      occurredAt: toInputDatetimeValue(new Date()),
+      note: "",
+      attachmentUrl: "",
+    }),
+    [defaultAccountId],
+  );
   const [form, setForm] = useState(buildInitialForm);
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
@@ -63,7 +66,7 @@ export default function DepositDialog({
       next.accountId = accountOptions[0]?.id ?? "";
     }
     setForm(next);
-  }, [open, defaultAccountId, accountOptions]);
+  }, [open, accountOptions, buildInitialForm]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {

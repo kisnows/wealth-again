@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { toast } from "sonner";
 import { mutate } from "swr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,12 +38,8 @@ import {
 } from "@/lib/api/income";
 import { formatMoney } from "@/lib/domain/money";
 import { notifyAsync } from "@/lib/utils/notify";
-import { useUserPrefsStore } from "@/lib/state/identity";
 
 export default function IncomeEntryModule() {
-  const { displayCurrency } = useUserPrefsStore();
-  const currency = displayCurrency || "CNY";
-
   return (
     <div className="space-y-6" data-testid="income-ui-entry-module">
       <div className="flex items-center justify-between">
@@ -58,16 +53,16 @@ export default function IncomeEntryModule() {
 
       {/* 平铺显示所有收入信息录入表单 */}
       <div className="space-y-6">
-        <SalaryChangesSection currency={currency} />
-        <BonusSection currency={currency} />
-        <LongTermCashSection currency={currency} />
+        <SalaryChangesSection />
+        <BonusSection />
+        <LongTermCashSection />
       </div>
     </div>
   );
 }
 
 // 工资变更记录组件
-function SalaryChangesSection({ currency }: { currency: string }) {
+function SalaryChangesSection() {
   const { data, isLoading, error } = useSalaryChanges();
   const salaryChanges = data?.items ?? [];
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -195,7 +190,7 @@ function SalaryChangesSection({ currency }: { currency: string }) {
 }
 
 // 奖金记录组件
-function BonusSection({ currency }: { currency: string }) {
+function BonusSection() {
   const { data, isLoading, error } = useBonus();
   const bonusPlans = data?.items ?? [];
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -338,7 +333,7 @@ function formatRecurrenceLabel(value: string) {
   }
 }
 
-function LongTermCashSection({ currency }: { currency: string }) {
+function LongTermCashSection() {
   const { data, isLoading, error } = useLTCPlans();
   const ltcPlans = data?.items ?? [];
   const [deletingId, setDeletingId] = useState<string | null>(null);

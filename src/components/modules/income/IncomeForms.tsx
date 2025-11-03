@@ -471,7 +471,7 @@ export function LTCPlanForm() {
             recurrence: form.recurrence,
           });
 
-          await generateLTCPayouts((created as any).id);
+          await generateLTCPayouts(created.id);
           return created;
         },
         {
@@ -678,7 +678,7 @@ export function EquityGrantForm() {
             vestInterval: form.vestInterval,
           });
 
-          await generateEquityVests((created as any).id);
+          await generateEquityVests(created.id);
           return created;
         },
         {

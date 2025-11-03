@@ -24,8 +24,8 @@ type Props = {
   title: string;
   description?: string;
   placeholder?: string;
-  onSubmit: (items: unknown) => Promise<any>;
-  examples?: { name: string; data: any }[];
+  onSubmit: (items: unknown[]) => Promise<unknown>;
+  examples?: { name: string; data: unknown[] }[];
 };
 
 export default function RulesUpsertForm({
@@ -40,7 +40,7 @@ export default function RulesUpsertForm({
   const [validationState, setValidationState] = useState<{
     isValid: boolean;
     error?: string;
-    parsedData?: any[];
+    parsedData?: unknown[];
     itemCount?: number;
   }>({ isValid: false });
 
@@ -108,7 +108,7 @@ export default function RulesUpsertForm({
     }
   };
 
-  const loadExample = (example: { name: string; data: any }) => {
+  const loadExample = (example: { name: string; data: unknown[] }) => {
     const jsonText = JSON.stringify(example.data, null, 2);
     setText(jsonText);
     validateJson(jsonText);
@@ -195,7 +195,10 @@ export default function RulesUpsertForm({
               </div>
               <div className="grid gap-3">
                 {examples.map((example, index) => (
-                  <Card className="p-4" key={index}>
+                  <Card
+                    className="p-4"
+                    key={example.name ? `${example.name}-${index}` : String(index)}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium">{example.name}</h4>
                       <Button

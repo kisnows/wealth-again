@@ -19,10 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createAccount, useAccounts } from "@/lib/api/accounts";
+import { type Account, createAccount, useAccounts } from "@/lib/api/accounts";
 import { notifyAsync } from "@/lib/utils/notify";
 
 const SUPPORTED_CURRENCIES = ["CNY", "USD", "EUR", "HKD", "JPY", "GBP"];
+
+type AccountTypeOption = Account["accountType"];
+
+type AccountFormState = {
+  name: string;
+  accountType: AccountTypeOption;
+  subType: string;
+  customSubType: string;
+  baseCurrency: string;
+  initialBalance: string;
+  description: string;
+};
 
 export default function CreateAccountDialog() {
   const [open, setOpen] = useState(false);
@@ -30,7 +42,7 @@ export default function CreateAccountDialog() {
   const subtypeOptions = Array.from(
     new Set((accounts ?? []).map((a) => a.subType).filter(Boolean)),
   ) as string[];
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<AccountFormState>({
     name: "",
     accountType: "SAVINGS",
     subType: "",
@@ -48,7 +60,7 @@ export default function CreateAccountDialog() {
         () =>
           createAccount({
             name: form.name,
-            accountType: form.accountType as any,
+            accountType: form.accountType,
             baseCurrency: form.baseCurrency,
             subType:
               (form.subType === "__custom__"

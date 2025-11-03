@@ -5,6 +5,7 @@ import {
   type AccountsSummaryResult,
 } from "@/server/services/accounts-ledger/accounts";
 import { upsertReportDataset } from "@/server/services/reporting/dataset";
+import { buildNetWorthTrend } from "@/server/services/reporting/netWorth";
 
 type DecimalLike = Prisma.Decimal | number | null | undefined;
 
@@ -28,7 +29,39 @@ type AccountsSummaryRefreshResult = {
     totals: AccountsSummaryResult["totals"];
     items: AccountsSummaryResult["items"];
   };
+  dashboardPayload: {
+    generatedAt: string;
+    displayCurrency: string | null;
+    totals: AccountsSummaryResult["totals"];
+    accountCount: number;
+    allocations: Array<{ accountType: string; value: number }>;
+    netWorthTrend: Array<{
+      month: string;
+      netWorth: number;
+      assets: number;
+      liabilities: number;
+    }>;
+  };
 };
+
+export function buildAllocations(items: AccountsSummaryResult["items"]) {
+  const allocations = new Map<string, number>();
+  items.forEach((item) => {
+    if ((item.status ?? "ACTIVE") === "ARCHIVED") return;
+    if (item.accountType === "LOAN") return;
+    const value =
+      typeof item.displayValue === "number"
+        ? item.displayValue
+        : Number(item.valuation ?? 0);
+    if (!Number.isFinite(value) || value <= 0) return;
+    const key = item.accountType ?? "OTHER";
+    allocations.set(key, (allocations.get(key) ?? 0) + value);
+  });
+  return Array.from(allocations.entries()).map(([accountType, value]) => ({
+    accountType,
+    value,
+  }));
+}
 
 export async function refreshAccountsSummaryDataset(
   userId: string,
@@ -50,20 +83,26 @@ export async function refreshAccountsSummaryDataset(
     payload,
     occurredAt: occurredAt ?? generatedAt,
   });
+  const netWorthTrend = await buildNetWorthTrend({
+    userId,
+    displayCurrency: summary.displayCurrency,
+    asOf: occurredAt ?? generatedAt,
+  });
+  const dashboardPayload = {
+    generatedAt: toIsoDate(generatedAt),
+    totals: summary.totals,
+    displayCurrency: summary.displayCurrency,
+    accountCount: summary.items.length,
+    allocations: buildAllocations(summary.items),
+    netWorthTrend,
+  };
   await upsertReportDataset({
     userId,
     scope: "dashboard.overview",
-    payload: {
-      generatedAt: toIsoDate(generatedAt),
-      totals: summary.totals,
-      displayCurrency: summary.displayCurrency,
-      accountCount: summary.items.length,
-      allocations: [] as unknown[],
-      timeseries: [] as unknown[],
-    },
+    payload: dashboardPayload,
     occurredAt: occurredAt ?? generatedAt,
   });
-  return { summary, generatedAt, payload };
+  return { summary, generatedAt, payload, dashboardPayload };
 }
 
 type IncomeRecordRow = Prisma.IncomeRecordGetPayload<{
@@ -92,7 +131,7 @@ type IncomeRecordRow = Prisma.IncomeRecordGetPayload<{
   };
 }>;
 
-type IncomeDatasetItem = {
+export type IncomeDatasetItem = {
   monthDate: string;
   currency: string;
   gross: number;

@@ -8,6 +8,6 @@ export async function getDashboard(displayCurrency?: string, userId?: string) {
   return {
     totals: summary.totals,
     allocations: [],
-    timeseries: [],
+    netWorthTrend: [],
   } as const;
 }

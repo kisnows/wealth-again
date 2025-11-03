@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,13 +36,16 @@ export function ValuationFormDialog({
 }: ValuationFormDialogProps) {
   const [open, setOpen] = useState(false);
   const { data: accounts, isLoading } = useAccounts();
-  const buildInitialForm = () => ({
-    accountId: defaultAccountId ?? "",
-    totalValue: "",
-    asOf: toInputDatetimeValue(new Date()),
-    currency: "",
-    note: "",
-  });
+  const buildInitialForm = useCallback(
+    () => ({
+      accountId: defaultAccountId ?? "",
+      totalValue: "",
+      asOf: toInputDatetimeValue(new Date()),
+      currency: "",
+      note: "",
+    }),
+    [defaultAccountId],
+  );
   const [form, setForm] = useState(buildInitialForm);
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
@@ -68,7 +71,7 @@ export function ValuationFormDialog({
       next.accountId = valuationCandidates[0]?.id ?? "";
     }
     setForm(next);
-  }, [open, defaultAccountId, valuationCandidates]);
+  }, [open, valuationCandidates, buildInitialForm]);
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {

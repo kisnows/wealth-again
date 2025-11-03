@@ -4,6 +4,7 @@ import { ensureIncomeRecordsForUser } from "@/server/services/income-tax/income"
 import { buildIncomeTimeline } from "@/server/services/income-tax/income-timeline";
 import { getReportDataset } from "@/server/services/reporting/dataset";
 import { refreshIncomeReportingDataset } from "@/server/services/reporting/updaters";
+import type { IncomeDatasetItem } from "@/server/services/reporting/updaters";
 import { getUserFromRequest } from "@/server/utils/auth";
 
 /**
@@ -11,6 +12,49 @@ import { getUserFromRequest } from "@/server/utils/auth";
  * - 返回工资/奖金/长期现金/股权/社保/公积金/个税/税后各曲线。
  * - 返回: 501 TODO（占位），后续返回 { series: Record<string, Array<{ month: string, value: number }>> }
  */
+
+type IncomeDatasetSummaryPayload = {
+  currency?: string | null;
+};
+
+type IncomeDatasetPayload = {
+  items?: IncomeDatasetItem[];
+  summary?: IncomeDatasetSummaryPayload;
+  generatedAt?: string;
+};
+
+function isIncomeDatasetItem(value: unknown): value is IncomeDatasetItem {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.monthDate === "string";
+}
+
+function isIncomeDatasetPayload(value: unknown): value is IncomeDatasetPayload {
+  if (!value || typeof value !== "object") return false;
+  const record = value as {
+    items?: unknown;
+    summary?: unknown;
+  };
+  if (record.items !== undefined) {
+    if (!Array.isArray(record.items)) return false;
+    if (!record.items.every(isIncomeDatasetItem)) return false;
+  }
+  if (record.summary !== undefined) {
+    if (!record.summary || typeof record.summary !== "object") return false;
+    const currency = (record.summary as { currency?: unknown }).currency;
+    if (currency !== undefined && currency !== null && typeof currency !== "string")
+      return false;
+  }
+  return true;
+}
+
+function extractCurrency(
+  summary: Record<string, unknown> | undefined,
+): string | null {
+  if (!summary || typeof summary !== "object") return null;
+  const currency = (summary as { currency?: unknown }).currency;
+  return typeof currency === "string" ? currency : null;
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -29,22 +73,21 @@ export async function GET(req: NextRequest) {
   if (!normalizedDisplay) {
     const dataset =
       (await getReportDataset(userId, "income.monthly", "all")) ?? null;
-    let payload: {
-      items?: Array<Record<string, any>>;
-      summary?: Record<string, any>;
-      generatedAt?: string;
-    } | null = dataset?.payload
-      ? (dataset.payload as Record<string, any>)
+    const datasetPayload = dataset?.payload;
+    let payload: IncomeDatasetPayload | null = isIncomeDatasetPayload(
+      datasetPayload,
+    )
+      ? datasetPayload
       : null;
     if (!payload) {
       const refreshed = await refreshIncomeReportingDataset(userId);
       payload = {
         items: refreshed.items,
-        summary: refreshed.summary,
+        summary: { currency: extractCurrency(refreshed.summary) },
         generatedAt: refreshed.generatedAt.toISOString(),
       };
     }
-    const items = Array.isArray(payload?.items) ? payload.items : [];
+    const items = payload?.items ?? [];
     const filtered = items.filter((item) => {
       const monthDate = String(item.monthDate ?? "");
       return monthDate >= from && monthDate <= to;

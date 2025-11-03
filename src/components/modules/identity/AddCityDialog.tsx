@@ -31,6 +31,26 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { notifyAsync } from "@/lib/utils/notify";
 
+type CreateCityPayload = {
+  name: string;
+  country: string;
+  socialSecurityRules?: {
+    startDate: string;
+    baseMin: number;
+    baseMax: number;
+    ratePension: number;
+    rateMedical: number;
+    rateUnemployment: number;
+    fixedMedicalPersonal: number | null;
+  };
+  housingFundRules?: {
+    startDate: string;
+    baseMin: number;
+    baseMax: number;
+    rateEmployee: number;
+  };
+};
+
 interface Country {
   code: string;
   name: string;
@@ -93,7 +113,7 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
     setLoading(true);
 
     try {
-      const payload: any = {
+      const payload: CreateCityPayload = {
         name: form.name,
         country: form.country,
       };
@@ -133,10 +153,10 @@ export default function AddCityDialog({ onCityAdded }: AddCityDialogProps) {
             body: JSON.stringify(payload),
           });
           if (!response.ok) {
-            let details: any = null;
+            let details: { error?: string; message?: string } | null = null;
             try {
               details = await response.json();
-            } catch (err) {
+            } catch (_error) {
               // ignore json parse error
             }
             const message =

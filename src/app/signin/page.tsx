@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { type SignInResponse, signIn } from "next-auth/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,13 @@ export default function SignInPage() {
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await signIn("credentials", {
+    const res: SignInResponse | undefined = await signIn("credentials", {
       email: form.email,
       password: form.password,
       redirect: true,
       callbackUrl: "/",
     });
-    if ((res as any)?.error) toast.error((res as any).error);
+    if (res?.error) toast.error(res.error);
   };
   return (
     <div className="flex items-center justify-center min-h-dvh">

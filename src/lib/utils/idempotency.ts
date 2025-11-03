@@ -1,6 +1,7 @@
 export function makeIdempotencyKey(prefix = "req"): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefix}_${(crypto as any).randomUUID()}`;
+  const cryptoObj = typeof globalThis.crypto !== "undefined" ? globalThis.crypto : null;
+  if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
+    return `${prefix}_${cryptoObj.randomUUID()}`;
   }
   // Fallback for environments without crypto.randomUUID
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;

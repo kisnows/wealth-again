@@ -48,7 +48,10 @@ export default function IncomeStackedBar({
         {items.map((d, i) => {
           let acc = 0;
           return (
-            <g key={i} transform={`translate(${x(i)},0)`}>
+            <g
+              key={`${d.month}-${i}`}
+              transform={`translate(${x(i)},0)`}
+            >
               {KEYS.map((k, ki) => {
                 const v = Number(d[k] || 0);
                 const y1 = y(acc + v);
@@ -58,7 +61,7 @@ export default function IncomeStackedBar({
                   <rect
                     fill={COLORS[ki % COLORS.length]}
                     height={Math.max(0, y0 - y1)}
-                    key={ki}
+                    key={`${d.month}-${String(k)}`}
                     width={bw}
                     x={0}
                     y={y1}

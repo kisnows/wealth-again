@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { RefreshCcw, RepeatIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,7 @@ import { useTaskCenterStore } from "@/lib/state/tasks";
 
 export default function ActivityPage() {
   const { data, isLoading, error, mutate } = useIncomeRecalcTasks({ refreshInterval: 60_000 });
-  const tasks = data?.items ?? [];
+  const tasks = useMemo(() => data?.items ?? [], [data?.items]);
   const { setRecalcTasks } = useTaskCenterStore((state) => ({
     setRecalcTasks: state.setRecalcTasks,
   }));

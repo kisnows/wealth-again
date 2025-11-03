@@ -1,5 +1,6 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import {
   AlertCircleIcon,
   CalendarClockIcon,
@@ -44,7 +45,7 @@ import { toast } from "sonner";
 
 const TASK_STATUS_ICON: Record<
   IncomeRecalcTask["status"],
-  { icon: React.ComponentType<any>; variant: "default" | "secondary" | "destructive" | "outline" }
+  { icon: LucideIcon; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
   PENDING: { icon: Clock4Icon, variant: "secondary" },
   RUNNING: { icon: Loader2Icon, variant: "outline" },
@@ -218,7 +219,7 @@ function IncomeRecalcManualForm() {
     }
     setSubmitting(true);
     try {
-      const result = await notifyAsync(
+      await notifyAsync(
         () =>
           postIncomeRecalc({
             taxYear: taxYearNumber,

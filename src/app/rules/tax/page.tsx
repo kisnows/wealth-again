@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  type TaxBracketRuleInput,
   upsertTaxBrackets,
   upsertTaxConfig,
   useTaxBrackets,
@@ -93,6 +94,33 @@ const TAX_BRACKETS_EXAMPLE = [
   },
 ];
 
+function isTaxBracketRuleInput(value: unknown): value is TaxBracketRuleInput {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  const requiredStrings: Array<keyof TaxBracketRuleInput> = [
+    "country",
+  ];
+  if (
+    requiredStrings.some((key) => {
+      const candidate = record[key as string];
+      return typeof candidate !== "string" || candidate.trim() === "";
+    })
+  ) {
+    return false;
+  }
+  const requiredNumbers: Array<keyof TaxBracketRuleInput> = [
+    "taxYear",
+    "position",
+    "threshold",
+    "taxRate",
+    "quickDeduction",
+  ];
+  return !requiredNumbers.some((key) => {
+    const candidate = record[key as string];
+    return typeof candidate !== "number" || Number.isNaN(candidate);
+  });
+}
+
 export default function TaxRulesPage() {
   const [configForm, setConfigForm] = useState({
     country: "CN",
@@ -106,6 +134,24 @@ export default function TaxRulesPage() {
     configForm.country,
     Number(configForm.taxYear),
   );
+  const brackets = data?.items ?? [];
+
+  const handleBracketsSubmit = async (items: unknown[]) => {
+    const parsed: TaxBracketRuleInput[] = items.map((item) => {
+      if (!isTaxBracketRuleInput(item)) {
+        throw new Error("税率表格式不正确，需包含国家、税年、阈值等字段。");
+      }
+      return {
+        country: item.country,
+        taxYear: item.taxYear,
+        position: item.position,
+        threshold: item.threshold,
+        taxRate: item.taxRate,
+        quickDeduction: item.quickDeduction,
+      } satisfies TaxBracketRuleInput;
+    });
+    await upsertTaxBrackets(parsed);
+  };
 
   const handleConfigSubmit = async () => {
     setConfigLoading(true);
@@ -247,7 +293,7 @@ export default function TaxRulesPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mr-3"></div>
               加载中...
             </div>
-          ) : (data as any)?.items?.length > 0 ? (
+          ) : brackets.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -261,20 +307,32 @@ export default function TaxRulesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(data as any).items.map((bracket: any, index: number) => (
+                  {brackets.map((bracket, index) => (
                     <TableRow
                       className={index % 2 === 0 ? "bg-gray-50/50" : ""}
-                      key={index}
+                      key={`${bracket.country}-${bracket.taxYear}-${bracket.position}`}
                     >
                       <TableCell className="text-center font-medium">
                         {bracket.position}
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {index === 0
-                          ? `≤ ${formatMoney(Number(bracket.threshold), "CNY")}`
-                          : index === (data as any).items.length - 1
-                            ? `> ${formatMoney(Number((data as any).items[index - 1].threshold), "CNY")}`
-                            : `${formatMoney(Number((data as any).items[index - 1].threshold), "CNY")} - ${formatMoney(Number(bracket.threshold), "CNY")}`}
+                        {(() => {
+                          const threshold = Number(bracket.threshold);
+                          if (index === 0) {
+                            return `≤ ${formatMoney(threshold, "CNY")}`;
+                          }
+                          const previous = index > 0 ? brackets[index - 1] : null;
+                          const previousThreshold = previous
+                            ? Number(previous.threshold)
+                            : null;
+                          if (previousThreshold == null) {
+                            return `≤ ${formatMoney(threshold, "CNY")}`;
+                          }
+                          if (index === brackets.length - 1) {
+                            return `> ${formatMoney(previousThreshold, "CNY")}`;
+                          }
+                          return `${formatMoney(previousThreshold, "CNY")} - ${formatMoney(threshold, "CNY")}`;
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge className="font-mono" variant="outline">
@@ -303,7 +361,7 @@ export default function TaxRulesPage() {
       <RulesUpsertForm
         description="配置个人所得税的累进税率表，支持多档税率"
         examples={TAX_BRACKETS_EXAMPLE}
-        onSubmit={(items) => upsertTaxBrackets(items as any)}
+        onSubmit={handleBracketsSubmit}
         placeholder={`示例格式：
 [
   {

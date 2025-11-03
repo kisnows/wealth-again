@@ -46,7 +46,7 @@ type FilterState = {
   search: string;
 };
 
-function toDate(value: string) {
+function parseFilterDate(value: string) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -199,10 +199,27 @@ export function AccountTransactionsTable({
     search: "",
   });
   const [page, setPage] = useState(0);
-
-  useEffect(() => {
-    setPage(0);
-  }, [filters.type, filters.from, filters.to, filters.minAmount, filters.maxAmount, filters.search]);
+  const updateFilters = (
+    updater: FilterState | ((prev: FilterState) => FilterState),
+  ) => {
+    setFilters((prev) => {
+      const next =
+        typeof updater === "function"
+          ? (updater as (prevState: FilterState) => FilterState)(prev)
+          : updater;
+      if (
+        next.type !== prev.type ||
+        next.from !== prev.from ||
+        next.to !== prev.to ||
+        next.minAmount !== prev.minAmount ||
+        next.maxAmount !== prev.maxAmount ||
+        next.search !== prev.search
+      ) {
+        setPage(0);
+      }
+      return next;
+    });
+  };
 
   const fxQuotes = useMemo(() => {
     const quotes = new Set<string>();
@@ -235,8 +252,8 @@ export function AccountTransactionsTable({
 
   const filtered = useMemo(() => {
     if (!transactions) return [];
-    const fromDate = toDate(filters.from);
-    const toDate = toDate(filters.to);
+    const fromDate = parseFilterDate(filters.from);
+    const toDateValue = parseFilterDate(filters.to);
     const minAmount =
       filters.minAmount.trim().length > 0
         ? Number.isFinite(Number(filters.minAmount))
@@ -253,7 +270,7 @@ export function AccountTransactionsTable({
     return transactions
       .filter((txn) => {
         if (filters.type !== "ALL" && txn.type !== filters.type) return false;
-        if (!withinDateRange(txn, fromDate, toDate)) return false;
+        if (!withinDateRange(txn, fromDate, toDateValue)) return false;
         if (!withinAmountRange(txn, minAmount, maxAmount)) return false;
         if (!matchSearch(txn, filters.search)) return false;
         return true;
@@ -280,7 +297,9 @@ export function AccountTransactionsTable({
 
   const availableTypes = useMemo(() => {
     const set = new Set<string>();
-    (transactions ?? []).forEach((txn) => set.add(txn.type));
+    (transactions ?? []).forEach((txn) => {
+      set.add(txn.type);
+    });
     return Array.from(set);
   }, [transactions]);
 
@@ -308,7 +327,7 @@ export function AccountTransactionsTable({
         <div className="flex flex-wrap gap-2">
           <Button
             data-testid="accounts-detail-filter-type-all"
-            onClick={() => setFilters((prev) => ({ ...prev, type: "ALL" }))}
+            onClick={() => updateFilters((prev) => ({ ...prev, type: "ALL" }))}
             size="sm"
             variant={filters.type === "ALL" ? "default" : "outline"}
           >
@@ -319,7 +338,7 @@ export function AccountTransactionsTable({
               data-testid={`accounts-detail-filter-type-${type.toLowerCase()}`}
               key={type}
               onClick={() =>
-                setFilters((prev) => ({
+                updateFilters((prev) => ({
                   ...prev,
                   type: type as keyof typeof ENTRY_TYPE_LABELS,
                 }))
@@ -336,7 +355,7 @@ export function AccountTransactionsTable({
             className="w-36"
             data-testid="accounts-detail-filter-from"
             onChange={(event) =>
-              setFilters((prev) => ({ ...prev, from: event.target.value }))
+              updateFilters((prev) => ({ ...prev, from: event.target.value }))
             }
             placeholder="起始日期"
             type="date"
@@ -346,7 +365,7 @@ export function AccountTransactionsTable({
             className="w-36"
             data-testid="accounts-detail-filter-to"
             onChange={(event) =>
-              setFilters((prev) => ({ ...prev, to: event.target.value }))
+              updateFilters((prev) => ({ ...prev, to: event.target.value }))
             }
             placeholder="结束日期"
             type="date"
@@ -358,7 +377,10 @@ export function AccountTransactionsTable({
             className="w-28"
             data-testid="accounts-detail-filter-min"
             onChange={(event) =>
-              setFilters((prev) => ({ ...prev, minAmount: event.target.value }))
+              updateFilters((prev) => ({
+                ...prev,
+                minAmount: event.target.value,
+              }))
             }
             placeholder="最小金额"
             type="number"
@@ -368,7 +390,10 @@ export function AccountTransactionsTable({
             className="w-28"
             data-testid="accounts-detail-filter-max"
             onChange={(event) =>
-              setFilters((prev) => ({ ...prev, maxAmount: event.target.value }))
+              updateFilters((prev) => ({
+                ...prev,
+                maxAmount: event.target.value,
+              }))
             }
             placeholder="最大金额"
             type="number"
@@ -379,7 +404,7 @@ export function AccountTransactionsTable({
           className="ms-auto w-full max-w-xs"
           data-testid="accounts-detail-filter-search"
           onChange={(event) =>
-            setFilters((prev) => ({ ...prev, search: event.target.value }))
+            updateFilters((prev) => ({ ...prev, search: event.target.value }))
           }
           placeholder="搜索备注或对方账户"
           value={filters.search}
@@ -387,7 +412,7 @@ export function AccountTransactionsTable({
         <Button
           data-testid="accounts-detail-filter-reset"
           onClick={() =>
-            setFilters({
+            updateFilters({
               type: "ALL",
               from: "",
               to: "",

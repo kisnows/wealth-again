@@ -8,28 +8,51 @@ import {
 
 const BASE_CURRENCY = "USD";
 
-const accountInclude = {
-  txnLines: {
-    select: {
-      amount: true,
-      principalDelta: true,
+function buildAccountInclude(asOf?: Date | null): Prisma.AccountInclude {
+  const appliedAsOf = asOf ? new Date(asOf) : null;
+  return {
+    txnLines: {
+      select: {
+        amount: true,
+        principalDelta: true,
+      },
+      ...(appliedAsOf
+        ? {
+            where: {
+              entry: {
+                occurredAt: {
+                  lte: appliedAsOf,
+                },
+              },
+            },
+          }
+        : {}),
     },
-  },
-  valuations: {
-    select: {
-      asOf: true,
-      totalValue: true,
-      currency: true,
-      fxSnapshotId: true,
-      fxAppliedRate: true,
+    valuations: {
+      select: {
+        asOf: true,
+        totalValue: true,
+        currency: true,
+        fxSnapshotId: true,
+        fxAppliedRate: true,
+      },
+      orderBy: { asOf: "desc" },
+      take: 1,
+      ...(appliedAsOf
+        ? {
+            where: {
+              asOf: {
+                lte: appliedAsOf,
+              },
+            },
+          }
+        : {}),
     },
-    orderBy: { asOf: "desc" as const },
-    take: 1,
-  },
-} satisfies Prisma.AccountInclude;
+  } satisfies Prisma.AccountInclude;
+}
 
 type AccountWithRelations = Prisma.AccountGetPayload<{
-  include: typeof accountInclude;
+  include: ReturnType<typeof buildAccountInclude>;
 }>;
 
 type LatestFxRate = {
@@ -165,6 +188,7 @@ type SummaryQueryOptions = {
   userId?: string;
   accountIds?: string[];
   displayCurrency?: string | null;
+  asOf?: Date | null;
 };
 
 export async function computeAccountsSummary(options: SummaryQueryOptions) {
@@ -176,9 +200,10 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
         ? options.accountIds[0]
         : { in: options.accountIds };
   }
+  const asOfDate = options.asOf ? new Date(options.asOf) : null;
   const accounts = await prisma.account.findMany({
     where,
-    include: accountInclude,
+    include: buildAccountInclude(asOfDate),
     orderBy: { createdAt: "asc" },
   });
   if (accounts.length === 0) {
@@ -194,8 +219,8 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
     : null;
 
   const codesToFetch = gatherCurrencyCodes(accounts, displayCurrencyUpper);
-  const now = new Date();
-  const fxRateDelegate = (prisma as any).fxRate;
+  const now = asOfDate ?? new Date();
+  const fxRateDelegate = prisma.fxRate;
   const rawFxRows =
     codesToFetch.length === 0 || typeof fxRateDelegate?.findMany !== "function"
       ? []
@@ -284,7 +309,8 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
     : [];
   const bridgeMap = new Map<string, FxSnapshotInfo>();
   bridgeSnapshots.forEach((snapshot, index) => {
-    if (snapshot) bridgeMap.set(bridgeRequests[index]!.key, snapshot);
+    const request = bridgeRequests[index];
+    if (snapshot && request) bridgeMap.set(request.key, snapshot);
   });
 
   const items: AccountSummaryItem[] = await Promise.all(

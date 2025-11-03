@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type AccountSummaryItem, useAccountsSummary } from "@/lib/api/reports";
+import { useAccountsSummary } from "@/lib/api/reports";
 import { formatMoney } from "@/lib/domain/money";
 import { useUserPrefsStore } from "@/lib/state/identity";
 import DepositDialog from "@/components/modules/accounts/DepositDialog";
@@ -28,7 +28,7 @@ import WithdrawDialog from "@/components/modules/accounts/WithdrawDialog";
 export default function TopAccounts() {
   const { displayCurrency } = useUserPrefsStore();
   const { data, isLoading } = useAccountsSummary(displayCurrency ?? undefined);
-  const items = ((data?.items ?? []) as AccountSummaryItem[])
+  const items = (data?.items ?? [])
     .map((it) => ({
       ...it,
       value: Number(it.displayValue ?? it.valuation ?? 0),
@@ -59,7 +59,7 @@ export default function TopAccounts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((it: any) => {
+              {items.map((it) => {
                 const formattedValue = formatMoney(
                   it.value,
                   displayCurrency ?? it.currency ?? "CNY",

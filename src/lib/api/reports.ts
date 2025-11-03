@@ -2,7 +2,10 @@
 
 import useSWR from "swr";
 import type { IncomeRecordsSummary } from "@/lib/api/income";
-import type { ReportDatasetItem as ReportDatasetItemSchema } from "@/types/openapi";
+import type {
+  DashboardResponse,
+  ReportDatasetItem as ReportDatasetItemSchema,
+} from "@/types/openapi";
 import { getJson } from "@/lib/utils/fetcher";
 
 export type AccountSummaryItem = {
@@ -53,7 +56,7 @@ export function useDashboard(asOf?: string, displayCurrency?: string) {
   if (asOf) params.set("asOf", asOf);
   if (displayCurrency) params.set("displayCurrency", displayCurrency);
   const key = `/api/v1/reporting/dashboard${params.toString() ? `?${params}` : ""}`;
-  return useSWR<any>(key, getJson);
+  return useSWR<DashboardResponse>(key, getJson);
 }
 
 export function useAccountsSummary(displayCurrency?: string) {

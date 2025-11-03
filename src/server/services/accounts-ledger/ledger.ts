@@ -4,7 +4,7 @@ import {
   computeAccountSummaryById,
   type AccountSummaryItem,
 } from "@/server/services/accounts-ledger/accounts";
-import { convert } from "@/server/services/fx/provider";
+import { convert, type FxSnapshotInfo } from "@/server/services/fx/provider";
 import { logAudit } from "@/server/services/audit";
 
 export async function getAccountSummary(id: string) {
@@ -39,7 +39,7 @@ export async function postDeposit(input: {
     input.attachmentUrl.trim().length > 0
       ? input.attachmentUrl.trim()
       : undefined;
-  const performDeposit = async (tx: typeof prisma) => {
+  const performDeposit = async (tx: Prisma.TransactionClient) => {
     const lineInput = {
       accountId: input.accountId,
       type: "DEPOSIT",
@@ -127,12 +127,7 @@ export async function postDeposit(input: {
     }
     return createdEntry;
   };
-  const entry =
-    typeof (prisma as any).$transaction === "function"
-      ? await prisma.$transaction((tx) =>
-          performDeposit(tx as unknown as typeof prisma),
-        )
-      : await performDeposit(prisma);
+  const entry = await prisma.$transaction((tx) => performDeposit(tx));
   await logAudit("ENTRY_DEPOSIT_SERVICE", {
     userId: account.userId,
     meta: { entryId: entry.id },
@@ -205,7 +200,7 @@ export async function postTransfer(input: {
       snapshots: [],
     };
   }
-  const snapshots = Array.isArray(conversion.snapshots)
+  const snapshots: FxSnapshotInfo[] = Array.isArray(conversion.snapshots)
     ? conversion.snapshots
     : [];
   let toAmount = conversion.amount;
@@ -225,13 +220,11 @@ export async function postTransfer(input: {
   const normalizedToCurrency = toAccount.baseCurrency.toUpperCase();
   const fromSnapshot =
     snapshots.find(
-      (snapshot: any) =>
-        snapshot?.quoteCurrency?.toUpperCase?.() === normalizedFromCurrency,
+      (snapshot) => snapshot.quoteCurrency.toUpperCase() === normalizedFromCurrency,
     ) ?? null;
   const toSnapshot =
     snapshots.find(
-      (snapshot: any) =>
-        snapshot?.quoteCurrency?.toUpperCase?.() === normalizedToCurrency,
+      (snapshot) => snapshot.quoteCurrency.toUpperCase() === normalizedToCurrency,
     ) ?? null;
   const attachment =
     typeof input.attachmentUrl === "string" &&
@@ -249,28 +242,28 @@ export async function postTransfer(input: {
     rateUsdToB: conversion.rateUsdToB,
     fxEffectiveAt:
       conversion.fxEffectiveAt?.toISOString() ?? fxAsOf.toISOString(),
-    rateSnapshots: snapshots.map((snapshot: any) => {
+    rateSnapshots: snapshots.map((snapshot) => {
       const captured =
-        snapshot?.capturedAt instanceof Date
+        snapshot.capturedAt instanceof Date
           ? snapshot.capturedAt
           : conversion.fxEffectiveAt instanceof Date
             ? conversion.fxEffectiveAt
             : fxAsOf;
       return {
-        base: snapshot?.baseCurrency ?? fromAccount.baseCurrency,
-        quote: snapshot?.quoteCurrency ?? toAccount.baseCurrency,
-        rate: Number(snapshot?.rate ?? 1),
+        base: snapshot.baseCurrency ?? fromAccount.baseCurrency,
+        quote: snapshot.quoteCurrency ?? toAccount.baseCurrency,
+        rate: Number(snapshot.rate ?? 1),
         capturedAt: captured.toISOString(),
         effectiveFrom:
-          snapshot?.effectiveFrom instanceof Date
+          snapshot.effectiveFrom instanceof Date
             ? snapshot.effectiveFrom.toISOString()
             : null,
         effectiveTo:
-          snapshot?.effectiveTo instanceof Date
+          snapshot.effectiveTo instanceof Date
             ? snapshot.effectiveTo.toISOString()
             : null,
-        id: snapshot?.id ?? null,
-        sourceRateId: snapshot?.sourceRateId ?? null,
+        id: snapshot.id ?? null,
+        sourceRateId: snapshot.sourceRateId ?? null,
       };
     }),
     asOf: input.asOf ?? null,

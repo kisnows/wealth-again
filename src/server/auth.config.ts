@@ -13,7 +13,11 @@ export default {
         const user = await prisma.user.findUnique({ where: { email } });
         // DEMO: 仅用于开发演示。真实项目请使用安全的密码校验(Bcrypt)与锁定策略。
         if (user && password) {
-          return { id: user.id, email: user.email, name: user.name } as any;
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          };
         }
         return null;
       },
@@ -27,7 +31,7 @@ export default {
       return token;
     },
     async session({ session, token }) {
-      if (session.user && token?.sub) (session.user as any).id = token.sub;
+      if (session.user && token?.sub) session.user.id = token.sub;
       return session;
     },
     authorized({ auth }) {

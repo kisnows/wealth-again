@@ -35,7 +35,9 @@ export function normalizeAccountData(
   summaries: AccountSummaryItem[],
 ): EnrichedAccount[] {
   const summaryMap = new Map<string, AccountSummaryItem>();
-  summaries.forEach((summary) => summaryMap.set(summary.id, summary));
+  summaries.forEach((summary) => {
+    summaryMap.set(summary.id, summary);
+  });
   const merged = accounts.map((account) => {
     const summary = summaryMap.get(account.id);
     const baseMetrics: NormalizedMetrics = summary
