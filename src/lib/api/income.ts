@@ -377,3 +377,34 @@ export function useAnnualDeductions(userId?: string) {
     : "/api/v1/identity/user/annual-deductions";
   return useSWR<{ items: AnnualDeduction[] }>(key, getJson);
 }
+
+export async function upsertAnnualDeduction(input: {
+  taxYear: number;
+  annualAmount: number;
+  allocationRule?: string | null;
+  note?: string | null;
+}) {
+  const result = await postJson<AnnualDeduction>(
+    "/api/v1/identity/user/annual-deductions",
+    input,
+  );
+  await globalMutate("/api/v1/identity/user/annual-deductions");
+  return result;
+}
+
+export async function updateAnnualDeduction(
+  id: string,
+  input: {
+    taxYear?: number;
+    annualAmount?: number;
+    allocationRule?: string | null;
+    note?: string | null;
+  },
+) {
+  const result = await patchJson<AnnualDeduction>(
+    `/api/v1/identity/user/annual-deductions/${id}`,
+    input,
+  );
+  await globalMutate("/api/v1/identity/user/annual-deductions");
+  return result;
+}

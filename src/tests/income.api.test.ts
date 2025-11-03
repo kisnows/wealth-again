@@ -23,6 +23,17 @@ vi.mock("@/server/services/audit", () => ({
   },
 }));
 
+const scheduleIncomeRecalcTaskMock = vi.fn().mockResolvedValue("task-annual");
+vi.mock("@/server/services/income-tax/income", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/server/services/income-tax/income")
+  >("@/server/services/income-tax/income");
+  return {
+    ...actual,
+    scheduleIncomeRecalcTask: scheduleIncomeRecalcTaskMock,
+  };
+});
+
 const mockTimelineService = {
   buildIncomeTimeline: vi.fn(),
 };
@@ -67,6 +78,8 @@ beforeEach(async () => {
   vi.clearAllMocks();
   resetPrismaMock();
   writeOutboxEventMock.mockReset();
+  scheduleIncomeRecalcTaskMock.mockReset();
+  scheduleIncomeRecalcTaskMock.mockResolvedValue("task-annual");
   const { clearTaxContextCache } = await import("@/server/services/income-tax/tax");
   clearTaxContextCache();
   mockPrisma.bonusPlan.findMany.mockResolvedValue([]);
@@ -621,5 +634,126 @@ describe("Income basic endpoints", () => {
     const body = await res.json();
     expect(body.items).toHaveLength(1);
     expect(body.items[0].annualAmount).toBe(12000);
+  });
+
+  it("annual deductions POST upserts record and schedules recalc", async () => {
+    const route = await import("@/app/api/v1/identity/user/annual-deductions/route");
+    const now = new Date("2025-02-01T00:00:00Z");
+    mockPrisma.userAnnualDeduction.upsert.mockResolvedValueOnce({
+      id: "ded-1",
+      userId: "u1",
+      taxYear: 2025,
+      annualAmount: 12000,
+      allocationRule: "AVERAGE",
+      note: "子女教育",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const res = await route.POST(
+      makeJsonRequest(
+        "http://localhost/api/v1/identity/user/annual-deductions",
+        "POST",
+        {
+          taxYear: 2025,
+          annualAmount: 12000,
+          allocationRule: "AVERAGE",
+          note: "子女教育",
+        },
+        { "Idempotency-Key": "ded-post" },
+      ),
+    );
+
+    expect(res.status).toBe(201);
+    expect(mockPrisma.userAnnualDeduction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_taxYear: { userId: "u1", taxYear: 2025 } },
+      }),
+    );
+    expect(scheduleIncomeRecalcTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "u1",
+        taxYear: 2025,
+      }),
+    );
+    expect(auditLogMock).toHaveBeenCalledWith(
+      "SETTINGS_ANNUAL_DEDUCTION_UPSERT",
+      expect.objectContaining({
+        userId: "u1",
+      }),
+    );
+    const payload = await res.json();
+    expect(payload.annualAmount).toBe(12000);
+    expect(payload.note).toBe("子女教育");
+  });
+
+  it("annual deductions PATCH updates record and triggers recalc for both years", async () => {
+    const route = await import(
+      "@/app/api/v1/identity/user/annual-deductions/[id]/route"
+    );
+    const createdAt = new Date("2024-01-01T00:00:00Z");
+    mockPrisma.userAnnualDeduction.findUnique.mockResolvedValueOnce({
+      id: "ded-2",
+      userId: "u1",
+      taxYear: 2024,
+      annualAmount: 6000,
+      allocationRule: "AVERAGE",
+      note: null,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    mockPrisma.userAnnualDeduction.update.mockResolvedValueOnce({
+      id: "ded-2",
+      userId: "u1",
+      taxYear: 2025,
+      annualAmount: 12000,
+      allocationRule: "ONCE",
+      note: "租房扣除",
+      createdAt,
+      updatedAt: new Date("2025-03-01T00:00:00Z"),
+    });
+
+    const res = await route.PATCH(
+      makeJsonRequest(
+        "http://localhost/api/v1/identity/user/annual-deductions/ded-2",
+        "PATCH",
+        {
+          taxYear: 2025,
+          annualAmount: 12000,
+          allocationRule: "ONCE",
+          note: " 租房扣除 ",
+        },
+        { "Idempotency-Key": "ded-patch" },
+      ),
+      { params: { id: "ded-2" } },
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.userAnnualDeduction.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "ded-2" },
+        data: expect.objectContaining({ taxYear: 2025 }),
+      }),
+    );
+    const payload = await res.json();
+    expect(payload.taxYear).toBe(2025);
+    expect(payload.allocationRule).toBe("ONCE");
+    expect(payload.note).toBe("租房扣除");
+    expect(scheduleIncomeRecalcTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({ taxYear: 2024 }),
+    );
+    expect(scheduleIncomeRecalcTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({ taxYear: 2025 }),
+    );
+    expect(auditLogMock).toHaveBeenCalledWith(
+      "SETTINGS_ANNUAL_DEDUCTION_UPDATE",
+      expect.objectContaining({
+        userId: "u1",
+        meta: expect.objectContaining({
+          before: expect.objectContaining({ taxYear: 2024 }),
+          after: expect.objectContaining({ taxYear: 2025 }),
+        }),
+      }),
+    );
   });
 });

@@ -1,55 +1,137 @@
 "use client";
 
+import { useMemo, useState } from "react";
+import {
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
+import { chartTokens } from "@/lib/theme/palette";
+
 type Slice = { name: string; value: number; color?: string };
 
-export default function AllocPie({ data = [] as Slice[] }: { data?: Slice[] }) {
-  const total = data.reduce((s, d) => s + Math.max(0, d.value), 0);
-  if (!total)
+type AllocPieProps = {
+  data?: Slice[];
+  currency?: string;
+};
+
+const createCurrencyFormatter = (currency?: string) =>
+  currency
+    ? new Intl.NumberFormat("zh-CN", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 2,
+      })
+    : new Intl.NumberFormat("zh-CN", {
+        maximumFractionDigits: 0,
+      });
+
+export default function AllocPie({ data = [] as Slice[], currency }: AllocPieProps) {
+  const processed = useMemo(() => {
+    const total = data.reduce((sum, item) => sum + Math.max(0, item.value), 0);
+    if (!total) return { total, slices: [] as Array<Slice & { percentage: number; color: string }> };
+    const slices = data
+      .map((item, index) => {
+        const value = Math.max(0, item.value);
+        if (!value) return null;
+        return {
+          ...item,
+          value,
+          percentage: (value / total) * 100,
+          color: item.color ?? chartTokens.allocation[index % chartTokens.allocation.length],
+        };
+      })
+      .filter((item): item is Slice & { percentage: number; color: string } => Boolean(item));
+    return { total, slices };
+  }, [data]);
+
+  const formatter = useMemo(() => createCurrencyFormatter(currency), [currency]);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  if (!processed.total || !processed.slices.length)
     return (
-      <div className="border rounded p-6 text-sm text-muted-foreground">
+      <div
+        className="rounded border border-dashed p-6 text-sm text-muted-foreground"
+        data-testid="reporting-ui-allocation-chart-empty"
+      >
         暂无分配数据
       </div>
     );
-  const r = 70,
-    cx = 90,
-    cy = 90;
-  let start = 0;
-  const slices = data.map((d, i) => {
-    const frac = Math.max(0, d.value) / total;
-    const end = start + frac * Math.PI * 2;
-    const x1 = cx + r * Math.cos(start),
-      y1 = cy + r * Math.sin(start);
-    const x2 = cx + r * Math.cos(end),
-      y2 = cy + r * Math.sin(end);
-    const large = end - start > Math.PI ? 1 : 0;
-    const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
-    start = end;
-    const color =
-      d.color ?? ["#60a5fa", "#34d399", "#f472b6", "#fbbf24"][i % 4];
-    return {
-      key: `${d.name}-${i}`,
-      path,
-      color,
-      name: d.name,
-      pct: Math.round(frac * 100),
-    };
-  });
+
   return (
-    <div className="flex gap-4 items-center border rounded p-3">
-      <svg height={180} width={180}>
-        {slices.map((s) => (
-          <path className="opacity-90" d={s.path} fill={s.color} key={s.key} />
-        ))}
-      </svg>
-      <ul className="text-sm">
-        {slices.map((s) => (
-          <li className="flex items-center gap-2" key={s.key}>
-            <span
-              className="inline-block w-3 h-3 rounded"
-              style={{ background: s.color }}
+    <div
+      className="flex flex-col gap-4 rounded-md border border-border/60 bg-card/70 p-4 md:flex-row md:items-center"
+      data-testid="reporting-ui-allocation-chart"
+    >
+      <div className="h-56 w-full md:w-1/2">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              activeIndex={activeIndex ?? undefined}
+              cornerRadius={8}
+              cx="50%"
+              cy="50%"
+              data={processed.slices}
+              dataKey="value"
+              innerRadius={48}
+              nameKey="name"
+              outerRadius={80}
+              onMouseEnter={(_, index) => setActiveIndex(index)}
+              onMouseLeave={() => setActiveIndex(null)}
+              paddingAngle={2}
+            >
+              {processed.slices.map((slice, index) => (
+                <Cell
+                  fill={slice.color}
+                  fillOpacity={activeIndex === index ? 0.95 : 0.75}
+                  key={`${slice.name}-${index}`}
+                  stroke="transparent"
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const item = payload[0]?.payload as (Slice & {
+                  percentage: number;
+                  color: string;
+                }) | undefined;
+                if (!item) return null;
+                return (
+                  <div className="rounded-md border border-border/70 bg-card px-3 py-2 text-sm shadow-lg dark:bg-background/95">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-sm"
+                        style={{ background: item.color }}
+                      />
+                      {item.name}
+                    </div>
+                    <div className="mt-1 font-medium text-foreground">
+                      {formatter.format(item.value).replace(/\.00$/, "")} · {item.percentage.toFixed(1)}%
+                    </div>
+                  </div>
+                );
+              }}
             />
-            <span className="text-muted-foreground">{s.name}</span>
-            <span className="ml-2 font-medium">{s.pct}%</span>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <ul className="grid w-full gap-2 text-sm md:w-1/2">
+        {processed.slices.map((slice, index) => (
+          <li className="flex items-center justify-between gap-3 rounded-md border border-border/40 px-3 py-2" key={`${slice.name}-${index}`}>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm"
+                style={{ background: slice.color }}
+              />
+              <span>{slice.name}</span>
+            </div>
+            <div className="text-right font-medium text-foreground">
+              <div>{formatter.format(slice.value).replace(/\.00$/, "")}</div>
+              <div className="text-xs text-muted-foreground">{slice.percentage.toFixed(1)}%</div>
+            </div>
           </li>
         ))}
       </ul>

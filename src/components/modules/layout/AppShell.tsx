@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { notifyAsync } from "@/lib/utils/notify";
 import { updateDisplayCurrency } from "@/lib/api/user";
+import ThemeToggle from "./ThemeToggle";
 
 type Props = { children: ReactNode };
 
@@ -179,6 +180,7 @@ export default function AppShell({ children }: Props) {
               data-testid="layout-ui-search"
               placeholder="搜索账户/备注/交易…"
             />
+            <ThemeToggle />
             <div
               className="hidden items-center gap-2 sm:flex"
               data-testid="layout-ui-pref-readonly"

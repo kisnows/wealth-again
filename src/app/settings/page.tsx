@@ -1,11 +1,13 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {  Calculator, Calendar, MapPin, Settings2 } from "lucide-react";
+import Link from "next/link";
+import { Calculator, Calendar, MapPin, Settings2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import AnnualDeductionDialog from "@/components/modules/income/AnnualDeductionDialog";
 import AccountFxPanel from "@/components/modules/fx/AccountFxPanel";
 import CitySelect from "@/components/modules/identity/CitySelect";
 import {
@@ -46,7 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAnnualDeductions } from "@/lib/api/income";
+import { useAnnualDeductions, type AnnualDeduction } from "@/lib/api/income";
 import {
   type CityChangeItem,
   createCityChange,
@@ -57,6 +59,10 @@ import {
 import { formatMoney } from "@/lib/domain/money";
 import { useUserPrefsStore } from "@/lib/state/identity";
 import { useAccountsSummary } from "@/lib/api/reports";
+import {
+  formatCurrencyLabel,
+  resolveCountryCurrency,
+} from "@/lib/domain/currency";
 
 const countryLabels: Record<string, string> = {
   CN: "中国",
@@ -152,6 +158,8 @@ export default function SettingsPage() {
   } = useAnnualDeductions();
 
   const [citySubmitting, setCitySubmitting] = useState(false);
+  const [deductionDialogOpen, setDeductionDialogOpen] = useState(false);
+  const [editingDeduction, setEditingDeduction] = useState<AnnualDeduction | null>(null);
   const {
     displayCurrency,
     asOfDate,
@@ -177,6 +185,15 @@ export default function SettingsPage() {
 
   const annualDeductions = deductionData?.items ?? [];
   const defaultEffectiveMonth = useMemo(() => getNextMonthValue(), []);
+  const taxCurrency = useMemo(
+    () =>
+      resolveCountryCurrency(cityChangeData?.currentCity?.country ?? undefined),
+    [cityChangeData?.currentCity?.country],
+  );
+  const taxCurrencyLabel = useMemo(
+    () => formatCurrencyLabel(taxCurrency),
+    [taxCurrency],
+  );
 
   const changeForm = useForm<CityChangeFormValues>({
     resolver: zodResolver(cityChangeSchema),
@@ -252,6 +269,18 @@ export default function SettingsPage() {
       toast.error(extractErrorMessage(error, "创建失败，请稍后再试"));
     } finally {
       setCitySubmitting(false);
+    }
+  };
+
+  const handleOpenDeduction = (deduction?: AnnualDeduction | null) => {
+    setEditingDeduction(deduction ?? null);
+    setDeductionDialogOpen(true);
+  };
+
+  const handleDeductionDialogChange = (open: boolean) => {
+    setDeductionDialogOpen(open);
+    if (!open) {
+      setEditingDeduction(null);
     }
   };
 
@@ -557,13 +586,34 @@ export default function SettingsPage() {
       >
         <Card data-testid="settings-ui-deductions">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="h-5 w-5" />
-              年度专项附加扣除
-            </CardTitle>
-            <CardDescription>
-              用于个税回算的年度专项附加扣除额度，系统会按月均摊
-            </CardDescription>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Calculator className="h-5 w-5" />
+                  年度专项附加扣除
+                </CardTitle>
+                <CardDescription>
+                  用于个税回算的年度专项附加扣除额度，系统会按月均摊。金额单位：{taxCurrencyLabel}。
+                </CardDescription>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  asChild
+                  data-testid="settings-ui-deductions-link-rules"
+                  size="sm"
+                  variant="outline"
+                >
+                  <Link href="/rules/tax">前往税务规则</Link>
+                </Button>
+                <Button
+                  data-testid="settings-ui-deductions-new"
+                  onClick={() => handleOpenDeduction(null)}
+                  size="sm"
+                >
+                  新增专项扣除
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {deductionError ? (
@@ -578,8 +628,23 @@ export default function SettingsPage() {
               <div className="py-10 text-center text-muted-foreground">
                 <p className="mb-2 text-lg font-medium">暂无专项扣除记录</p>
                 <p className="text-sm">
-                  请联系管理员或在导入流程中补充年度专项附加扣除。
+                  立即新增年度专项附加扣除，或前往规则中心检查税率配置。
                 </p>
+                <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                  <Button
+                    data-testid="settings-ui-deductions-empty-create"
+                    onClick={() => handleOpenDeduction(null)}
+                  >
+                    新增专项扣除
+                  </Button>
+                  <Button
+                    asChild
+                    data-testid="settings-ui-deductions-empty-rules"
+                    variant="outline"
+                  >
+                    <Link href="/rules/tax">查看税务规则</Link>
+                  </Button>
+                </div>
               </div>
             ) : (
               <Table>
@@ -590,6 +655,7 @@ export default function SettingsPage() {
                     <TableHead className="text-right">月度均摊</TableHead>
                     <TableHead>分摊方式</TableHead>
                     <TableHead>备注</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -613,6 +679,16 @@ export default function SettingsPage() {
                             : "平均分摊"}
                         </TableCell>
                         <TableCell>{deduction.note || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            data-testid={`settings-ui-deduction-edit-${deduction.taxYear}`}
+                            onClick={() => handleOpenDeduction(deduction)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            编辑
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -623,6 +699,15 @@ export default function SettingsPage() {
         </Card>
       </PageSection>
 
+      <AnnualDeductionDialog
+        deduction={editingDeduction}
+        currency={taxCurrency}
+        onOpenChange={handleDeductionDialogChange}
+        onSuccess={() => {
+          setEditingDeduction(null);
+        }}
+        open={deductionDialogOpen}
+      />
     </PageContainer>
   );
 }

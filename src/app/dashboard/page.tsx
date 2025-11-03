@@ -35,53 +35,36 @@ import {
 import { formatMoney } from "@/lib/domain/money";
 import { cn } from "@/lib/utils";
 import { useUserPrefsStore } from "@/lib/state/identity";
+import { accentTokens, semanticAccents } from "@/lib/theme/palette";
+import type { AccentKey } from "@/lib/theme/palette";
 
-const metricStyles = {
-  primary: {
-    bar: "from-primary/80 via-primary/60 to-primary/40",
-    icon: "bg-primary/10 text-primary",
-  },
-  emerald: {
-    bar: "from-emerald-500/70 via-emerald-500/50 to-emerald-500/25",
-    icon: "bg-emerald-500/15 text-emerald-600",
-  },
-  purple: {
-    bar: "from-violet-500/70 via-violet-500/50 to-violet-500/25",
-    icon: "bg-violet-500/15 text-violet-600",
-  },
-  amber: {
-    bar: "from-amber-500/70 via-amber-500/50 to-amber-500/25",
-    icon: "bg-amber-500/15 text-amber-600",
-  },
-} as const;
-
-type MetricStyleKey = keyof typeof metricStyles;
+type MetricAccent = Extract<AccentKey, "primary" | "success" | "accent" | "warning" | "info">;
 
 type MetricCardProps = {
   icon: ReactNode;
   title: string;
   value: ReactNode;
   hint?: ReactNode;
-  accent: MetricStyleKey;
+  accent: MetricAccent;
   testId: string;
 };
 
 function MetricCard({ icon, title, value, hint, accent, testId }: MetricCardProps) {
-  const styles = metricStyles[accent];
+  const accentToken = accentTokens[accent];
   return (
     <Card
       className="relative overflow-hidden border border-border/60 bg-card shadow-sm"
       data-testid={testId}
     >
       <div
-        className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", styles.bar)}
+        className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", accentToken.gradient)}
       />
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div className="text-sm font-medium text-muted-foreground">{title}</div>
-        <div className={cn("rounded-md p-2", styles.icon)}>{icon}</div>
+        <div className={cn("rounded-md p-2", accentToken.surface)}>{icon}</div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="text-2xl font-semibold text-foreground md:text-3xl">
+        <div className={cn("text-2xl font-semibold md:text-3xl", accentToken.emphasis)}>
           {value}
         </div>
         {hint ? (
@@ -180,7 +163,7 @@ export default function DashboardPage() {
     {
       key: "net-worth",
       title: "净资产",
-      accent: "primary" as const,
+      accent: semanticAccents.netWorth as MetricAccent,
       icon: <PiggyBankIcon className="h-4 w-4" />,
       value: dashboardLoading
         ? "..."
@@ -192,7 +175,7 @@ export default function DashboardPage() {
     {
       key: "annual-income",
       title: "年度总收入",
-      accent: "emerald" as const,
+      accent: semanticAccents.income.total as MetricAccent,
       icon: <DollarSignIcon className="h-4 w-4" />,
       value: incomeLoading
         ? "..."
@@ -207,7 +190,7 @@ export default function DashboardPage() {
     {
       key: "monthly-income",
       title: "本月税前收入",
-      accent: "purple" as const,
+      accent: semanticAccents.income.total as MetricAccent,
       icon: <BanknoteIcon className="h-4 w-4" />,
       value: incomeLoading
         ? "..."
@@ -228,7 +211,7 @@ export default function DashboardPage() {
     {
       key: "tax-rate",
       title: "有效税率",
-      accent: "amber" as const,
+      accent: semanticAccents.income.taxRate as MetricAccent,
       icon: <CalculatorIcon className="h-4 w-4" />,
       value: incomeLoading
         ? "..."
@@ -330,7 +313,7 @@ export default function DashboardPage() {
             <IncomeSummaryItem
               label="总收入"
               testId="dashboard-ui-income-total"
-              tone="primary"
+              tone={semanticAccents.income.total}
               value={formatMoney(
                 incomeStatistics.totalIncome,
                 incomeStatistics.currency,
@@ -339,7 +322,7 @@ export default function DashboardPage() {
             <IncomeSummaryItem
               label="净收入"
               testId="dashboard-ui-income-net"
-              tone="emerald"
+              tone={semanticAccents.income.net}
               value={formatMoney(
                 incomeStatistics.totalNet,
                 incomeStatistics.currency,
@@ -348,7 +331,7 @@ export default function DashboardPage() {
             <IncomeSummaryItem
               label="社保公积金"
               testId="dashboard-ui-income-si"
-              tone="amber"
+              tone={semanticAccents.income.deductions}
               value={formatMoney(
                 incomeStatistics.totalSocialInsurance +
                   incomeStatistics.totalHousingFund,
@@ -358,7 +341,7 @@ export default function DashboardPage() {
             <IncomeSummaryItem
               label="月均净收入"
               testId="dashboard-ui-income-avg"
-              tone="purple"
+              tone={semanticAccents.income.net}
               value={formatMoney(
                 incomeStatistics.avgMonthlyNet,
                 incomeStatistics.currency,
@@ -395,7 +378,7 @@ export default function DashboardPage() {
               加载中...
             </div>
           ) : (
-            <NetWorthLine data={netWorthSeries} />
+            <NetWorthLine currency={dashboardCurrency} data={netWorthSeries} />
           )}
         </PageSection>
         <PageSection
@@ -406,7 +389,7 @@ export default function DashboardPage() {
           title="资产分配"
         >
           {allocEntries.length > 0 ? (
-            <AllocPie data={allocEntries} />
+            <AllocPie currency={dashboardCurrency} data={allocEntries} />
           ) : (
             <div className="flex h-56 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
               <PiggyBankIcon className="h-8 w-8 text-muted-foreground/60" />
@@ -481,7 +464,7 @@ export default function DashboardPage() {
 type IncomeSummaryItemProps = {
   label: string;
   value: string;
-  tone: "primary" | "emerald" | "amber" | "purple";
+  tone: Extract<AccentKey, "primary" | "success" | "warning" | "accent">;
   testId: string;
 };
 
@@ -491,37 +474,17 @@ function IncomeSummaryItem({
   tone,
   testId,
 }: IncomeSummaryItemProps) {
-  const toneStyles: Record<
-    IncomeSummaryItemProps["tone"],
-    { badge: string; value: string }
-  > = {
-    primary: {
-      badge: "bg-primary/10 text-primary",
-      value: "text-primary",
-    },
-    emerald: {
-      badge: "bg-emerald-500/10 text-emerald-600",
-      value: "text-emerald-600",
-    },
-    amber: {
-      badge: "bg-amber-500/10 text-amber-600",
-      value: "text-amber-600",
-    },
-    purple: {
-      badge: "bg-violet-500/10 text-violet-600",
-      value: "text-violet-600",
-    },
-  };
+  const toneToken = accentTokens[tone];
 
   return (
     <div
       className="rounded-lg border border-border/60 bg-card/90 p-4 shadow-sm"
       data-testid={testId}
     >
-      <div className={cn("inline-flex items-center rounded-full px-2 py-1 text-xs font-medium", toneStyles[tone].badge)}>
+      <div className={cn("inline-flex items-center rounded-full px-2 py-1 text-xs font-medium", toneToken.surface)}>
         {label}
       </div>
-      <div className={cn("mt-3 text-xl font-semibold", toneStyles[tone].value)}>
+      <div className={cn("mt-3 text-xl font-semibold", toneToken.emphasis)}>
         {value}
       </div>
     </div>

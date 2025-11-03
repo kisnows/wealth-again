@@ -11,6 +11,7 @@ import {
 import type { AccountSummaryItem } from "@/lib/api/reports";
 import { formatMoney } from "@/lib/domain/money";
 import { cn } from "@/lib/utils";
+import { semanticTextTokens } from "@/lib/theme/palette";
 
 type AccountsSummaryTableProps = {
   items: AccountSummaryItem[];
@@ -68,18 +69,18 @@ export function AccountsSummaryTable({
           const roi = Number.isFinite(item.roi) ? item.roi : null;
           const profitTone =
             profit > 0
-              ? "text-emerald-600 dark:text-emerald-400"
+              ? semanticTextTokens.positive
               : profit < 0
-                ? "text-destructive"
-                : "text-muted-foreground";
+                ? semanticTextTokens.negative
+                : semanticTextTokens.neutral;
           const roiTone =
             roi == null
-              ? "text-muted-foreground"
+              ? semanticTextTokens.neutral
               : roi > 0
-                ? "text-emerald-600 dark:text-emerald-400"
+                ? semanticTextTokens.positive
                 : roi < 0
-                  ? "text-destructive"
-                  : "text-muted-foreground";
+                  ? semanticTextTokens.negative
+                  : semanticTextTokens.neutral;
           return (
             <TableRow
               className="border-b border-border/40 transition-colors hover:bg-muted/40 [&>td]:px-3 [&>td]:py-2"

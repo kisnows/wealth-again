@@ -7,6 +7,7 @@ import {
   DollarSignIcon,
   PercentIcon,
   TrendingUpIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -48,6 +49,8 @@ import { cn } from "@/lib/utils";
 import { notifyAsync } from "@/lib/utils/notify";
 import { updateIncomeRecord } from "@/lib/api/income";
 import { Textarea } from "@/components/ui/textarea";
+import { accentTokens, semanticAccents } from "@/lib/theme/palette";
+import type { AccentKey } from "@/lib/theme/palette";
 
 type Props = {
   testIdPrefix: string;
@@ -270,7 +273,7 @@ export default function IncomeAnalyticsPanel({
       <Card data-testid={`${testIdPrefix}-analytics-range`}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarIcon className="h-5 w-5 text-primary" />
+            <CalendarIcon className={cn("h-5 w-5", accentTokens.primary.text)} />
             统计区间
           </CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
@@ -353,7 +356,7 @@ export default function IncomeAnalyticsPanel({
           <Card data-testid={`${testIdPrefix}-analytics-summary`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <DollarSignIcon className="h-5 w-5 text-primary" />
+                <DollarSignIcon className={cn("h-5 w-5", accentTokens.primary.text)} />
                 汇总指标（{processed.currency}）
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
@@ -363,7 +366,8 @@ export default function IncomeAnalyticsPanel({
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <SummaryCard
-                  icon={<DollarSignIcon className="h-4 w-4 text-primary" />}
+                  accent={semanticAccents.income.total}
+                  icon={DollarSignIcon}
                   label="总收入"
                   testId={`${testIdPrefix}-analytics-total-income`}
                   value={formatMoney(
@@ -379,7 +383,8 @@ export default function IncomeAnalyticsPanel({
                   )}`}
                 />
                 <SummaryCard
-                  icon={<TrendingUpIcon className="h-4 w-4 text-emerald-500" />}
+                  accent={semanticAccents.income.net}
+                  icon={TrendingUpIcon}
                   label="净收入"
                   testId={`${testIdPrefix}-analytics-total-net`}
                   value={formatMoney(
@@ -395,7 +400,8 @@ export default function IncomeAnalyticsPanel({
                   )}`}
                 />
                 <SummaryCard
-                  icon={<BarChart3Icon className="h-4 w-4 text-amber-500" />}
+                  accent={semanticAccents.income.deductions}
+                  icon={BarChart3Icon}
                   label="总扣除"
                   testId={`${testIdPrefix}-analytics-total-deduction`}
                   value={formatMoney(
@@ -405,7 +411,8 @@ export default function IncomeAnalyticsPanel({
                   helper={`含社保、公积金及个税`}
                 />
                 <SummaryCard
-                  icon={<PercentIcon className="h-4 w-4 text-sky-500" />}
+                  accent={semanticAccents.income.taxRate}
+                  icon={PercentIcon}
                   label="有效税率"
                   testId={`${testIdPrefix}-analytics-effective-tax`}
                   value={`${totalsCombined.effectiveTaxRate.toFixed(1)}%`}
@@ -418,7 +425,7 @@ export default function IncomeAnalyticsPanel({
           <Card data-testid={`${testIdPrefix}-analytics-chart`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <BarChart3Icon className="h-5 w-5 text-primary" />
+                <BarChart3Icon className={cn("h-5 w-5", accentTokens.primary.text)} />
                 月度结构
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
@@ -426,14 +433,17 @@ export default function IncomeAnalyticsPanel({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <IncomeStackedBar items={processed.chartItems} />
+              <IncomeStackedBar
+                currency={processed.currency}
+                items={processed.chartItems}
+              />
             </CardContent>
           </Card>
 
           <Card data-testid={`${testIdPrefix}-analytics-table`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <DollarSignIcon className="h-5 w-5 text-primary" />
+                <DollarSignIcon className={cn("h-5 w-5", accentTokens.primary.text)} />
                 月度明细
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
@@ -662,28 +672,33 @@ export default function IncomeAnalyticsPanel({
 }
 
 function SummaryCard({
-  icon,
+  icon: Icon,
   label,
   value,
   helper,
   testId,
+  accent,
 }: {
-  icon: React.ReactNode;
+  icon: LucideIcon;
   label: string;
   value: string;
   helper?: string;
   testId: string;
+  accent: AccentKey;
 }) {
+  const accentToken = accentTokens[accent];
   return (
     <div
       className="space-y-2 rounded-lg border border-border/60 bg-card/80 p-4 shadow-sm"
       data-testid={testId}
     >
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <span className="text-primary">{icon}</span>
+        <span className={cn("flex h-8 w-8 items-center justify-center rounded-full", accentToken.surface)}>
+          <Icon className="h-4 w-4" />
+        </span>
         {label}
       </div>
-      <div className="text-xl font-semibold text-foreground">{value}</div>
+      <div className={cn("text-xl font-semibold", accentToken.emphasis)}>{value}</div>
       {helper ? (
         <div className="text-xs text-muted-foreground">{helper}</div>
       ) : null}

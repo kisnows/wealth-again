@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { notifyAsync } from "@/lib/utils/notify";
 
 type Props = {
@@ -114,6 +116,16 @@ export default function RulesUpsertForm({
     validateJson(jsonText);
   };
 
+  const textareaClassName = cn(
+    "font-mono text-sm",
+    validationState.error &&
+      "border-destructive/60 focus-visible:border-destructive focus-visible:ring-destructive/30",
+    validationState.isValid &&
+      !validationState.error &&
+      "border-primary/60 focus-visible:border-primary focus-visible:ring-primary/30",
+  );
+  const textareaId = "rules-upsert-json";
+
   return (
     <Card>
       <CardHeader>
@@ -133,17 +145,16 @@ export default function RulesUpsertForm({
 
             <TabsContent className="space-y-4" value="input">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  JSON 数据 (数组格式)
-                </label>
+                <Label
+                  className="text-sm font-medium text-muted-foreground"
+                  htmlFor={textareaId}
+                >
+                  JSON 数据（数组格式）
+                </Label>
                 <Textarea
-                  className={`font-mono text-sm ${
-                    validationState.error
-                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                      : validationState.isValid
-                        ? "border-green-300 focus:ring-green-500 focus:border-green-500"
-                        : ""
-                  }`}
+                  aria-invalid={validationState.error ? true : undefined}
+                  className={textareaClassName}
+                  id={textareaId}
                   onChange={(e) => handleTextChange(e.target.value)}
                   placeholder={placeholder}
                   rows={12}
@@ -153,19 +164,19 @@ export default function RulesUpsertForm({
                 {/* 验证状态显示 */}
                 <div className="flex items-center gap-2">
                   {validationState.isValid ? (
-                    <div className="flex items-center gap-1 text-green-600">
+                    <div className="flex items-center gap-1 text-emerald-500">
                       <CheckCircleIcon className="w-4 h-4" />
                       <span className="text-sm">
                         JSON 格式正确，共 {validationState.itemCount} 条记录
                       </span>
                     </div>
                   ) : validationState.error ? (
-                    <div className="flex items-center gap-1 text-red-600">
+                    <div className="flex items-center gap-1 text-destructive">
                       <AlertCircleIcon className="w-4 h-4" />
                       <span className="text-sm">{validationState.error}</span>
                     </div>
                   ) : text.trim() ? (
-                    <div className="flex items-center gap-1 text-gray-500">
+                    <div className="flex items-center gap-1 text-muted-foreground">
                       <AlertCircleIcon className="w-4 h-4" />
                       <span className="text-sm">正在验证...</span>
                     </div>
@@ -190,7 +201,7 @@ export default function RulesUpsertForm({
             </TabsContent>
 
             <TabsContent className="space-y-4" value="examples">
-              <div className="text-sm text-gray-600 mb-4">
+              <div className="mb-4 text-sm text-muted-foreground">
                 选择示例数据快速填入，你可以基于示例修改后提交：
               </div>
               <div className="grid gap-3">
@@ -209,7 +220,7 @@ export default function RulesUpsertForm({
                         使用此示例
                       </Button>
                     </div>
-                    <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-32">
+                    <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-muted-foreground">
                       {JSON.stringify(example.data, null, 2)}
                     </pre>
                   </Card>
@@ -222,17 +233,16 @@ export default function RulesUpsertForm({
         {examples.length === 0 && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                JSON 数据 (数组格式)
-              </label>
+              <Label
+                className="text-sm font-medium text-muted-foreground"
+                htmlFor={textareaId}
+              >
+                JSON 数据（数组格式）
+              </Label>
               <Textarea
-                className={`font-mono text-sm ${
-                  validationState.error
-                    ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                    : validationState.isValid
-                      ? "border-green-300 focus:ring-green-500 focus:border-green-500"
-                      : ""
-                }`}
+                aria-invalid={validationState.error ? true : undefined}
+                className={textareaClassName}
+                id={textareaId}
                 onChange={(e) => handleTextChange(e.target.value)}
                 placeholder={placeholder}
                 rows={12}
@@ -242,19 +252,19 @@ export default function RulesUpsertForm({
               {/* 验证状态显示 */}
               <div className="flex items-center gap-2">
                 {validationState.isValid ? (
-                  <div className="flex items-center gap-1 text-green-600">
+                  <div className="flex items-center gap-1 text-emerald-500">
                     <CheckCircleIcon className="w-4 h-4" />
                     <span className="text-sm">
                       JSON 格式正确，共 {validationState.itemCount} 条记录
                     </span>
                   </div>
                 ) : validationState.error ? (
-                  <div className="flex items-center gap-1 text-red-600">
+                  <div className="flex items-center gap-1 text-destructive">
                     <AlertCircleIcon className="w-4 h-4" />
                     <span className="text-sm">{validationState.error}</span>
                   </div>
                 ) : text.trim() ? (
-                  <div className="flex items-center gap-1 text-gray-500">
+                  <div className="flex items-center gap-1 text-muted-foreground">
                     <AlertCircleIcon className="w-4 h-4" />
                     <span className="text-sm">正在验证...</span>
                   </div>
