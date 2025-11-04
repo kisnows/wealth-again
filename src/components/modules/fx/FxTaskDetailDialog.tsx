@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentProps, useMemo } from "react";
+import type { ComponentProps } from "react";
 import {
   Dialog,
   DialogContent,
@@ -55,8 +55,6 @@ export default function FxTaskDetailDialog({
 }: FxTaskDetailDialogProps) {
   const { data, isLoading, error } = useFxRateTaskDetails(open ? taskId : null);
 
-  const summary = useMemo(() => data?.summary ?? null, [data?.summary]);
-
   const renderContent = () => {
     if (!taskId) {
       return (
@@ -83,9 +81,9 @@ export default function FxTaskDetailDialog({
       );
     }
     return (
-      <div className="space-y-6">
+      <div className="flex min-h-0 flex-col gap-6 pb-2">
         <DetailSummary detail={data} />
-        <div className="overflow-x-auto">
+        <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
           <Table data-testid="activity-ui-fx-detail-table">
             <TableHeader>
               <TableRow>
@@ -144,10 +142,10 @@ export default function FxTaskDetailDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-4xl"
+        className="flex max-h-[85vh] w-[98vw] max-w-6xl flex-col overflow-hidden sm:w-[88vw] lg:max-w-7xl lg:w-[84vw]"
         data-testid="activity-ui-fx-detail-dialog"
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>
             汇率任务详情
             {data?.quote ? ` · ${data.quote}` : ""}
@@ -160,7 +158,7 @@ export default function FxTaskDetailDialog({
               : "查看系统拆分的周度任务执行情况"}
           </DialogDescription>
         </DialogHeader>
-        {renderContent()}
+        <div className="flex-1 overflow-auto pr-1">{renderContent()}</div>
       </DialogContent>
     </Dialog>
   );

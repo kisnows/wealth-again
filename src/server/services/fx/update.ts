@@ -789,6 +789,103 @@ export async function createManualFxRateUpdateTask({
   });
 }
 
+export type ManualFxTaskExecutionResult =
+  | { status: "completed"; inserted: number }
+  | { status: "already_running" }
+  | { status: "already_completed"; processedAt: Date | null }
+  | { status: "conflict" }
+  | { status: "failed"; error: string }
+  | { status: "not_found" };
+
+export async function executeFxRateUpdateTaskNow(
+  taskId: string,
+  options: { triggeredBy?: string | null } = {},
+): Promise<ManualFxTaskExecutionResult> {
+  const task = await prisma.fxRateUpdateTask.findUnique({
+    where: { id: taskId },
+  });
+  if (!task) {
+    return { status: "not_found" };
+  }
+  if (task.status === "RUNNING") {
+    return { status: "already_running" };
+  }
+  if (task.status === "COMPLETED") {
+    return {
+      status: "already_completed",
+      processedAt: task.processedAt ?? null,
+    };
+  }
+
+  const now = new Date();
+  const resetResult = await prisma.fxRateUpdateTask.updateMany({
+    where: {
+      id: taskId,
+      status: { in: ["PENDING", "FAILED"] },
+    },
+    data: {
+      status: "PENDING",
+      scheduledFor: now,
+      triggeredBy: options.triggeredBy ?? task.triggeredBy,
+      lastError: null,
+      updatedAt: now,
+    },
+  });
+  if (!resetResult.count) {
+    const current = await prisma.fxRateUpdateTask.findUnique({
+      where: { id: taskId },
+    });
+    if (!current) {
+      return { status: "not_found" };
+    }
+    if (current.status === "RUNNING") {
+      return { status: "already_running" };
+    }
+    if (current.status === "COMPLETED") {
+      return {
+        status: "already_completed",
+        processedAt: current.processedAt ?? null,
+      };
+    }
+    return { status: "conflict" };
+  }
+
+  const refreshed = await prisma.fxRateUpdateTask.findUnique({
+    where: { id: taskId },
+  });
+  if (!refreshed) {
+    return { status: "not_found" };
+  }
+
+  const claimed = await markFxRateUpdateRunning(refreshed);
+  if (!claimed) {
+    return { status: "conflict" };
+  }
+
+  await logAudit("FX_RATE_UPDATE_TASK_TRIGGERED_MANUAL", {
+    userId: options.triggeredBy ?? null,
+    meta: {
+      taskId,
+      quote: refreshed.quote,
+      startDate: refreshed.startDate.toISOString(),
+      endDate: refreshed.endDate.toISOString(),
+    },
+  });
+
+  try {
+    const inserted = await runFxRateUpdateTask(refreshed);
+    await markFxRateUpdateCompleted(taskId, inserted);
+    return { status: "completed", inserted };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "fx_update_unknown_error";
+    await markFxRateUpdateFailed(refreshed, message);
+    return { status: "failed", error: message };
+  } finally {
+    clearFxCache();
+  }
+}
+
 export function resetFxUpdateServiceState() {
   lastCoverageCheck = 0;
   fxFetchImpl = null;

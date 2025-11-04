@@ -12,19 +12,19 @@ export async function GET(req: NextRequest, context: RouteContext) {
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const taskId = context.params.id;
+  const params = await context.params;
+  const taskId = params.id;
   const task = await prisma.fxRateUpdateTask.findUnique({
     where: { id: taskId },
-    include: {
-      logs: {
-        orderBy: { weekStart: "asc" },
-      },
-    },
   });
   if (!task) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  const logs = task.logs.map((log) => ({
+  const logRows = await prisma.fxRateUpdateLog.findMany({
+    where: { taskId },
+    orderBy: { weekStart: "asc" },
+  });
+  const logs = logRows.map((log) => ({
     id: log.id,
     weekStart: log.weekStart.toISOString(),
     weekEnd: log.weekEnd.toISOString(),

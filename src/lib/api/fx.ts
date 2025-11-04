@@ -87,8 +87,22 @@ export type RefreshFxRateResponse = {
   updatedAt: string;
 };
 
+export type ExecuteFxTaskResponse = {
+  status: "completed" | "already_running" | "already_completed" | "conflict";
+  inserted?: number;
+  processedAt?: string | null;
+  message?: string;
+};
+
 export async function refreshFxRateNow(quote: string) {
   return postJson<RefreshFxRateResponse>("/api/v1/fx/rates/refresh", { quote });
+}
+
+export async function runFxRateUpdateTaskNow(taskId: string) {
+  return postJson<ExecuteFxTaskResponse>(
+    `/api/v1/fx/rates/tasks/${taskId}/run`,
+    {},
+  );
 }
 
 export function useLatestFxRates(quotes: string[]) {

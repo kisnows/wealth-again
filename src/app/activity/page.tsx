@@ -18,12 +18,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type FxRateUpdateTask, useFxRateUpdateTasks } from "@/lib/api/fx";
+import {
+  runFxRateUpdateTaskNow,
+  type FxRateUpdateTask,
+  useFxRateUpdateTasks,
+} from "@/lib/api/fx";
 import { type IncomeRecalcTask, useIncomeRecalcTasks } from "@/lib/api/income";
 import { useTaskCenterStore } from "@/lib/state/tasks";
 import FxTaskDetailDialog, {
   fxStatusVariant,
 } from "@/components/modules/fx/FxTaskDetailDialog";
+import { notifyAsync } from "@/lib/utils/notify";
 
 export default function ActivityPage() {
   const { data, isLoading, error, mutate } = useIncomeRecalcTasks({
@@ -42,10 +47,52 @@ export default function ActivityPage() {
   }));
   const [fxDetailTaskId, setFxDetailTaskId] = useState<string | null>(null);
   const [fxDetailOpen, setFxDetailOpen] = useState(false);
+  const [runningFxTaskId, setRunningFxTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     setRecalcTasks(tasks);
   }, [setRecalcTasks, tasks]);
+
+  const handleRunFxTask = async (task: FxRateUpdateTask) => {
+    setRunningFxTaskId(task.id);
+    try {
+      await notifyAsync(
+        () => runFxRateUpdateTaskNow(task.id),
+        {
+          loading: "正在立即执行汇率任务…",
+          success: (result) => {
+            switch (result.status) {
+              case "completed":
+                return result.message ?? "任务已成功执行，稍后刷新查看状态。";
+              case "already_completed":
+                return (
+                  result.message ??
+                  "任务已完成，如需重新补齐请创建新任务。"
+                );
+              case "conflict":
+                return (
+                  result.message ?? "任务状态已更新，请刷新列表后再试。"
+                );
+              default:
+                return (
+                  result.message ?? "任务正在执行中，请稍后刷新查看结果。"
+                );
+            }
+          },
+          error: (error) => {
+            return error instanceof Error
+              ? error.message
+              : "执行失败，请稍后重试。";
+          },
+        },
+      );
+    } catch (err) {
+      console.error("run fx task failed", err);
+    } finally {
+      setRunningFxTaskId(null);
+      void mutateFx();
+    }
+  };
 
   const tabs: Array<{
     key: string;
@@ -262,17 +309,35 @@ export default function ActivityPage() {
                           {task.lastError ?? "—"}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            data-testid="activity-ui-fx-detail"
-                            onClick={() => {
-                              setFxDetailTaskId(task.id);
-                              setFxDetailOpen(true);
-                            }}
-                            size="sm"
-                            variant="ghost"
-                          >
-                            查看详情
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              data-testid="activity-ui-fx-run"
+                              disabled={
+                                runningFxTaskId === task.id ||
+                                !["PENDING", "FAILED"].includes(
+                                  task.status.toUpperCase(),
+                                )
+                              }
+                              onClick={() => {
+                                void handleRunFxTask(task);
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {runningFxTaskId === task.id ? "执行中…" : "立即执行"}
+                            </Button>
+                            <Button
+                              data-testid="activity-ui-fx-detail"
+                              onClick={() => {
+                                setFxDetailTaskId(task.id);
+                                setFxDetailOpen(true);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              查看详情
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
