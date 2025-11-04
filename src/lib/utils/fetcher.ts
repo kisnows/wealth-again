@@ -37,15 +37,35 @@ export async function fetchJson<T = unknown>(
   if (!res.ok) {
     if (res.status === 401) {
       if (typeof window !== "undefined") {
-        const currentPath = window.location.pathname;
-        if (!currentPath.startsWith("/signin")) {
-          const loginUrl = new URL("/signin", window.location.origin);
-          const callback = currentPath + window.location.search;
-          if (callback && callback !== "/signin") {
-            loginUrl.searchParams.set("callbackUrl", callback);
-          }
-          window.location.href = loginUrl.toString();
+        const loginUrl = new URL("/signin", window.location.origin);
+        const callback =
+          window.location.pathname + window.location.search;
+        if (callback && callback !== "/signin") {
+          loginUrl.searchParams.set("callbackUrl", callback);
         }
+        void import("sonner").then(({ toast }) => {
+          const globalWindow = window as typeof window & {
+            __wa_login_toast__?: boolean;
+          };
+          if (!globalWindow.__wa_login_toast__) {
+            globalWindow.__wa_login_toast__ = true;
+            toast.warning("当前尚未登录", {
+              description: "完成登录后即可继续访问当前功能。",
+              action: {
+                label: "去登录",
+                onClick: () => {
+                  window.location.href = loginUrl.toString();
+                },
+              },
+              onDismiss: () => {
+                globalWindow.__wa_login_toast__ = false;
+              },
+            });
+            window.setTimeout(() => {
+              globalWindow.__wa_login_toast__ = false;
+            }, 6000);
+          }
+        });
       }
       throw new Error("请先登录后再执行此操作");
     }

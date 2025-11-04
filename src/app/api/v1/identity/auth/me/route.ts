@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/server/db";
 import { audit } from "@/server/services/audit";
+import { DISPLAY_CURRENCY_SET } from "@/server/services/identity/constants";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
@@ -45,8 +46,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const ALLOWED_DISPLAY_CURRENCIES = new Set(["CNY", "USD", "EUR", "HKD", "JPY"]);
-
 export async function PATCH(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string") {
@@ -74,7 +73,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
     const upper = raw.trim().toUpperCase();
-    if (!ALLOWED_DISPLAY_CURRENCIES.has(upper)) {
+    if (!DISPLAY_CURRENCY_SET.has(upper)) {
       return NextResponse.json(
         { error: "displayCurrency_not_supported" },
         { status: 422 },

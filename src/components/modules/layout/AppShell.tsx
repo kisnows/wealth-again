@@ -34,7 +34,10 @@ type Props = { children: ReactNode };
 
 export default function AppShell({ children }: Props) {
   const pathname = usePathname();
-  const { data: currentUser } = useCurrentUser();
+  const isAuthStandalone =
+    pathname.startsWith("/signin") || pathname.startsWith("/signup");
+
+  const { data: currentUser } = useCurrentUser(!isAuthStandalone);
   useLiveStatus({ enabled: Boolean(currentUser) });
   const { displayCurrency, setDisplayCurrency } = useUserPrefsStore(
     (state) => ({
@@ -128,6 +131,13 @@ export default function AppShell({ children }: Props) {
     const segment = href === "/" ? "home" : href.replace(/^\//, "");
     return segment.replace(/\//g, "-");
   };
+
+  if (isAuthStandalone) {
+    return (
+      <div className="min-h-dvh bg-background text-foreground">{children}</div>
+    );
+  }
+
   return (
     <div
       className="min-h-dvh bg-background text-foreground"

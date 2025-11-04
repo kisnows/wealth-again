@@ -2,6 +2,7 @@
 // 参考 doc/data.md 的重点数据，初始化城市规则、税制、账户与交易示例
 /* eslint-disable no-console */
 const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
 
 async function upsertTax(country, year, currency = "CNY") {
@@ -75,12 +76,14 @@ async function seed() {
     create: { name: "Hangzhou", country: "CN" },
   });
 
+  const demoPasswordHash = await bcrypt.hash("demo", 12);
+
   const user = await prisma.user.upsert({
     where: { email: "demo@example.com" },
-    update: {},
+    update: { password: demoPasswordHash },
     create: {
       email: "demo@example.com",
-      password: "hashed",
+      password: demoPasswordHash,
       name: "Demo",
       displayCurrency: "USD",
       currentCityId: hz.id,

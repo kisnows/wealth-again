@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import prisma from "@/server/db";
+import { verifyPassword } from "@/server/services/identity/password";
 
 export default {
   providers: [
@@ -10,9 +11,13 @@ export default {
       authorize: async (creds) => {
         const email = String(creds?.email || "").toLowerCase();
         const password = String(creds?.password || "");
-        const user = await prisma.user.findUnique({ where: { email } });
-        // DEMO: 仅用于开发演示。真实项目请使用安全的密码校验(Bcrypt)与锁定策略。
-        if (user && password) {
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true, email: true, name: true, password: true },
+        });
+        if (user && user.password) {
+          const passwordOk = await verifyPassword(password, user.password);
+          if (!passwordOk) return null;
           return {
             id: user.id,
             email: user.email,

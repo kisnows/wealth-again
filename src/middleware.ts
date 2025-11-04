@@ -3,8 +3,11 @@ import { auth } from "@/server/auth";
 
 const PUBLIC_PATHS = [
   "/signin",
+  "/signup",
   "/api/auth",
   "/api/v1/identity/auth",
+  "/api/v1/identity/register",
+  "/api/v1/identity/cities",
   "/api/health",
 ];
 
@@ -17,35 +20,42 @@ function isPublicPath(pathname: string) {
   });
 }
 
-export default auth(async (req) => {
-  const { pathname } = req.nextUrl;
+export default auth(
+  async (req) => {
+    const { pathname } = req.nextUrl;
 
-  if (isPublicPath(pathname)) {
-    return NextResponse.next();
-  }
+    if (isPublicPath(pathname)) {
+      return NextResponse.next();
+    }
 
-  if (pathname.startsWith("/_next/") || pathname.startsWith("/static/")) {
-    return NextResponse.next();
-  }
+    if (pathname.startsWith("/_next/") || pathname.startsWith("/static/")) {
+      return NextResponse.next();
+    }
 
-  if (req.auth?.user?.id) {
-    return NextResponse.next();
-  }
+    if (req.auth?.user?.id) {
+      return NextResponse.next();
+    }
 
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.json(
-      { error: "unauthorized", message: "请先登录后再访问接口" },
-      { status: 401 },
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "unauthorized", message: "请先登录后再访问接口" },
+        { status: 401 },
+      );
+    }
+
+    const loginUrl = new URL("/signin", req.url);
+    loginUrl.searchParams.set(
+      "callbackUrl",
+      req.nextUrl.pathname + req.nextUrl.search,
     );
-  }
-
-  const loginUrl = new URL("/signin", req.url);
-  loginUrl.searchParams.set(
-    "callbackUrl",
-    req.nextUrl.pathname + req.nextUrl.search,
-  );
-  return NextResponse.redirect(loginUrl);
-});
+    return NextResponse.redirect(loginUrl);
+  },
+  {
+    callbacks: {
+      authorized: () => true,
+    },
+  },
+);
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
