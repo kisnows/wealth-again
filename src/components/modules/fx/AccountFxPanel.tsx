@@ -33,6 +33,8 @@ import {
   createFxRateUpdateTask,
   refreshFxRateNow,
   useLatestFxRates,
+  type LatestFxRate,
+  type RefreshFxRateResponse,
 } from "@/lib/api/fx";
 import { useUserPrefsStore } from "@/lib/state/identity";
 import { notifyAsync } from "@/lib/utils/notify";
@@ -77,7 +79,9 @@ export default function AccountFxPanel({
 
   const effectiveCurrencies = useMemo(() => {
     const unique = new Set<string>();
-    supportedCurrencies.forEach((code) => unique.add(code));
+    supportedCurrencies.forEach((code) => {
+      unique.add(code);
+    });
     currencies
       .map((code) => code.toUpperCase())
       .forEach((code) => {
@@ -209,11 +213,43 @@ export default function AccountFxPanel({
   const handleRefreshLatest = async (quote: string) => {
     setRefreshingCurrency(quote);
     try {
-      await notifyAsync(() => refreshFxRateNow(quote), {
-        loading: `正在拉取 ${quote} 最新汇率…`,
-        success: `${quote} 最新汇率已更新`,
-        error: `${quote} 汇率更新失败，请稍后重试`,
-      });
+      const updated = await notifyAsync<RefreshFxRateResponse>(
+        () => refreshFxRateNow(quote),
+        {
+          loading: `正在拉取 ${quote} 最新汇率…`,
+          success: `${quote} 最新汇率已更新`,
+          error: `${quote} 汇率更新失败，请稍后重试`,
+        },
+      );
+      const nextItem: LatestFxRate = {
+        quote: (updated?.quote ?? quote).toUpperCase(),
+        rate:
+          typeof updated?.rate === "number" && Number.isFinite(updated.rate)
+            ? updated.rate
+            : null,
+        effectiveFrom: updated?.effectiveFrom ?? null,
+        effectiveTo: updated?.effectiveTo ?? null,
+      };
+      await mutate(
+        (previous) => {
+          if (!previous) {
+            return { base: BASE_CURRENCY, items: [nextItem] };
+          }
+          const existingIndex = previous.items.findIndex(
+            (item) => item.quote === nextItem.quote,
+          );
+          const nextItems =
+            existingIndex >= 0
+              ? previous.items.map((item, index) =>
+                  index === existingIndex ? nextItem : item,
+                )
+              : [...previous.items, nextItem].sort((a, b) =>
+                  a.quote.localeCompare(b.quote),
+                );
+          return { ...previous, items: nextItems };
+        },
+        { revalidate: false },
+      );
       await Promise.all([mutate(), mutateGlobal(summaryKey)]);
     } finally {
       setRefreshingCurrency(null);

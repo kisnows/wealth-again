@@ -11,7 +11,7 @@ export type NotifyAsyncMessages<T> = {
   error?: ErrorContent;
 };
 
-const resolveSuccess = <T,>(content: SuccessContent<T>, value: T) =>
+const resolveSuccess = <T>(content: SuccessContent<T>, value: T) =>
   typeof content === "function" ? content(value) : content;
 
 const resolveError = (content: ErrorContent | undefined, error: unknown) => {
@@ -25,12 +25,16 @@ export function notifyAsync<T>(
   task: () => Promise<T>,
   messages: NotifyAsyncMessages<T>,
 ) {
-  return toast.promise(
-    (async () => task())(),
-    {
-      loading: messages.loading,
-      success: (value: T) => resolveSuccess(messages.success, value),
-      error: (error: unknown) => resolveError(messages.error, error),
-    },
-  );
+  let runner: Promise<T>;
+  try {
+    runner = task();
+  } catch (error) {
+    runner = Promise.reject(error);
+  }
+  toast.promise(runner, {
+    loading: messages.loading,
+    success: (value: T) => resolveSuccess(messages.success, value),
+    error: (error: unknown) => resolveError(messages.error, error),
+  });
+  return runner;
 }

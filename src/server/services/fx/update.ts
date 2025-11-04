@@ -1,6 +1,7 @@
 import type { FxRateUpdateTask, Prisma } from "@prisma/client";
 import prisma from "@/server/db";
 import { logAudit } from "@/server/services/audit";
+import { clearFxCache } from "@/server/services/fx";
 import { upsertFxRateWithContinuity } from "@/server/services/fx/rate-writer";
 import {
   SUPPORTED_CURRENCY_CODES,
@@ -13,6 +14,8 @@ const BASE_CURRENCY = "USD";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const COVERAGE_LOOKBACK_DAYS = 365;
 const COVERAGE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const FRANKFURTER_BASE_URL = "https://api.frankfurter.app";
+const EXCHANGERATE_HOST_BASE_URL = "https://api.exchangerate.host";
 
 let fxFetchImpl: typeof fetch | null = null;
 let lastCoverageCheck = 0;
@@ -103,6 +106,177 @@ function addDays(date: Date, days: number): Date {
 
 function formatIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function getExchangerateHostApiKey(): string {
+  return process.env.EXCHANGERATE_HOST_API_KEY?.trim() ?? "";
+}
+
+function asError(input: unknown): Error {
+  if (input instanceof Error) return input;
+  if (typeof input === "string") return new Error(input);
+  return new Error("fx_unknown_error");
+}
+
+function normalizeRatesPayload(
+  payload: Record<string, Record<string, number>> | undefined,
+  targetSymbol: string,
+): Record<string, Record<string, number>> | null {
+  if (!payload || typeof payload !== "object") return null;
+  const normalized: Record<string, Record<string, number>> = {};
+  const desired = targetSymbol.toUpperCase();
+  for (const [dateKey, row] of Object.entries(payload)) {
+    if (!row || typeof row !== "object") continue;
+    const normalizedRow: Record<string, number> = {};
+    for (const [symbol, value] of Object.entries(row)) {
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+        continue;
+      }
+      if (symbol.toUpperCase() !== desired) continue;
+      normalizedRow[desired] = value;
+    }
+    if (Object.keys(normalizedRow).length > 0) {
+      normalized[dateKey] = normalizedRow;
+    }
+  }
+  if (Object.keys(normalized).length === 0) return null;
+  return normalized;
+}
+
+function logFxRequest(provider: string, url: URL) {
+  // 输出真实请求地址，便于排查汇率同步问题
+  console.info(`[fx.update] ${provider} request -> ${url.toString()}`);
+}
+
+async function fetchFrankfurterTimeseries(
+  base: string,
+  quote: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<FxTimeseriesResponse | null> {
+  const fetcher = fxFetchImpl ?? fetch;
+  const startIso = formatIsoDate(startDate);
+  const endIso = formatIsoDate(endDate);
+  const rangeSegment =
+    startIso === endIso ? `/${startIso}` : `/${startIso}..${endIso}`;
+  const url = new URL(`${FRANKFURTER_BASE_URL}${rangeSegment}`);
+  url.searchParams.set("from", base.toUpperCase());
+  url.searchParams.set("to", quote.toUpperCase());
+  logFxRequest("frankfurter.timeseries", url);
+  const res = await fetcher(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    if (res.status === 422 || res.status === 404) {
+      return null;
+    }
+    throw new Error(`fx_frankfurter_http_${res.status}`);
+  }
+  const data = (await res.json()) as {
+    rates?: Record<string, Record<string, number>>;
+  };
+  const rates = normalizeRatesPayload(data.rates, quote);
+  if (!rates) return null;
+  return { rates };
+}
+
+async function fetchExchangeRateHostTimeseries(
+  base: string,
+  quote: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<FxTimeseriesResponse> {
+  const apiKey = getExchangerateHostApiKey();
+  if (!apiKey) {
+    throw new Error("fx_exchangerate_host_api_key_missing");
+  }
+  const fetcher = fxFetchImpl ?? fetch;
+  const url = new URL(`${EXCHANGERATE_HOST_BASE_URL}/timeseries`);
+  url.searchParams.set("base", base.toUpperCase());
+  url.searchParams.set("symbols", quote.toUpperCase());
+  url.searchParams.set("start_date", formatIsoDate(startDate));
+  url.searchParams.set("end_date", formatIsoDate(endDate));
+  url.searchParams.set("access_key", apiKey);
+  logFxRequest("exchangerate_host.timeseries", url);
+  const res = await fetcher(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`fx_exchangerate_host_http_${res.status}`);
+  }
+  const data = (await res.json()) as FxTimeseriesResponse & {
+    success?: boolean;
+    error?: { type?: string; info?: string };
+  };
+  if (data.success === false) {
+    const errorCode = data.error?.type ?? "unknown";
+    throw new Error(`fx_exchangerate_host_error_${errorCode}`);
+  }
+  const rates = normalizeRatesPayload(data.rates, quote);
+  if (!rates) {
+    throw new Error("fx_exchangerate_host_missing_rates");
+  }
+  return { rates };
+}
+
+async function fetchFrankfurterLatest(
+  base: string,
+  quote: string,
+): Promise<{ rate: number; asOf: Date } | null> {
+  const fetcher = fxFetchImpl ?? fetch;
+  const url = new URL(`${FRANKFURTER_BASE_URL}/latest`);
+  url.searchParams.set("from", base.toUpperCase());
+  url.searchParams.set("to", quote.toUpperCase());
+  logFxRequest("frankfurter.latest", url);
+  const res = await fetcher(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    if (res.status === 422 || res.status === 404) {
+      return null;
+    }
+    throw new Error(`fx_frankfurter_latest_http_${res.status}`);
+  }
+  const data = (await res.json()) as {
+    rates?: Record<string, number>;
+    date?: string;
+  };
+  const rate = data.rates?.[quote.toUpperCase()];
+  if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
+    return null;
+  }
+  const asOfRaw = data.date ? new Date(`${data.date}T00:00:00Z`) : new Date();
+  return { rate, asOf: normalizeDate(asOfRaw) };
+}
+
+async function fetchExchangeRateHostLatest(
+  base: string,
+  quote: string,
+): Promise<{ rate: number; asOf: Date }> {
+  const apiKey = getExchangerateHostApiKey();
+  if (!apiKey) {
+    throw new Error("fx_exchangerate_host_api_key_missing");
+  }
+  const fetcher = fxFetchImpl ?? fetch;
+  const url = new URL(`${EXCHANGERATE_HOST_BASE_URL}/latest`);
+  url.searchParams.set("base", base.toUpperCase());
+  url.searchParams.set("symbols", quote.toUpperCase());
+  url.searchParams.set("access_key", apiKey);
+  logFxRequest("exchangerate_host.latest", url);
+  const res = await fetcher(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`fx_exchangerate_host_latest_http_${res.status}`);
+  }
+  const data = (await res.json()) as {
+    rates?: Record<string, number>;
+    date?: string;
+    success?: boolean;
+    error?: { type?: string; info?: string };
+  };
+  if (data.success === false) {
+    const errorCode = data.error?.type ?? "unknown";
+    throw new Error(`fx_exchangerate_host_latest_error_${errorCode}`);
+  }
+  const rate = data.rates?.[quote.toUpperCase()];
+  if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
+    throw new Error("fx_provider_latest_missing");
+  }
+  const asOfRaw = data.date ? new Date(`${data.date}T00:00:00Z`) : new Date();
+  return { rate, asOf: normalizeDate(asOfRaw) };
 }
 
 type EnqueueFxRateUpdateOptions = {
@@ -255,24 +429,43 @@ async function fetchFxTimeseries(
   startDate: Date,
   endDate: Date,
 ): Promise<FxTimeseriesResponse> {
-  const fetcher = fxFetchImpl ?? fetch;
-  const url = new URL("https://api.exchangerate.host/timeseries");
-  url.searchParams.set("base", base.toUpperCase());
-  url.searchParams.set("symbols", quote.toUpperCase());
-  url.searchParams.set("start_date", formatIsoDate(startDate));
-  url.searchParams.set("end_date", formatIsoDate(endDate));
-  const res = await fetcher(url.toString(), { method: "GET" });
-  if (!res.ok) {
-    throw new Error(`fx_provider_http_${res.status}`);
+  let frankfurterError: Error | null = null;
+  let frankfurterErrorMessage: string | null = null;
+  const primary = await fetchFrankfurterTimeseries(
+    base,
+    quote,
+    startDate,
+    endDate,
+  ).catch((error) => {
+    const normalized = asError(error);
+    frankfurterError = normalized;
+    frankfurterErrorMessage = normalized.message;
+    return null;
+  });
+  if (primary) {
+    return primary;
   }
-  const data = (await res.json()) as FxTimeseriesResponse & {
-    success?: boolean;
-    error?: string;
-  };
-  if (!data || typeof data.rates !== "object") {
-    throw new Error("fx_provider_invalid_payload");
+  try {
+    return await fetchExchangeRateHostTimeseries(
+      base,
+      quote,
+      startDate,
+      endDate,
+    );
+  } catch (error) {
+    const fallbackError = asError(error);
+    if (frankfurterErrorMessage) {
+      const aggregate = new Error(
+        `fx_timeseries_all_providers_failed:${frankfurterErrorMessage}|${fallbackError.message}`,
+      );
+      (aggregate as { cause?: unknown }).cause = {
+        frankfurter: frankfurterError ?? frankfurterErrorMessage,
+        exchangerateHost: fallbackError,
+      };
+      throw aggregate;
+    }
+    throw fallbackError;
   }
-  return data;
 }
 
 function buildMissingWeekRanges(
@@ -440,25 +633,33 @@ async function fetchLatestRate(
   rate: number;
   asOf: Date;
 }> {
-  const fetcher = fxFetchImpl ?? fetch;
-  const url = new URL("https://api.exchangerate.host/latest");
-  url.searchParams.set("base", base.toUpperCase());
-  url.searchParams.set("symbols", quote.toUpperCase());
-  const res = await fetcher(url.toString(), { method: "GET" });
-  if (!res.ok) {
-    throw new Error(`fx_provider_latest_http_${res.status}`);
+  let frankfurterError: Error | null = null;
+  let frankfurterErrorMessage: string | null = null;
+  const primary = await fetchFrankfurterLatest(base, quote).catch((error) => {
+    const normalized = asError(error);
+    frankfurterError = normalized;
+    frankfurterErrorMessage = normalized.message;
+    return null;
+  });
+  if (primary) {
+    return primary;
   }
-  const data = (await res.json()) as {
-    rates?: Record<string, number>;
-    date?: string;
-  };
-  const rate = data.rates?.[quote.toUpperCase()];
-  if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
-    throw new Error("fx_provider_latest_missing");
+  try {
+    return await fetchExchangeRateHostLatest(base, quote);
+  } catch (error) {
+    const fallbackError = asError(error);
+    if (frankfurterErrorMessage) {
+      const aggregate = new Error(
+        `fx_latest_all_providers_failed:${frankfurterErrorMessage}|${fallbackError.message}`,
+      );
+      (aggregate as { cause?: unknown }).cause = {
+        frankfurter: frankfurterError ?? frankfurterErrorMessage,
+        exchangerateHost: fallbackError,
+      };
+      throw aggregate;
+    }
+    throw fallbackError;
   }
-  const asOfRaw = data.date ? new Date(`${data.date}T00:00:00Z`) : new Date();
-  const asOf = normalizeDate(asOfRaw);
-  return { rate, asOf };
 }
 
 export async function processDueFxRateUpdateTasks(limit = 3): Promise<{
@@ -509,6 +710,7 @@ export async function refreshLatestFxRate({
     effectiveFrom: asOf,
     effectiveTo: null,
   });
+  clearFxCache();
   await logAudit("FX_RATE_REFRESHED", {
     userId: triggeredBy ?? null,
     meta: {

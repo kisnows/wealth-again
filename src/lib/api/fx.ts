@@ -76,8 +76,19 @@ export type FxRateTaskDetail = FxRateUpdateTask & {
   };
 };
 
+export type RefreshFxRateResponse = {
+  id: string;
+  base: string;
+  quote: string;
+  rate: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export async function refreshFxRateNow(quote: string) {
-  return postJson("/api/v1/fx/rates/refresh", { quote });
+  return postJson<RefreshFxRateResponse>("/api/v1/fx/rates/refresh", { quote });
 }
 
 export function useLatestFxRates(quotes: string[]) {
