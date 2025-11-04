@@ -29,6 +29,9 @@ const delegates = [
   "account",
   "fxRate",
   "fxSnapshot",
+  "fxRateUpdateTask",
+  "fxRateUpdateLog",
+  "fxRateUpdateTask",
   "txnEntry",
   "txnLine",
   "valuationSnapshot",
@@ -51,7 +54,9 @@ const delegates = [
 
 export const prismaMock = prismaInstance as unknown as Record<string, any>;
 
-function buildIncomeRecalcTask(overrides: Partial<IncomeRecalcTask> = {}): IncomeRecalcTask {
+function buildIncomeRecalcTask(
+  overrides: Partial<IncomeRecalcTask> = {},
+): IncomeRecalcTask {
   const now = new Date();
   return {
     id: "task-mock",
@@ -87,8 +92,8 @@ export function resetPrismaMock() {
     prismaMock.$transaction.mockReset();
   }
   if (typeof prismaMock.$transaction === "function") {
-    prismaMock.$transaction.mockImplementation(async (fn: (client: typeof prismaMock) => any) =>
-      fn(prismaMock),
+    prismaMock.$transaction.mockImplementation(
+      async (fn: (client: typeof prismaMock) => any) => fn(prismaMock),
     );
   }
   if (typeof prismaMock.$use?.mockReset === "function") {
@@ -116,8 +121,128 @@ export function resetPrismaMock() {
       sourceRateId: data?.sourceRateId ?? "rate-mock",
       effectiveFrom:
         data?.effectiveFrom instanceof Date ? data.effectiveFrom : null,
-      effectiveTo:
-        data?.effectiveTo instanceof Date ? data.effectiveTo : null,
+      effectiveTo: data?.effectiveTo instanceof Date ? data.effectiveTo : null,
+    }),
+  );
+  if (!prismaMock.fxRateUpdateTask) {
+    prismaMock.fxRateUpdateTask = {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    } as unknown as typeof prismaMock.fxRateUpdateTask;
+  }
+  prismaMock.fxRateUpdateTask.findUnique.mockResolvedValue(null);
+  prismaMock.fxRateUpdateTask.findMany.mockResolvedValue([]);
+  prismaMock.fxRateUpdateTask.findFirst.mockResolvedValue(null);
+  prismaMock.fxRateUpdateTask.create.mockImplementation(
+    async ({ data }: { data: any }) => ({
+      id: data?.id ?? "fx-task-mock",
+      base: data?.base ?? "USD",
+      quote: data?.quote ?? "CNY",
+      startDate: data?.startDate instanceof Date ? data.startDate : new Date(),
+      endDate: data?.endDate instanceof Date ? data.endDate : new Date(),
+      status: data?.status ?? "PENDING",
+      scheduledFor:
+        data?.scheduledFor instanceof Date ? data.scheduledFor : new Date(),
+      attempts: typeof data?.attempts === "number" ? data.attempts : 0,
+      lastError: data?.lastError ?? null,
+      triggeredBy: data?.triggeredBy ?? null,
+      processedAt: data?.processedAt instanceof Date ? data.processedAt : null,
+      createdAt: data?.createdAt instanceof Date ? data.createdAt : new Date(),
+      updatedAt: data?.updatedAt instanceof Date ? data.updatedAt : new Date(),
+    }),
+  );
+  prismaMock.fxRateUpdateTask.update.mockImplementation(
+    async ({ data, where }: { data: any; where: any }) => ({
+      id: where?.id ?? "fx-task-mock",
+      base: data?.base ?? "USD",
+      quote: data?.quote ?? "CNY",
+      startDate: data?.startDate instanceof Date ? data.startDate : new Date(),
+      endDate: data?.endDate instanceof Date ? data.endDate : new Date(),
+      status: data?.status ?? "PENDING",
+      scheduledFor:
+        data?.scheduledFor instanceof Date ? data.scheduledFor : new Date(),
+      attempts: typeof data?.attempts === "number" ? data.attempts : 0,
+      lastError: data?.lastError ?? null,
+      triggeredBy: data?.triggeredBy ?? null,
+      processedAt: data?.processedAt instanceof Date ? data.processedAt : null,
+      createdAt: data?.createdAt instanceof Date ? data.createdAt : new Date(),
+      updatedAt: new Date(),
+    }),
+  );
+  prismaMock.fxRateUpdateTask.updateMany.mockResolvedValue({ count: 0 });
+
+  if (!prismaMock.fxRateUpdateLog) {
+    prismaMock.fxRateUpdateLog = {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+    } as unknown as typeof prismaMock.fxRateUpdateLog;
+  }
+  prismaMock.fxRateUpdateLog.findMany.mockResolvedValue([]);
+  prismaMock.fxRateUpdateLog.upsert.mockImplementation(
+    async ({ where, create, update }: { where: any; create: any; update: any }) => {
+      return {
+        id: create?.id ?? "fx-log-mock",
+        taskId: create?.taskId ?? where?.taskId_weekStart?.taskId ?? "fx-task-mock",
+        weekStart:
+          create?.weekStart instanceof Date
+            ? create.weekStart
+            : update?.weekStart instanceof Date
+              ? update.weekStart
+              : new Date(),
+        weekEnd:
+          create?.weekEnd instanceof Date
+            ? create.weekEnd
+            : update?.weekEnd instanceof Date
+              ? update.weekEnd
+              : new Date(),
+        status: update?.status ?? create?.status ?? "PENDING",
+        rate: update?.rate ?? create?.rate ?? null,
+        attempts:
+          typeof update?.attempts?.increment === "number"
+            ? (create?.attempts ?? 0) + update.attempts.increment
+            : update?.attempts ?? create?.attempts ?? 0,
+        lastError: update?.lastError ?? create?.lastError ?? null,
+        startedAt:
+          update?.startedAt instanceof Date
+            ? update.startedAt
+            : create?.startedAt instanceof Date
+              ? create.startedAt
+              : null,
+        completedAt:
+          update?.completedAt instanceof Date
+            ? update.completedAt
+            : create?.completedAt instanceof Date
+              ? create.completedAt
+              : null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    },
+  );
+  prismaMock.fxRateUpdateLog.update.mockImplementation(
+    async ({ where, data }: { where: any; data: any }) => ({
+      id: where?.id ?? "fx-log-mock",
+      taskId: data?.taskId ?? "fx-task-mock",
+      weekStart: data?.weekStart instanceof Date ? data.weekStart : new Date(),
+      weekEnd: data?.weekEnd instanceof Date ? data.weekEnd : new Date(),
+      status: data?.status ?? "PENDING",
+      rate: data?.rate ?? null,
+      attempts:
+        typeof data?.attempts?.increment === "number"
+          ? data.attempts.increment
+          : data?.attempts ?? 0,
+      lastError: data?.lastError ?? null,
+      startedAt:
+        data?.startedAt instanceof Date ? data.startedAt : new Date(),
+      completedAt:
+        data?.completedAt instanceof Date ? data.completedAt : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     }),
   );
   if (!prismaMock.eventOutbox) {
@@ -129,32 +254,39 @@ export function resetPrismaMock() {
     } as unknown as typeof prismaMock.eventOutbox;
   }
   prismaMock.eventOutbox?.findMany?.mockResolvedValue([]);
-  prismaMock.eventOutbox?.update?.mockImplementation(async ({ data, where }: { data: any; where: any }) => ({
-    id: where?.id ?? "evt-mock",
-    eventType: "mock",
-    payload: {},
-    status: data?.status ?? "PENDING",
-    attempts: typeof data?.attempts?.increment === "number" ? data.attempts.increment : data?.attempts ?? 0,
-    lastError: data?.lastError ?? null,
-    occurredAt: data?.occurredAt ?? new Date(),
-    availableAt: data?.availableAt ?? new Date(),
-    processedAt: data?.processedAt ?? null,
-    createdAt: data?.createdAt ?? new Date(),
-    updatedAt: data?.updatedAt ?? new Date(),
-  }));
-  prismaMock.eventOutbox?.create?.mockImplementation(async ({ data }: { data: any }) => ({
-    id: data?.id ?? "evt-mock",
-    eventType: data?.eventType ?? "mock",
-    payload: data?.payload ?? {},
-    status: data?.status ?? "PENDING",
-    attempts: data?.attempts ?? 0,
-    lastError: data?.lastError ?? null,
-    occurredAt: data?.occurredAt ?? new Date(),
-    availableAt: data?.availableAt ?? new Date(),
-    processedAt: data?.processedAt ?? null,
-    createdAt: data?.createdAt ?? new Date(),
-    updatedAt: data?.updatedAt ?? new Date(),
-  }));
+  prismaMock.eventOutbox?.update?.mockImplementation(
+    async ({ data, where }: { data: any; where: any }) => ({
+      id: where?.id ?? "evt-mock",
+      eventType: "mock",
+      payload: {},
+      status: data?.status ?? "PENDING",
+      attempts:
+        typeof data?.attempts?.increment === "number"
+          ? data.attempts.increment
+          : (data?.attempts ?? 0),
+      lastError: data?.lastError ?? null,
+      occurredAt: data?.occurredAt ?? new Date(),
+      availableAt: data?.availableAt ?? new Date(),
+      processedAt: data?.processedAt ?? null,
+      createdAt: data?.createdAt ?? new Date(),
+      updatedAt: data?.updatedAt ?? new Date(),
+    }),
+  );
+  prismaMock.eventOutbox?.create?.mockImplementation(
+    async ({ data }: { data: any }) => ({
+      id: data?.id ?? "evt-mock",
+      eventType: data?.eventType ?? "mock",
+      payload: data?.payload ?? {},
+      status: data?.status ?? "PENDING",
+      attempts: data?.attempts ?? 0,
+      lastError: data?.lastError ?? null,
+      occurredAt: data?.occurredAt ?? new Date(),
+      availableAt: data?.availableAt ?? new Date(),
+      processedAt: data?.processedAt ?? null,
+      createdAt: data?.createdAt ?? new Date(),
+      updatedAt: data?.updatedAt ?? new Date(),
+    }),
+  );
   if (!prismaMock.reportDataset) {
     prismaMock.reportDataset = {
       findUnique: vi.fn(),
@@ -165,11 +297,31 @@ export function resetPrismaMock() {
   }
   prismaMock.reportDataset.findUnique.mockResolvedValue(null);
   prismaMock.reportDataset.upsert.mockImplementation(
-    async ({ create, update, where }: { create: any; update: any; where: any }) => ({
+    async ({
+      create,
+      update,
+      where,
+    }: {
+      create: any;
+      update: any;
+      where: any;
+    }) => ({
       id: create?.id ?? "report-dataset",
-      userId: create?.userId ?? update?.userId ?? where?.userId_scope_bucket?.userId ?? "u1",
-      scope: create?.scope ?? update?.scope ?? where?.userId_scope_bucket?.scope ?? "accounts.summary",
-      bucket: create?.bucket ?? update?.bucket ?? where?.userId_scope_bucket?.bucket ?? "default",
+      userId:
+        create?.userId ??
+        update?.userId ??
+        where?.userId_scope_bucket?.userId ??
+        "u1",
+      scope:
+        create?.scope ??
+        update?.scope ??
+        where?.userId_scope_bucket?.scope ??
+        "accounts.summary",
+      bucket:
+        create?.bucket ??
+        update?.bucket ??
+        where?.userId_scope_bucket?.bucket ??
+        "default",
       payload: create?.payload ?? update?.payload ?? {},
       occurredAt: create?.occurredAt ?? update?.occurredAt ?? null,
       createdAt: create?.createdAt ?? new Date(),
@@ -181,38 +333,41 @@ export function resetPrismaMock() {
       create: vi.fn(),
     } as unknown as typeof prismaMock.auditLog;
   }
-  prismaMock.auditLog.create.mockImplementation(async ({ data }: { data: any }) => ({
-    id: data?.id ?? "audit-mock",
-    action: data?.action ?? "",
-    userId: data?.userId ?? null,
-    meta: data?.meta ?? null,
-    createdAt: data?.createdAt ?? new Date(),
-  }));
+  prismaMock.auditLog.create.mockImplementation(
+    async ({ data }: { data: any }) => ({
+      id: data?.id ?? "audit-mock",
+      action: data?.action ?? "",
+      userId: data?.userId ?? null,
+      meta: data?.meta ?? null,
+      createdAt: data?.createdAt ?? new Date(),
+    }),
+  );
   prismaMock.incomeRecalcTask?.findMany?.mockResolvedValue([]);
   prismaMock.incomeRecalcTask?.findFirst?.mockResolvedValue(null);
   prismaMock.incomeRecalcTask?.updateMany?.mockResolvedValue({ count: 0 });
   if (prismaMock.incomeRecalcTask?.create) {
-    prismaMock.incomeRecalcTask.create.mockImplementation(async ({ data }: { data: any }) =>
-      buildIncomeRecalcTask({
-        id: data?.id ?? "task-mock",
-        userId: data?.userId ?? null,
-        taxYear: data?.taxYear ?? 2025,
-        startMonth: data?.startMonth ?? 1,
-        endMonth: data?.endMonth ?? 12,
-        cityId: data?.cityId ?? null,
-        status: data?.status ?? "PENDING",
-        scheduledFor:
-          data?.scheduledFor instanceof Date ? data.scheduledFor : new Date(),
-        attempts: typeof data?.attempts === "number" ? data.attempts : 0,
-        triggeredBy: data?.triggeredBy ?? null,
-        createdAt:
-          data?.createdAt instanceof Date ? data.createdAt : new Date(),
-        updatedAt:
-          data?.updatedAt instanceof Date ? data.updatedAt : new Date(),
-        processedAt:
-          data?.processedAt instanceof Date ? data.processedAt : null,
-        lastError: data?.lastError ?? null,
-      }),
+    prismaMock.incomeRecalcTask.create.mockImplementation(
+      async ({ data }: { data: any }) =>
+        buildIncomeRecalcTask({
+          id: data?.id ?? "task-mock",
+          userId: data?.userId ?? null,
+          taxYear: data?.taxYear ?? 2025,
+          startMonth: data?.startMonth ?? 1,
+          endMonth: data?.endMonth ?? 12,
+          cityId: data?.cityId ?? null,
+          status: data?.status ?? "PENDING",
+          scheduledFor:
+            data?.scheduledFor instanceof Date ? data.scheduledFor : new Date(),
+          attempts: typeof data?.attempts === "number" ? data.attempts : 0,
+          triggeredBy: data?.triggeredBy ?? null,
+          createdAt:
+            data?.createdAt instanceof Date ? data.createdAt : new Date(),
+          updatedAt:
+            data?.updatedAt instanceof Date ? data.updatedAt : new Date(),
+          processedAt:
+            data?.processedAt instanceof Date ? data.processedAt : null,
+          lastError: data?.lastError ?? null,
+        }),
     );
   }
   if (prismaMock.incomeRecalcTask?.update) {

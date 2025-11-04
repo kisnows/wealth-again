@@ -28,9 +28,6 @@ export default function ThemeToggle() {
     >
       <SunIcon className="h-4 w-4 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
       <MoonIcon className="absolute h-4 w-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
-      <span className="sr-only">
-        {isDark ? "切换为浅色模式" : "切换为深色模式"}
-      </span>
     </Button>
   );
 }

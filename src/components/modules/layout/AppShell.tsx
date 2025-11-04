@@ -28,6 +28,7 @@ import {
 import { notifyAsync } from "@/lib/utils/notify";
 import { updateDisplayCurrency } from "@/lib/api/user";
 import ThemeToggle from "./ThemeToggle";
+import { formatCurrencyLabel, getSupportedCurrencyOptions } from "@/lib/domain/currency";
 
 type Props = { children: ReactNode };
 
@@ -53,7 +54,11 @@ export default function AppShell({ children }: Props) {
     }
   }, [currentUser, displayCurrency, setDisplayCurrency]);
   const isAdmin = Boolean(currentUser?.isAdmin || currentUser?.role === "ADMIN");
-  const currencyLabel = displayCurrency ?? "自动";
+  const currencyLabel = displayCurrency
+    ? formatCurrencyLabel(displayCurrency)
+    : "自动";
+
+  const currencyOptions = useMemo(() => getSupportedCurrencyOptions(), []);
 
   const handleCurrencyChange = async (value: string | null) => {
     const normalized = value === "AUTO" ? null : value;
@@ -206,13 +211,13 @@ export default function AppShell({ children }: Props) {
                   >
                     自动（按偏好）
                   </DropdownMenuItem>
-                  {["CNY", "USD", "EUR", "HKD", "JPY"].map((code) => (
+                  {currencyOptions.map((option) => (
                     <DropdownMenuItem
-                      data-testid={`layout-ui-display-currency-${code.toLowerCase()}`}
-                      key={code}
-                      onSelect={() => handleCurrencyChange(code)}
+                      data-testid={`layout-ui-display-currency-${option.code.toLowerCase()}`}
+                      key={option.code}
+                      onSelect={() => handleCurrencyChange(option.code)}
                     >
-                      {code}
+                      {option.label}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>

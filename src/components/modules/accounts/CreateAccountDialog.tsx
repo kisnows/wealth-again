@@ -21,8 +21,7 @@ import {
 } from "@/components/ui/select";
 import { type Account, createAccount, useAccounts } from "@/lib/api/accounts";
 import { notifyAsync } from "@/lib/utils/notify";
-
-const SUPPORTED_CURRENCIES = ["CNY", "USD", "EUR", "HKD", "JPY", "GBP"];
+import { getSupportedCurrencyOptions } from "@/lib/domain/currency";
 
 type AccountTypeOption = Account["accountType"];
 
@@ -155,9 +154,9 @@ export default function CreateAccountDialog() {
                 <SelectValue placeholder="选择币种" />
               </SelectTrigger>
               <SelectContent>
-                {SUPPORTED_CURRENCIES.map((ccy) => (
-                  <SelectItem key={ccy} value={ccy}>
-                    {ccy}
+                {currencyOptions.map((option) => (
+                  <SelectItem key={option.code} value={option.code}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -188,3 +187,4 @@ export default function CreateAccountDialog() {
     </Dialog>
   );
 }
+  const currencyOptions = getSupportedCurrencyOptions();

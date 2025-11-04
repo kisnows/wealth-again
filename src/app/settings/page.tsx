@@ -60,9 +60,13 @@ import { formatMoney } from "@/lib/domain/money";
 import { useUserPrefsStore } from "@/lib/state/identity";
 import { useAccountsSummary } from "@/lib/api/reports";
 import {
+  ensureSupportedCurrency,
   formatCurrencyLabel,
+  getSupportedCurrencyOptions,
   resolveCountryCurrency,
+  isSupportedCurrency,
 } from "@/lib/domain/currency";
+import { useLatestFxRates } from "@/lib/api/fx";
 
 const countryLabels: Record<string, string> = {
   CN: "中国",
@@ -169,31 +173,100 @@ export default function SettingsPage() {
 
   const fxCurrencies = useMemo(() => {
     const codes = new Set<string>();
-    const addCode = (code?: string | null) => {
+    const addSupported = (code?: string | null) => {
       if (!code) return;
-      const upper = code.toUpperCase();
-      if (upper.length === 0) return;
-      codes.add(upper);
+      if (!isSupportedCurrency(code)) return;
+      codes.add(code.toUpperCase());
     };
     accountsSummaryData?.items.forEach((item) => {
-      addCode(item.currency);
-      addCode(item.valuationCurrency);
+      addSupported(item.currency);
+      addSupported(item.valuationCurrency);
     });
-    addCode(displayCurrency ?? undefined);
+    addSupported(displayCurrency);
     return Array.from(codes).sort();
   }, [accountsSummaryData?.items, displayCurrency]);
 
   const annualDeductions = deductionData?.items ?? [];
   const defaultEffectiveMonth = useMemo(() => getNextMonthValue(), []);
-  const taxCurrency = useMemo(
+  const taxCurrencyCode = useMemo(
     () =>
       resolveCountryCurrency(cityChangeData?.currentCity?.country ?? undefined),
     [cityChangeData?.currentCity?.country],
   );
-  const taxCurrencyLabel = useMemo(
-    () => formatCurrencyLabel(taxCurrency),
-    [taxCurrency],
+  const displayCurrencyCode = ensureSupportedCurrency(
+    displayCurrency,
+    taxCurrencyCode,
   );
+  const requiresConversion = displayCurrencyCode !== taxCurrencyCode;
+  const supportedCurrencyOptions = useMemo(
+    () => getSupportedCurrencyOptions(),
+    [],
+  );
+  const taxCurrencyLabel = useMemo(
+    () => formatCurrencyLabel(taxCurrencyCode),
+    [taxCurrencyCode],
+  );
+  const displayCurrencyLabel = useMemo(
+    () => formatCurrencyLabel(displayCurrencyCode),
+    [displayCurrencyCode],
+  );
+
+  const fxQuotes = useMemo(() => {
+    if (!requiresConversion) return [];
+    const quotes = new Set<string>();
+    if (taxCurrencyCode !== "USD") quotes.add(taxCurrencyCode);
+    if (displayCurrencyCode !== "USD") quotes.add(displayCurrencyCode);
+    return Array.from(quotes);
+  }, [requiresConversion, taxCurrencyCode, displayCurrencyCode]);
+
+  const { data: latestFx } = useLatestFxRates(fxQuotes);
+
+  const { convertAmount, conversionReady } = useMemo(() => {
+    if (!requiresConversion) {
+      return {
+        convertAmount: (amount: number) => ({
+          value: amount,
+          displayCurrency: taxCurrencyCode,
+          converted: false,
+        }),
+        conversionReady: true,
+      };
+    }
+    const base = latestFx?.base?.toUpperCase() ?? "USD";
+    const rateMap = new Map<string, number>();
+    latestFx?.items?.forEach((item) => {
+      if (item.rate != null) {
+        rateMap.set(item.quote.toUpperCase(), Number(item.rate));
+      }
+    });
+    const fromRate = taxCurrencyCode === base ? 1 : rateMap.get(taxCurrencyCode) ?? null;
+    const toRate =
+      displayCurrencyCode === base ? 1 : rateMap.get(displayCurrencyCode) ?? null;
+    if (!fromRate || !toRate) {
+      return {
+        convertAmount: (amount: number) => ({
+          value: amount,
+          displayCurrency: taxCurrencyCode,
+          converted: false,
+        }),
+        conversionReady: false,
+      };
+    }
+    return {
+      convertAmount: (amount: number) => {
+        const amountInBase =
+          taxCurrencyCode === base ? amount : amount / fromRate;
+        const converted =
+          displayCurrencyCode === base ? amountInBase : amountInBase * toRate;
+        return {
+          value: converted,
+          displayCurrency: displayCurrencyCode,
+          converted: true,
+        };
+      },
+      conversionReady: true,
+    };
+  }, [requiresConversion, latestFx, taxCurrencyCode, displayCurrencyCode]);
 
   const changeForm = useForm<CityChangeFormValues>({
     resolver: zodResolver(cityChangeSchema),
@@ -333,11 +406,11 @@ export default function SettingsPage() {
                       <SelectValue placeholder="请选择展示币种" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                      <SelectItem value="USD">美元 (USD)</SelectItem>
-                      <SelectItem value="EUR">欧元 (EUR)</SelectItem>
-                      <SelectItem value="HKD">港币 (HKD)</SelectItem>
-                      <SelectItem value="JPY">日元 (JPY)</SelectItem>
+                      {supportedCurrencyOptions.map((option) => (
+                        <SelectItem value={option.code} key={option.code}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <Button
@@ -593,7 +666,12 @@ export default function SettingsPage() {
                   年度专项附加扣除
                 </CardTitle>
                 <CardDescription>
-                  用于个税回算的年度专项附加扣除额度，系统会按月均摊。金额单位：{taxCurrencyLabel}。
+                  用于个税回算的年度专项附加扣除额度，系统会按月均摊。
+                  {requiresConversion
+                    ? conversionReady
+                      ? ` 已按汇率折算为 ${displayCurrencyLabel}。`
+                      : ` 尝试折算为 ${displayCurrencyLabel}，当前汇率加载中或不可用。`
+                    : ` 金额单位：${taxCurrencyLabel}。`}
                 </CardDescription>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -660,18 +738,48 @@ export default function SettingsPage() {
                 </TableHeader>
                 <TableBody>
                   {annualDeductions.map((deduction) => {
-                    const monthly = deduction.annualAmount / 12;
+                    const annualConverted = convertAmount(deduction.annualAmount);
+                    const monthlyConverted = convertAmount(deduction.annualAmount / 12);
+                    const showOriginal =
+                      requiresConversion && annualConverted.converted;
                     return (
                       <TableRow key={deduction.id}>
                         <TableCell>{deduction.taxYear}</TableCell>
                         <TableCell className="text-right font-mono">
                           {formatMoney(
-                            deduction.annualAmount,
-                            displayCurrency ?? "CNY",
+                            annualConverted.value,
+                            annualConverted.displayCurrency,
                           )}
+                          {requiresConversion ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {annualConverted.converted
+                                ? `原币 ${formatMoney(
+                                    deduction.annualAmount,
+                                    taxCurrencyCode,
+                                  )}`
+                                : conversionReady
+                                  ? `汇率不可用，已显示原币`
+                                  : `汇率加载中或缺失，暂显示原币`}
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {formatMoney(monthly, displayCurrency ?? "CNY")}
+                          {formatMoney(
+                            monthlyConverted.value,
+                            monthlyConverted.displayCurrency,
+                          )}
+                          {requiresConversion ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {monthlyConverted.converted
+                                ? `原币 ${formatMoney(
+                                    deduction.annualAmount / 12,
+                                    taxCurrencyCode,
+                                  )}`
+                                : conversionReady
+                                  ? `汇率不可用，已显示原币`
+                                  : `汇率加载中或缺失，暂显示原币`}
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell>
                           {deduction.allocationRule === "ONCE"
@@ -701,7 +809,7 @@ export default function SettingsPage() {
 
       <AnnualDeductionDialog
         deduction={editingDeduction}
-        currency={taxCurrency}
+        currency={taxCurrencyCode}
         onOpenChange={handleDeductionDialogChange}
         onSuccess={() => {
           setEditingDeduction(null);

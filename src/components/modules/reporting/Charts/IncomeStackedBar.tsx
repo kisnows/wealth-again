@@ -126,7 +126,7 @@ export default function IncomeStackedBar({
           data={normalized}
           margin={{ top: 12, right: 16, bottom: 8, left: 8 }}
         >
-          <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+          <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" />
           <XAxis
             dataKey="month"
             tick={{ fill: "var(--semantic-neutral-text)", fontSize: 12 }}
@@ -182,14 +182,14 @@ export default function IncomeStackedBar({
               );
             }}
           />
-          <ReferenceLine stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" y={0} />
+          <ReferenceLine stroke="var(--muted-foreground)" strokeDasharray="3 3" y={0} />
           <Legend
             align="right"
             iconSize={10}
             iconType="circle"
             layout="horizontal"
             verticalAlign="top"
-            wrapperStyle={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}
+            wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)" }}
             formatter={(value: string) => {
               const series = SERIES_CONFIG.find((item) => item.key === value);
               if (!series) return value;

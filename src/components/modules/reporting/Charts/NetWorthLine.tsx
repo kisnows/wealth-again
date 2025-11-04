@@ -57,10 +57,10 @@ export default function NetWorthLine({
     >
       <ResponsiveContainer height={260} width="100%">
         <LineChart data={data} margin={{ top: 12, right: 8, bottom: 8, left: 8 }}>
-          <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" />
+          <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" />
           <XAxis
             dataKey="x"
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+            tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
             tickFormatter={(value: string) => value.slice(0, 7)}
             tickLine={false}
             axisLine={false}
@@ -68,7 +68,7 @@ export default function NetWorthLine({
             padding={{ left: 6, right: 6 }}
           />
           <YAxis
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+            tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
             tickFormatter={formatValue}
             width={80}
             tickMargin={8}
@@ -96,8 +96,8 @@ export default function NetWorthLine({
             name="净资产"
             stroke={lineColor}
             strokeWidth={2.8}
-            dot={{ r: 3.6, stroke: lineColor, strokeWidth: 1, fill: "#fff" }}
-            activeDot={{ r: 6, stroke: lineColor, strokeWidth: 1.2, fill: "#fff" }}
+            dot={{ r: 3.6, stroke: lineColor, strokeWidth: 1, fill: "var(--card)" }}
+            activeDot={{ r: 6, stroke: lineColor, strokeWidth: 1.2, fill: "var(--card)" }}
           />
         </LineChart>
       </ResponsiveContainer>

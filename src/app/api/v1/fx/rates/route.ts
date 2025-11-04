@@ -7,6 +7,10 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import {
+  FxRateOverlapError,
+  upsertFxRateWithContinuity,
+} from "@/server/services/fx/rate-writer";
 
 const END_OF_TIME = new Date("9999-12-31T23:59:59.999Z");
 
@@ -26,6 +30,7 @@ type FxRateClient = {
   create: (args: unknown) => Promise<FxRateRecord>;
   update: (args: unknown) => Promise<FxRateRecord>;
   updateMany: (args: unknown) => Promise<unknown>;
+  delete: (args: unknown) => Promise<unknown>;
 };
 
 const fxRateClient = prisma.fxRate as unknown as FxRateClient;
@@ -80,13 +85,6 @@ type CreateFxRatePayload = {
   effectiveFrom: string;
   effectiveTo?: string | null;
 };
-
-class FxRateOverlapError extends Error {
-  constructor() {
-    super("overlapping interval");
-    this.name = "FxRateOverlapError";
-  }
-}
 
 const toNumber = (value: number | { toNumber: () => number }) =>
   typeof value === "number" ? value : value.toNumber();
@@ -150,58 +148,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const created = await prisma.$transaction(async (tx) => {
-      const scopedFxClient = tx.fxRate as unknown as FxRateClient;
-
-      const existingSameStart = await scopedFxClient.findFirst({
-        where: {
-          base: normalizedBase,
-          quote: normalizedQuote,
-          effectiveFrom: fromDate,
-        },
-      });
-      if (existingSameStart) {
-        return scopedFxClient.update({
-          where: { id: existingSameStart.id },
-          data: {
-            rate,
-            effectiveTo: toDate,
-          },
-        });
-      }
-
-      await scopedFxClient.updateMany({
-        where: {
-          base: normalizedBase,
-          quote: normalizedQuote,
-          effectiveTo: null,
-          effectiveFrom: { lt: fromDate },
-        },
-        data: { effectiveTo: fromDate },
-      });
-
-      const overlapping = await scopedFxClient.findFirst({
-        where: {
-          base: normalizedBase,
-          quote: normalizedQuote,
-          effectiveFrom: { lt: toDate ?? END_OF_TIME },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gt: fromDate } }],
-        },
-      });
-
-      if (overlapping) {
-        throw new FxRateOverlapError();
-      }
-
-      return scopedFxClient.create({
-        data: {
-          base: normalizedBase,
-          quote: normalizedQuote,
-          rate,
-          effectiveFrom: fromDate,
-          effectiveTo: toDate,
-        },
-      });
+    const created = await upsertFxRateWithContinuity({
+      base: normalizedBase,
+      quote: normalizedQuote,
+      rate,
+      effectiveFrom: fromDate,
+      effectiveTo: toDate,
     });
 
     await logAudit("FX_RATE_CREATE", {

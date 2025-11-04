@@ -16,29 +16,29 @@ datasource db {
 
 // ==== 用户 ====
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  password      String
-  name          String?
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String
+  name            String?
   displayCurrency String?
-  currentCityId String
-  currentCity   City     @relation(fields: [currentCityId], references: [id])
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  currentCityId   String
+  currentCity     City     @relation(fields: [currentCityId], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  incomes       IncomeRecord[]
-  incomeChanges IncomeChange[]
-  bonusPlans    BonusPlan[]
-  ltcPlans      LongTermCashPlan[]
-  accounts      Account[]
-  txnEntries    TxnEntry[]
-  auditLogs     AuditLog[]
-  equityGrants  EquityGrant[]
-  cityChanges   CityChangeRecord[]
+  incomes          IncomeRecord[]
+  incomeChanges    IncomeChange[]
+  bonusPlans       BonusPlan[]
+  ltcPlans         LongTermCashPlan[]
+  accounts         Account[]
+  txnEntries       TxnEntry[]
+  auditLogs        AuditLog[]
+  equityGrants     EquityGrant[]
+  cityChanges      CityChangeRecord[]
   annualDeductions UserAnnualDeduction[]
   recalcTasks      IncomeRecalcTask[]
-  reportDatasets  ReportDataset[]
+  reportDatasets   ReportDataset[]
 
   @@index([email])
   @@index([isActive])
@@ -52,10 +52,10 @@ model City {
   country   String   @default("CN")
   createdAt DateTime @default(now())
 
-  ssRules       CityRuleSS[]
-  hfRules       CityRuleHF[]
-  users         User[]
-  incomeRecords IncomeRecord[]
+  ssRules         CityRuleSS[]
+  hfRules         CityRuleHF[]
+  users           User[]
+  incomeRecords   IncomeRecord[]
   cityChangesTo   CityChangeRecord[] @relation("CityChangeToCity")
   cityChangesFrom CityChangeRecord[] @relation("CityChangeFromCity")
   recalcTasks     IncomeRecalcTask[]
@@ -83,15 +83,15 @@ model CityRuleSS {
 }
 
 model CityRuleHF {
-  id           String    @id @default(uuid())
-  cityId       String
+  id            String    @id @default(uuid())
+  cityId        String
   effectiveFrom DateTime  @map("startDate")
   effectiveTo   DateTime? @map("endDate")
   currency      String    @default("CNY")
-  baseMin      Decimal
-  baseMax      Decimal
-  rateEmployee Decimal // 个人比例
-  createdAt    DateTime  @default(now())
+  baseMin       Decimal
+  baseMax       Decimal
+  rateEmployee  Decimal // 个人比例
+  createdAt     DateTime  @default(now())
 
   city City @relation(fields: [cityId], references: [id])
 
@@ -101,11 +101,11 @@ model CityRuleHF {
 
 // ==== 税制（国家 + 税年） ====
 model TaxConfig {
-  id                         String   @id @default(uuid())
+  id                         String    @id @default(uuid())
   country                    String
   taxYear                    Int
-  currency                   String   @default("CNY")
-  effectiveFrom              DateTime @default(now())
+  currency                   String    @default("CNY")
+  effectiveFrom              DateTime  @default(now())
   effectiveTo                DateTime?
   standardDeduction          Decimal // 月度起征额（例：5000）
   specialAdditionalDeduction Decimal? // 专项附加扣除（按月），默认 0
@@ -117,11 +117,11 @@ model TaxConfig {
 }
 
 model TaxBracket {
-  id             String  @id @default(uuid())
+  id             String    @id @default(uuid())
   country        String
   taxYear        Int
-  currency       String  @default("CNY")
-  effectiveFrom  DateTime @default(now())
+  currency       String    @default("CNY")
+  effectiveFrom  DateTime  @default(now())
   effectiveTo    DateTime?
   position       Int
   threshold      Decimal // 年度累计应纳税所得额阈值上限（含）
@@ -147,80 +147,122 @@ model Account {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user               User                @relation(fields: [userId], references: [id])
-  txnLines           TxnLine[]
-  counterpartyLines  TxnLine[]          @relation("TxnLineCounterparty")
-  valuations         ValuationSnapshot[]
+  user              User                @relation(fields: [userId], references: [id])
+  txnLines          TxnLine[]
+  counterpartyLines TxnLine[]           @relation("TxnLineCounterparty")
+  valuations        ValuationSnapshot[]
 
   @@index([userId])
 }
 
 model FxRate {
-  id             String   @id @default(uuid())
-  base           String
-  quote          String
-  rate           Decimal
-  effectiveFrom  DateTime
-  effectiveTo    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String    @id @default(uuid())
+  base          String
+  quote         String
+  rate          Decimal
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   entries       TxnEntry[]
   valuations    ValuationSnapshot[]
   incomeRecords IncomeRecord[]
   snapshots     FxSnapshot[]
 
+  @@unique([base, quote, effectiveFrom])
   @@index([base, quote, effectiveFrom])
   @@index([base, quote, effectiveTo])
-  @@unique([base, quote, effectiveFrom])
 }
 
 model FxSnapshot {
-  id             String   @id @default(uuid())
-  baseCurrency   String
-  quoteCurrency  String
-  rate           Decimal
-  capturedAt     DateTime
-  sourceRateId   String?
-  effectiveFrom  DateTime?
-  effectiveTo    DateTime?
-  createdAt      DateTime @default(now())
-  createdBy      String?
+  id            String    @id @default(uuid())
+  baseCurrency  String
+  quoteCurrency String
+  rate          Decimal
+  capturedAt    DateTime
+  sourceRateId  String?
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  createdAt     DateTime  @default(now())
+  createdBy     String?
 
-  sourceRate        FxRate?             @relation(fields: [sourceRateId], references: [id], onDelete: SetNull)
-  txnEntries        TxnEntry[]
-  txnLines          TxnLine[]
+  sourceRate         FxRate?             @relation(fields: [sourceRateId], references: [id], onDelete: SetNull)
+  txnEntries         TxnEntry[]
+  txnLines           TxnLine[]
   valuationSnapshots ValuationSnapshot[]
-  incomeRecords     IncomeRecord[]
+  incomeRecords      IncomeRecord[]
 
+  @@unique([baseCurrency, quoteCurrency, sourceRateId, capturedAt])
   @@index([baseCurrency, quoteCurrency, capturedAt])
   @@index([sourceRateId])
-  @@unique([baseCurrency, quoteCurrency, sourceRateId, capturedAt])
+}
+
+model FxRateUpdateTask {
+  id           String    @id @default(uuid())
+  base         String
+  quote        String
+  startDate    DateTime
+  endDate      DateTime
+  status       String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
+  scheduledFor DateTime  @default(now())
+  attempts     Int       @default(0)
+  lastError    String?
+  triggeredBy  String?
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  logs FxRateUpdateLog[]
+
+  @@index([status, scheduledFor])
+  @@index([base, quote, startDate])
+  @@index([quote, status, scheduledFor])
+}
+
+model FxRateUpdateLog {
+  id          String    @id @default(uuid())
+  taskId      String
+  weekStart   DateTime
+  weekEnd     DateTime
+  status      String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED | SKIPPED
+  rate        Decimal?
+  attempts    Int       @default(0)
+  lastError   String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  task FxRateUpdateTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, weekStart])
+  @@index([taskId, status])
 }
 
 model TxnEntry {
-  id         String   @id @default(uuid())
-  userId     String
-  type       String // EntryTypeLike: "DEPOSIT" | "WITHDRAW" | "TRANSFER" | "ADJUST" | "SYSTEM"
-  occurredAt DateTime
-  fxRateId   String?
-  fxSnapshotId String?
-  fxAppliedRate Decimal @default(1)
-  note       String?
-  meta       String? // JSON serialized string
-  createdAt  DateTime @default(now())
+  id            String   @id @default(uuid())
+  userId        String
+  type          String // EntryTypeLike: "DEPOSIT" | "WITHDRAW" | "TRANSFER" | "ADJUST" | "SYSTEM"
+  occurredAt    DateTime
+  fxRateId      String?
+  fxSnapshotId  String?
+  fxAppliedRate Decimal  @default(1)
+  note          String?
+  meta          String? // JSON serialized string
+  createdAt     DateTime @default(now())
 
-  user   User      @relation(fields: [userId], references: [id])
-  fxRate FxRate?   @relation(fields: [fxRateId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+  fxRate     FxRate?     @relation(fields: [fxRateId], references: [id])
   fxSnapshot FxSnapshot? @relation(fields: [fxSnapshotId], references: [id], onDelete: SetNull)
-  lines  TxnLine[]
+  lines      TxnLine[]
 
   @@index([userId, occurredAt])
   @@index([fxSnapshotId])
 }
 
 model TxnLine {
-  id                    String   @id @default(uuid())
+  id                    String    @id @default(uuid())
   entryId               String
   accountId             String
   type                  String
@@ -229,22 +271,22 @@ model TxnLine {
   counterpartyAccountId String?
   counterpartyName      String?
   exchangeRateAB        Decimal?
-  viaCurrency           String?  @default("USD")
+  viaCurrency           String?   @default("USD")
   rateAtoUSD            Decimal?
   rateUSDtoB            Decimal?
   fxSnapshotId          String?
-  fxAppliedRate         Decimal @default(1)
+  fxAppliedRate         Decimal   @default(1)
   fxEffectiveAt         DateTime?
-  principalDelta        Decimal  @default(0)
-  valuationDelta        Decimal  @default(0)
+  principalDelta        Decimal   @default(0)
+  valuationDelta        Decimal   @default(0)
   attachmentUrl         String?
   note                  String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  entry               TxnEntry @relation(fields: [entryId], references: [id])
-  account             Account  @relation(fields: [accountId], references: [id])
-  counterpartyAccount Account? @relation("TxnLineCounterparty", fields: [counterpartyAccountId], references: [id])
+  entry               TxnEntry    @relation(fields: [entryId], references: [id])
+  account             Account     @relation(fields: [accountId], references: [id])
+  counterpartyAccount Account?    @relation("TxnLineCounterparty", fields: [counterpartyAccountId], references: [id])
   fxSnapshot          FxSnapshot? @relation(fields: [fxSnapshotId], references: [id], onDelete: SetNull)
 
   @@index([accountId, createdAt])
@@ -254,19 +296,19 @@ model TxnLine {
 }
 
 model ValuationSnapshot {
-  id         String   @id @default(uuid())
-  accountId  String
-  asOf       DateTime
-  totalValue Decimal
-  currency   String
-  fxRateId   String?
-  fxSnapshotId String?
-  fxAppliedRate Decimal @default(1)
-  note       String?
-  createdAt  DateTime @default(now())
+  id            String   @id @default(uuid())
+  accountId     String
+  asOf          DateTime
+  totalValue    Decimal
+  currency      String
+  fxRateId      String?
+  fxSnapshotId  String?
+  fxAppliedRate Decimal  @default(1)
+  note          String?
+  createdAt     DateTime @default(now())
 
-  account Account @relation(fields: [accountId], references: [id])
-  fxRate  FxRate? @relation(fields: [fxRateId], references: [id])
+  account    Account     @relation(fields: [accountId], references: [id])
+  fxRate     FxRate?     @relation(fields: [fxRateId], references: [id])
   fxSnapshot FxSnapshot? @relation(fields: [fxSnapshotId], references: [id], onDelete: SetNull)
 
   @@unique([accountId, asOf])
@@ -367,7 +409,7 @@ model IncomeRecord {
   sourceCurrency String? // 原始币种
   fxRateId       String? // 汇率快照ID
   fxSnapshotId   String?
-  fxAppliedRate  Decimal @default(1)
+  fxAppliedRate  Decimal  @default(1)
 
   // 来自工资/奖金/长期现金/股权激励的“毛收入”组成
   gross        Decimal // 月薪（从 IncomeChange 推）
@@ -394,14 +436,14 @@ model IncomeRecord {
   manualNote      String?
 
   // 对账字段
-  taxableCurrent     Decimal?
-  incomeTax          Decimal?
-  taxPaidCumulative  Decimal? @default(0) // 累计已缴
-  taxableCumulative  Decimal?
-  taxCumulative      Decimal?
-  netIncome          Decimal?
-  source             String   @default("system")
-  isForecast         Boolean  @default(false)
+  taxableCurrent    Decimal?
+  incomeTax         Decimal?
+  taxPaidCumulative Decimal? @default(0) // 累计已缴
+  taxableCumulative Decimal?
+  taxCumulative     Decimal?
+  netIncome         Decimal?
+  source            String   @default("system")
+  isForecast        Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -417,19 +459,19 @@ model IncomeRecord {
 }
 
 model IncomeRecalcTask {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   userId       String?
   taxYear      Int
-  startMonth   Int      @default(1)
-  endMonth     Int      @default(12)
+  startMonth   Int       @default(1)
+  endMonth     Int       @default(12)
   cityId       String?
-  status       String   @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
-  scheduledFor DateTime @default(now())
-  attempts     Int      @default(0)
+  status       String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
+  scheduledFor DateTime  @default(now())
+  attempts     Int       @default(0)
   lastError    String?
   triggeredBy  String? // 触发来源：userId/adminId/系统
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   processedAt  DateTime?
 
   user User? @relation(fields: [userId], references: [id])
@@ -440,31 +482,31 @@ model IncomeRecalcTask {
 }
 
 model EventOutbox {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   eventType   String
   payload     Json
-  status      String   @default("PENDING") // PENDING | DELIVERED | FAILED
-  attempts    Int      @default(0)
+  status      String    @default("PENDING") // PENDING | DELIVERED | FAILED
+  attempts    Int       @default(0)
   lastError   String?
-  occurredAt  DateTime @default(now())
-  availableAt DateTime @default(now())
+  occurredAt  DateTime  @default(now())
+  availableAt DateTime  @default(now())
   processedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([status, availableAt])
   @@index([eventType, status])
 }
 
 model ReportDataset {
-  id        String   @id @default(uuid())
-  userId    String
-  scope     String
-  bucket    String   @default("default")
-  payload   Json
+  id         String    @id @default(uuid())
+  userId     String
+  scope      String
+  bucket     String    @default("default")
+  payload    Json
   occurredAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

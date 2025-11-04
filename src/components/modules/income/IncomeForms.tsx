@@ -37,6 +37,7 @@ import {
   generateLTCPayouts,
 } from "@/lib/api/income";
 import { notifyAsync } from "@/lib/utils/notify";
+import { getSupportedCurrencyOptions, formatCurrencyLabel } from "@/lib/domain/currency";
 
 // 表单验证工具函数
 const _validateRequired = (value: string, field: string) => {
@@ -63,6 +64,8 @@ const validateDate = (value: string, field: string) => {
   if (Number.isNaN(date.getTime())) return `${field}格式不正确`;
   return "";
 };
+
+const currencyOptions = getSupportedCurrencyOptions();
 
 // 通用表单容器组件
 interface FormFieldProps {
@@ -198,7 +201,7 @@ export function SalaryChangeForm() {
                 value={form.grossMonthly}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                {form.currency}
+                {formatCurrencyLabel(form.currency)}
               </div>
             </div>
           </FormField>
@@ -212,9 +215,11 @@ export function SalaryChangeForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                <SelectItem value="USD">美元 (USD)</SelectItem>
-                <SelectItem value="HKD">港币 (HKD)</SelectItem>
+                {currencyOptions.map((option) => (
+                  <SelectItem key={option.code} value={option.code}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FormField>
@@ -349,7 +354,7 @@ export function BonusForm() {
                 value={form.amount}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                {form.currency}
+                {formatCurrencyLabel(form.currency)}
               </div>
             </div>
           </FormField>
@@ -363,9 +368,11 @@ export function BonusForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                <SelectItem value="USD">美元 (USD)</SelectItem>
-                <SelectItem value="HKD">港币 (HKD)</SelectItem>
+                {currencyOptions.map((option) => (
+                  <SelectItem key={option.code} value={option.code}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FormField>
@@ -528,7 +535,7 @@ export function LTCPlanForm() {
                 value={form.totalAmount}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                {form.currency}
+                {formatCurrencyLabel(form.currency)}
               </div>
             </div>
           </FormField>
@@ -576,9 +583,11 @@ export function LTCPlanForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                <SelectItem value="USD">美元 (USD)</SelectItem>
-                <SelectItem value="HKD">港币 (HKD)</SelectItem>
+                {currencyOptions.map((option) => (
+                  <SelectItem key={option.code} value={option.code}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FormField>
@@ -776,9 +785,11 @@ export function EquityGrantForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CNY">人民币 (CNY)</SelectItem>
-                <SelectItem value="USD">美元 (USD)</SelectItem>
-                <SelectItem value="HKD">港币 (HKD)</SelectItem>
+                {currencyOptions.map((option) => (
+                  <SelectItem key={option.code} value={option.code}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FormField>

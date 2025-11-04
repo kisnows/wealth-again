@@ -8,6 +8,10 @@ import {
   markOutboxEventFailed,
 } from "@/server/services/outbox";
 import { consumeReportingEvent } from "@/server/services/reporting/outbox-consumer";
+import {
+  ensureWeeklyFxCoverage,
+  processDueFxRateUpdateTasks,
+} from "@/server/services/fx/update";
 
 export type WorkerOptions = {
   intervalMs?: number;
@@ -22,10 +26,26 @@ export async function runWorkerIteration(
   options: WorkerOptions = {},
 ): Promise<void> {
   const { batchSize = DEFAULT_BATCH_SIZE, logger = console } = options;
+  const scheduled = await ensureWeeklyFxCoverage();
+  if (scheduled > 0) {
+    logger.info?.(
+      `[worker] scheduled fx update tasks`,
+      JSON.stringify({ scheduled }),
+    );
+  }
   const incomeResult = await processDueIncomeRecalcTasks(batchSize);
   if (incomeResult.processed > 0) {
     logger.info?.(
       `[worker] processed income recalc tasks: ${incomeResult.processed}`,
+    );
+  }
+  const fxResult = await processDueFxRateUpdateTasks(
+    Math.max(1, Math.floor(batchSize / 2)),
+  );
+  if (fxResult.processed > 0) {
+    logger.info?.(
+      `[worker] processed fx update tasks`,
+      JSON.stringify(fxResult.results),
     );
   }
   const events = await fetchPendingOutboxEvents(batchSize);
@@ -43,7 +63,10 @@ export async function runWorkerIteration(
       } else {
         logger.info?.(
           `[outbox] skipped ${event.eventType}`,
-          JSON.stringify({ id: event.id, reason: result.reason ?? "no_consumer" }),
+          JSON.stringify({
+            id: event.id,
+            reason: result.reason ?? "no_consumer",
+          }),
         );
       }
       await markOutboxEventDelivered(prisma, event.id);
