@@ -36,7 +36,7 @@
 - TaxFxPolicy：税务汇率策略（例：paymentDate、yearEnd、annualAverage）。
 - Tenant（租户）：本系统以“用户”为租户边界，除全局配置/市场数据/规则外，业务数据行均归属单一用户。
 - UserProfile：用户的基本档案信息（如 locale、timezone、country、cityId 等），仅该用户和管理员可读写。
-- UserSettings：用户偏好与全局设置项（如展示币种、统计起始日、税务策略等），集中在 `/settings` 页面维护。
+- UserSettings：用户偏好与全局设置项（如展示币种、税务策略等），集中在 `/settings` 页面维护。
 - Impersonation（模拟登录）：管理员以受管用户身份进行操作，必须二次确认并写入 AuditLog。
 
 ## 1) 当前仓库映射（精确对照）
@@ -72,9 +72,9 @@
   - 当前状态：以查询聚合为主，尚未采用物化视图或独立报表服务
 
 - Identity & Audit
-  - API 路由：`src/app/api/auth/[...nextauth]/route.ts`, `src/app/api/v1/identity/auth/me/route.ts`
-  - 服务实现位置：`src/server/auth.ts`, `src/server/auth.config.ts`, `src/server/services/audit*`
-  - 重要 Prisma 表：`User`, `AuditLog`（会话由 NextAuth 维护，若采用 Prisma Adapter 则会引入 `Session` 等模型；当前 schema 未定义）
+  - API 路由：`src/app/api/auth/[...better-auth]/route.ts`, `src/app/api/v1/identity/auth/me/route.ts`
+  - 服务实现位置：`src/server/auth.ts`, `src/server/services/audit*`
+  - 重要 Prisma 表：`User`, `AuthAccount`, `AuthSession`, `AuthVerification`, `AuditLog`
 
 - +1 Jobs & Event Bus (平台)
   - 当前实现：部分异步逻辑和重算以本地任务/数据库任务表实现（见 `IncomeRecalcTask` 与 `src/server/services/*`），尚未统一队列实现
@@ -96,7 +96,7 @@
   - 访问控制：普通用户仅可访问自己数据；管理员可查看全量并支持模拟登录（Impersonation）。
 
 - 用户属性建议（分层结构）
-  - User（认证基础，NextAuth 默认字段）：`id`, `email`, `emailVerified`, `name`, `image`, `createdAt`
+  - User（认证基础，better-auth 默认字段 + 项目扩展）：`id`, `email`, `emailVerified`, `name`, `image`, `createdAt`
   - UserProfile（档案，当前 schema 可映射为 User 的派生信息）：`locale`（如 zh-CN/en-US）、`timezone`、`countryCode`、`cityId`（当前城市规则绑定）、可选 `taxResidentCountry`
   - UserSettings（设置/偏好，集中在 `/settings`，当前实现部分字段在 `User` 上）：
     - 货币与统计：`displayCurrency`、`reportBaseCurrency`（如采用统一基准）、`reportStartDate`
@@ -123,7 +123,7 @@
 
 - userId 归属：`Account`, `TxnLine`, `ValuationSnapshot`, `IncomeRecord`, `IncomeRecalcTask`, `AnnualDeductions`。
 - 平台级（无 userId 或多租户共享）：`FxRateSnapshot`, `FxSource`, `TaxConfig`, `TaxBracket`, `CityRuleSS/HF`。
-- 管理/审计：`User`, `Session`, `AuditLog`, `EventOutbox`（事件可带 userId）。
+- 管理/审计：`User`, `AuthSession`, `AuditLog`, `EventOutbox`（事件可带 userId）。
 
 交易模型关系（对齐现有 schema）：
 - 交易由 `TxnEntry`（头）与 `TxnLine`（明细）构成；两者可引用 `FxSnapshot`/`FxRate`，并记录 `fxAppliedRate`、`fxEffectiveAt` 等派生字段用于回溯与聚合。
@@ -442,7 +442,7 @@
 ## 前提与假设 / 非目标
 
 前提与假设
-- 全局设置（基准币种、展示币种、统计日期、城市、税务规则等）在 `/settings` 页面统一维护，其它页面仅读取现有配置或提供跳转入口。
+- 全局设置（基准币种、展示币种、城市、税务规则等）在 `/settings` 页面统一维护，其它页面仅读取现有配置或提供跳转入口。
 - FX 系统保存不可变的历史快照；修正通过追加 snapshot 而非覆盖。
 - 服务层暴露统一接口，路由层只做校验与错误处理。
 

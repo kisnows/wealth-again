@@ -2,7 +2,7 @@
 
 import { LogOut, Settings } from "lucide-react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { authClient } from "@/lib/auth/client";
 
 interface UserInfo {
   id: string;
@@ -20,6 +21,7 @@ interface UserInfo {
 }
 
 export default function UserAvatar() {
+  const router = useRouter();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,8 +38,12 @@ export default function UserAvatar() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: "/signin" });
+  const handleSignOut = async () => {
+    try {
+      await authClient.signOut();
+    } finally {
+      router.push("/signin");
+    }
   };
 
   if (loading) {

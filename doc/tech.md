@@ -1,10 +1,10 @@
 # 技术设计文档（对齐 2025Q1 PRD）
 
 ## 1. 系统总览
-- 技术栈：Next.js 15 App Router（TypeScript）、NextAuth、Prisma（SQLite dev → Postgres prod）、Tailwind CSS + shadcn/ui、SWR、Zustand、Vitest。
+- 技术栈：Next.js 15 App Router（TypeScript）、better-auth、Prisma（SQLite dev → Postgres prod）、Tailwind CSS + shadcn/ui、SWR、Zustand、Vitest。
 - 架构分层：
   - 前端：`src/app` 负责路由与页面，`src/components` 存放 UI 组件，`src/lib` 管理客户端 API、状态和领域工具。
-  - 服务端：`src/server` 提供 Prisma 单例、NextAuth 设置与领域服务（ledger、income、tax、fx、report、rule、audit）。
+  - 服务端：`src/server` 提供 Prisma 单例、better-auth 配置与领域服务（ledger、income、tax、fx、report、rule、audit）。
   - API 层：使用 Next.js Route Handlers（`src/app/api/**`）对外提供 RESTful 接口。
   - 数据层：Prisma schema covering accounts、transactions、income、rules、audit、impersonation。
 
@@ -13,9 +13,9 @@
 - 数据访问、状态管理、UI 约束等所有前端相关的规范，均已统一收敛至 **`doc/frontend-spec.md`**，该文档是前端实现的唯一事实来源。
 
 ## 3. 身份认证与权限
-- 认证通过 NextAuth（`src/server/auth.*`）；数据库记录用户角色 `role: "USER" | "ADMIN"`。
+- 认证通过 better-auth（`src/server/auth.ts`）；数据库记录用户角色 `role: "USER" | "ADMIN"`。
 - 守卫逻辑：
-  - API Route Handler 通过 `getServerSession` 获取当前用户；若存在 `impersonatedUserId` 则切换上下文但保留 `actorId`。
+  - API Route Handler 通过 `auth.api.getSession` + `getUserFromRequest` 获取当前用户；若存在 `impersonatedUserId` 则切换上下文但保留 `actorId`。
   - 客户端钩子 `useSessionUser` 仅返回当前视角用户 data，同时暴露 `actorId` 以标记管理员操作。
 - 管理员模拟登录流程：
   1. 管理员在管理后台选中用户触发 `/api/admin/impersonate`。
@@ -70,7 +70,7 @@
 - **重点用例覆盖**：收入累计预扣税计算、社保公积金规则切换、跨币种转账、管理员模拟登录、规则区间重叠校验等。
 
 ## 10. 部署与运维
-- **环境变量**：`DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `ADMIN_EMAILS` 等。
+- **环境变量**：`DATABASE_URL`, `BETTER_AUTH_SECRET`, `ADMIN_EMAILS` 等。
 - **构建与迁移**：标准 `npm` 脚本 + `prisma migrate deploy`。
 
 ## 11. 数据种子与业务规则参考
@@ -121,4 +121,3 @@ pnpm prisma migrate dev
 # 执行种子脚本填充数据
 pnpm tsx prisma/seed.ts
 ```
-

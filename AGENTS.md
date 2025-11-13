@@ -18,7 +18,7 @@
 
 ## 技术架构
 
-- 技术栈：Next.js 15 App Router + TypeScript、NextAuth、Prisma（SQLite dev → Postgres prod）、Tailwind、shadcn/ui、SWR、Zustand、Vitest（`doc/tech.md`）。
+- 技术栈：Next.js 15 App Router + TypeScript、better-auth、Prisma（SQLite dev → Postgres prod）、Tailwind、shadcn/ui、SWR、Zustand、Vitest（`doc/tech.md`）。
 - 架构分层：前端 `src/app`（路由与 RSC 布局）/`components`（UI 模块），客户端逻辑在 `src/lib`；服务端 Domain Services 位于 `src/server/services`；Route Handlers 暴露 REST API。
 - 核心服务：ledger、income、tax、rule、report、fx、audit；所有重要计算置于服务层，接口层负责校验与错误处理。
 
@@ -30,7 +30,7 @@
 - 表单体系：`react-hook-form` + `zod`，写操作附带 `Idempotency-Key`。
 - 图表依赖 Recharts（暗色模式需校对配色）。
 - 所有的组件需要添加 `data-testid` 属性以方便测试, 命名规则为 领域-层级-描述, 例如 `data-testid="income-ui-overview"`。
-- 全局设置项（基准币种、展示币种、统计日期、城市、税务规则等）必须在 `/settings` 页面统一维护，其它页面只能读取现有值或提供跳转链接。
+- 全局设置项（基准币种、展示币种、城市、税务规则等）必须在 `/settings` 页面统一维护，其它页面只能读取现有值或提供跳转链接。
 - 收入域的统计视图统一通过时间线版 `IncomeAnalyticsPanel` 复用；`/income` 是唯一收入中心，禁止额外的概览/表格实现。
 
 ## 数据模型与计算规则
@@ -45,7 +45,7 @@
 - `src/app`：Next.js App Router 路由与 UI（如 `dashboard/`、`accounts/`、`income/`、`api/`）；组件与路由就近放置。
 - `components/ui`：shadcn 组件；`components/modules`：业务复用模块（表格、图表、表单等）。
 - `src/lib`：共享工具、API 客户端、Zustand store、领域逻辑（通过 `@/*` 引用）。
-- `src/server`：Prisma 客户端单例、NextAuth 配置、服务端领域服务。
+- `src/server`：Prisma 客户端单例、better-auth 配置、服务端领域服务。
 - `src/tests`：Vitest 测试（严格按照 `*.test.ts` 命名）。
 - `prisma/`：模型与迁移；本地使用 SQLite `dev.db`，生产切换 Postgres。
 - `doc/`：产品/技术文档；`public/`：静态资源。
@@ -75,7 +75,7 @@
 
 ## 安全与配置
 
-- 环境变量统一置于 `.env`（`DATABASE_URL`、`NEXTAUTH_SECRET`、`ADMIN_EMAILS` 等），禁止提交。
+- 环境变量统一置于 `.env`（`DATABASE_URL`、`BETTER_AUTH_SECRET`、`ADMIN_EMAILS` 等），禁止提交。
 - 仅在 `src/server` 放置敏感与服务端逻辑，避免泄露；管理员模拟登录需双重确认并写入 `AuditLog`。
 - 部署流程（`doc/tech.md` 第 10 节）：`npm install` → `npm run lint` → `npm run test` → `npm run build` → `prisma migrate deploy`。
 

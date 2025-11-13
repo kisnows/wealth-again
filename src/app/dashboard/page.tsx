@@ -11,7 +11,7 @@ import {
   TrendingUpIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import AllocPie from "@/components/modules/reporting/Charts/AllocPie";
 import NetWorthLine from "@/components/modules/reporting/Charts/NetWorthLine";
 import TopAccounts from "@/components/modules/reporting/TopAccounts";
@@ -34,6 +34,7 @@ import {
 } from "@/lib/api/reports";
 import { formatMoney } from "@/lib/domain/money";
 import { cn } from "@/lib/utils";
+import PeriodSelect from "@/components/modules/filters/PeriodSelect";
 import { useUserPrefsStore } from "@/lib/state/identity";
 import { accentTokens, semanticAccents } from "@/lib/theme/palette";
 import type { AccentKey } from "@/lib/theme/palette";
@@ -75,10 +76,18 @@ function MetricCard({ icon, title, value, hint, accent, testId }: MetricCardProp
   );
 }
 
+type PeriodPreset = {
+  value: string;
+  label: string;
+  description: string;
+  getRange: () => { from: string; to: string };
+};
+
 export default function DashboardPage() {
-  const { displayCurrency, asOfDate } = useUserPrefsStore();
+  const { displayCurrency } = useUserPrefsStore();
+  const [incomePeriod, setIncomePeriod] = useState("current-year");
   const { data: dashboardData, isLoading: dashboardLoading } = useDashboard(
-    asOfDate ?? undefined,
+    undefined,
     displayCurrency ?? undefined,
   );
   const { data: accountsSummary } = useAccountsSummary(
@@ -86,10 +95,52 @@ export default function DashboardPage() {
   );
 
   const currentYear = new Date().getFullYear();
+  const incomePeriodPresets = useMemo<PeriodPreset[]>(() => {
+    const buildYearRange = (year: number) => ({
+      from: `${year}-01-01`,
+      to: `${year}-12-01`,
+    });
+    return [
+      {
+        value: "current-year",
+        label: `${currentYear} 年度`,
+        description: `${currentYear} 年 1 月至 12 月`,
+        getRange: () => buildYearRange(currentYear),
+      },
+      {
+        value: "last-year",
+        label: `${currentYear - 1} 年度`,
+        description: `${currentYear - 1} 年 1 月至 12 月`,
+        getRange: () => buildYearRange(currentYear - 1),
+      },
+      {
+        value: "next-year",
+        label: `${currentYear + 1} 年度`,
+        description: `${currentYear + 1} 年 1 月至 12 月`,
+        getRange: () => buildYearRange(currentYear + 1),
+      },
+      {
+        value: "last-three-years",
+        label: "近三年",
+        description: `${currentYear - 2} 年至 ${currentYear} 年`,
+        getRange: () => ({
+          from: `${currentYear - 2}-01-01`,
+          to: `${currentYear}-12-01`,
+        }),
+      },
+    ];
+  }, [currentYear]);
+
+  const selectedIncomePeriod =
+    incomePeriodPresets.find((option) => option.value === incomePeriod) ??
+    incomePeriodPresets[0];
+
+  const incomeRange = selectedIncomePeriod.getRange();
+
   const { data: incomeData, isLoading: incomeLoading } = useIncomeTimeseries(
     undefined,
-    `${currentYear}-01-01`,
-    `${currentYear}-12-01`,
+    incomeRange.from,
+    incomeRange.to,
     displayCurrency ?? undefined,
   );
 
@@ -247,13 +298,6 @@ export default function DashboardPage() {
             >
               展示币种: {displayCurrency ?? "自动"}
             </Badge>
-            <Badge
-              className="hidden items-center gap-2 sm:inline-flex"
-              data-testid="dashboard-ui-date-badge"
-              variant="outline"
-            >
-              统计截止: {asOfDate ?? "未设置"}
-            </Badge>
             <Button
               asChild
               className="flex items-center gap-2"
@@ -306,9 +350,23 @@ export default function DashboardPage() {
       {incomeStatistics ? (
         <PageSection
           testId="dashboard-ui-section-income-summary"
-          title={`${currentYear} 年度收入概览`}
-          description={`基于 ${incomeStatistics.months} 个月数据的年度收入分析，自动同步社保、公积金与个税。`}
+          title={`${selectedIncomePeriod.label} 收入概览`}
+          description="切换不同年度或近三年数据，自动同步社保、公积金与个税。"
         >
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              数据区间：{selectedIncomePeriod.description}
+            </p>
+            <PeriodSelect
+              data-testid="dashboard-ui-income-period-select"
+              onChange={setIncomePeriod}
+              options={incomePeriodPresets.map(({ value, label }) => ({
+                label,
+                value,
+              }))}
+              value={incomePeriod}
+            />
+          </div>
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             <IncomeSummaryItem
               label="总收入"

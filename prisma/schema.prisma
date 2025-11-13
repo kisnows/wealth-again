@@ -18,8 +18,9 @@ datasource db {
 model User {
   id              String   @id @default(uuid())
   email           String   @unique
-  password        String
-  name            String?
+  name            String   @default("")
+  image           String?
+  emailVerified   Boolean  @default(false)
   displayCurrency String?
   currentCityId   String
   currentCity     City     @relation(fields: [currentCityId], references: [id])
@@ -32,6 +33,8 @@ model User {
   bonusPlans       BonusPlan[]
   ltcPlans         LongTermCashPlan[]
   accounts         Account[]
+  authAccounts     AuthAccount[]
+  authSessions     AuthSession[]
   txnEntries       TxnEntry[]
   auditLogs        AuditLog[]
   equityGrants     EquityGrant[]
@@ -43,6 +46,49 @@ model User {
   @@index([email])
   @@index([isActive])
   @@index([currentCityId])
+}
+
+model AuthAccount {
+  id                    String   @id @default(uuid())
+  providerId            String
+  accountId             String
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model AuthSession {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  @@index([userId])
+}
+
+model AuthVerification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 // ==== 城市 & 规则 ====

@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { APIError } from "better-auth/api";
 import prisma from "@/server/db";
+import { auth } from "@/server/auth";
 import { logAudit } from "@/server/services/audit";
 import { DISPLAY_CURRENCY_SET } from "@/server/services/identity/constants";
-import { hashPassword } from "@/server/services/identity/password";
 
 export class UserEmailConflictError extends Error {
   constructor(email: string) {
@@ -91,40 +92,42 @@ export async function registerUser(
     throw new UserEmailConflictError(parsed.email);
   }
 
-  const hashedPassword = await hashPassword(parsed.password);
+  const name = parsed.name?.trim() || parsed.email;
 
-  const created = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
+  try {
+    const created = await auth.api.signUpEmail({
+      body: {
+        name,
         email: parsed.email,
-        password: hashedPassword,
-        name: parsed.name ?? null,
+        password: parsed.password,
         currentCityId: city.id,
         displayCurrency,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        currentCityId: true,
-        displayCurrency: true,
       },
     });
 
     await logAudit("USER_REGISTER", {
-      userId: user.id,
+      userId: created.user.id,
       meta: {
-        email: user.email,
-        currentCityId: user.currentCityId,
-        displayCurrency: user.displayCurrency,
+        email: created.user.email,
+        currentCityId: created.user.currentCityId,
+        displayCurrency: created.user.displayCurrency,
         method: "credentials",
       },
-      client: tx,
     });
 
-    return user;
-  });
-
-  return created;
+    return {
+      id: created.user.id,
+      email: created.user.email,
+      name: created.user.name ?? null,
+      currentCityId: created.user.currentCityId,
+      displayCurrency: created.user.displayCurrency,
+    } satisfies RegisterUserResult;
+  } catch (error) {
+    if (error instanceof APIError) {
+      if (error.message === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL") {
+        throw new UserEmailConflictError(parsed.email);
+      }
+    }
+    throw error;
+  }
 }
-

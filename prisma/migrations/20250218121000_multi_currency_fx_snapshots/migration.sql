@@ -1,9 +1,6 @@
 -- Generated via prisma migrate diff (2025-02-18)
 -- Align schema with multi-currency & FX snapshot design
 
--- AlterTable
-ALTER TABLE "User" ADD COLUMN "displayCurrency" TEXT;
-
 -- CreateTable
 CREATE TABLE "FxSnapshot" (
     "id" TEXT NOT NULL PRIMARY KEY,

@@ -991,7 +991,7 @@
       "sessionAuth": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "next-auth.session-token"
+        "name": "session_token"
       }
     }
   }

@@ -20,6 +20,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(path.dirname(fileURLToPath(import.meta.url)), "src"),
+      "better-auth/next-js": path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "src/tests/mocks/betterAuthNextIntegration.ts",
+      ),
     },
   },
 });

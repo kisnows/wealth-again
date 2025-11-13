@@ -1,7 +1,7 @@
 "use client";
 
-import { type SignInResponse, signIn } from "next-auth/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,23 +13,41 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { authClient } from "@/lib/auth/client";
 
 export default function SignInPage() {
+  const router = useRouter();
   const [form, setForm] = useState({
     email: "demo@example.com",
     password: "demo",
   });
+  const [submitting, setSubmitting] = useState(false);
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res: SignInResponse | undefined = await signIn("credentials", {
-      email: form.email,
-      password: form.password,
-      redirect: true,
-      callbackUrl: "/",
-    });
-    if (res?.error) toast.error(res.error);
+    setSubmitting(true);
+    try {
+      const result = await authClient.signIn.email({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        callbackURL: "/",
+      });
+      if (result.error) {
+        toast.error(result.error.message || "登录失败，请稍后重试");
+        return;
+      }
+      if (result.data?.redirect && result.data.url) {
+        router.replace(result.data.url);
+        return;
+      }
+      router.replace("/");
+    } catch (error) {
+      console.error("sign in failed", error);
+      toast.error("登录失败，请稍后重试");
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <div
@@ -68,8 +86,9 @@ export default function SignInPage() {
               className="mt-2"
               data-testid="identity-ui-signin-submit"
               type="submit"
+              disabled={submitting}
             >
-              登录
+              {submitting ? "正在登录…" : "登录"}
             </Button>
           </form>
         </CardContent>

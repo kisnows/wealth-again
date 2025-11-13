@@ -27,7 +27,7 @@
 - **后端**:
     - **API**: 在 `src/app/api/` 中使用 Next.js Route Handlers 实现 RESTful API。
     - **服务**: 业务逻辑被封装在位于 `src/server/services/` 的服务层中。
-    - **认证**: **NextAuth.js** 处理用户认证和会话。
+    - **认证**: **better-auth** 处理凭证登录、会话与 Cookie。
 - **测试**: **Vitest** 是用于单元和集成测试的框架。测试文件位于 `src/tests/`。
 - **工具**:
     - **包管理器**: `pnpm`。

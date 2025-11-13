@@ -164,12 +164,7 @@ export default function SettingsPage() {
   const [citySubmitting, setCitySubmitting] = useState(false);
   const [deductionDialogOpen, setDeductionDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<AnnualDeduction | null>(null);
-  const {
-    displayCurrency,
-    asOfDate,
-    setDisplayCurrency,
-    setAsOfDate,
-  } = useUserPrefsStore();
+  const { displayCurrency, setDisplayCurrency } = useUserPrefsStore();
 
   const fxCurrencies = useMemo(() => {
     const codes = new Set<string>();
@@ -308,16 +303,6 @@ export default function SettingsPage() {
     );
   };
 
-  const handleAsOfDateUpdate = (value: string) => {
-    const trimmed = (value ?? "").trim();
-    const normalized = trimmed ? trimmed : null;
-    if (normalized === asOfDate) return;
-    setAsOfDate(normalized);
-    toast.success(
-      normalized ? `统计日期已更新至 ${trimmed}` : "统计日期偏好已清除",
-    );
-  };
-
   const onSubmitCityChange = async (values: CityChangeFormValues) => {
     setCitySubmitting(true);
     try {
@@ -390,7 +375,7 @@ export default function SettingsPage() {
                 展示偏好
               </CardTitle>
               <CardDescription>
-                仅在此处设置展示币种与统计日期，避免其他页面出现重复入口。
+                仅在此处设置展示币种，避免其他页面出现重复入口。
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6 md:grid-cols-2">
@@ -431,32 +416,6 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   选择具体币种后，账户与报表均按 USD 中间价折算；恢复自动则保留原币种。
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="settings-pref-asof">统计日期（As-of）</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    className="w-full md:max-w-[220px]"
-                    data-testid="settings-ui-pref-asof"
-                    id="settings-pref-asof"
-                    onChange={(event) => handleAsOfDateUpdate(event.target.value)}
-                    type="date"
-                    value={asOfDate ?? ""}
-                  />
-                  {asOfDate ? (
-                    <Button
-                      data-testid="settings-ui-pref-asof-clear"
-                      onClick={() => handleAsOfDateUpdate("")}
-                      size="sm"
-                      variant="outline"
-                    >
-                      清除日期
-                    </Button>
-                  ) : null}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  用于 Dashboard 与报表聚合的统计截止日期，留空时以最新数据为准。
                 </p>
               </div>
             </CardContent>

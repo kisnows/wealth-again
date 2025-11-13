@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import useSWR from "swr";
@@ -11,6 +10,7 @@ import { toast } from "sonner";
 import { registerUser, RegisterUserError } from "@/lib/api/auth";
 import { formatCurrencyLabel } from "@/lib/domain/currency";
 import { getJson } from "@/lib/utils/fetcher";
+import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -130,20 +130,24 @@ export default function SignUpPage() {
       });
       toast.success("注册成功，正在为您登录…");
 
-      const signInResult = await signIn("credentials", {
-        redirect: false,
+      const signInResult = await authClient.signIn.email({
         email: normalizedEmail,
         password: values.password,
-        callbackUrl: "/",
+        callbackURL: "/",
       });
 
-      if (signInResult?.error) {
+      if (signInResult.error) {
         router.push("/signin");
         toast.info("注册完成，请使用新账户登录");
         return;
       }
 
-      router.replace(signInResult?.url ?? "/");
+      if (signInResult.data?.redirect && signInResult.data.url) {
+        router.replace(signInResult.data.url);
+        return;
+      }
+
+      router.replace("/");
     } catch (error) {
       if (error instanceof RegisterUserError) {
         const code = error.code ?? "register_failed";

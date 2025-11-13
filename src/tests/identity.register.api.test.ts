@@ -5,9 +5,18 @@ import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 const mockPrisma = prismaMock;
 
 const logAuditMock = vi.fn().mockResolvedValue(undefined);
+const signUpEmailMock = vi.fn();
 
 vi.mock("@/server/services/audit", () => ({
   logAudit: logAuditMock,
+}));
+
+vi.mock("@/server/auth", () => ({
+  auth: {
+    api: {
+      signUpEmail: signUpEmailMock,
+    },
+  },
 }));
 
 // 描述：注册接口场景验证
@@ -17,15 +26,15 @@ describe("identity register API", () => {
     resetPrismaMock();
     mockPrisma.city.findUnique.mockResolvedValue({ id: "city-1" });
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    mockPrisma.user.create.mockImplementation(
-      async ({ data }: { data: any }) => ({
+    signUpEmailMock.mockImplementation(async ({ body }: { body: any }) => ({
+      user: {
         id: "new-user",
-        email: data.email,
-        name: data.name ?? null,
-        currentCityId: data.currentCityId,
-        displayCurrency: data.displayCurrency,
-      }),
-    );
+        email: body.email,
+        name: body.name,
+        currentCityId: body.currentCityId,
+        displayCurrency: body.displayCurrency,
+      },
+    }));
     mockPrisma.idempotencyKey.findUnique.mockResolvedValue(null);
     mockPrisma.idempotencyKey.create.mockResolvedValue({
       key: "idem-register-1",
@@ -60,10 +69,16 @@ describe("identity register API", () => {
       currentCityId: "city-1",
       displayCurrency: "CNY",
     });
-    expect(mockPrisma.user.create).toHaveBeenCalled();
-    const createArgs = mockPrisma.user.create.mock.calls[0][0];
-    expect(createArgs.data.password).toMatch(/^\$2[aby]\$/);
-    expect(createArgs.data.password).not.toBe("P@ssword123");
+    expect(signUpEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          email: "new@example.com",
+          password: "P@ssword123",
+          currentCityId: "city-1",
+          displayCurrency: "CNY",
+        }),
+      }),
+    );
     expect(logAuditMock).toHaveBeenCalledWith(
       "USER_REGISTER",
       expect.objectContaining({
@@ -101,7 +116,7 @@ describe("identity register API", () => {
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body).toMatchObject({ error: "email_conflict" });
-    expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    expect(signUpEmailMock).not.toHaveBeenCalled();
   });
 
   // 场景：展示币种不支持
@@ -123,6 +138,6 @@ describe("identity register API", () => {
     expect(res.status).toBe(422);
     const body = await res.json();
     expect(body).toMatchObject({ error: "display_currency_not_supported" });
-    expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    expect(signUpEmailMock).not.toHaveBeenCalled();
   });
 });

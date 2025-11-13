@@ -80,13 +80,36 @@ async function seed() {
 
   const user = await prisma.user.upsert({
     where: { email: "demo@example.com" },
-    update: { password: demoPasswordHash },
-    create: {
-      email: "demo@example.com",
-      password: demoPasswordHash,
+    update: {
       name: "Demo",
       displayCurrency: "USD",
       currentCityId: hz.id,
+      emailVerified: true,
+    },
+    create: {
+      email: "demo@example.com",
+      name: "Demo",
+      displayCurrency: "USD",
+      currentCityId: hz.id,
+      emailVerified: true,
+    },
+  });
+
+  await prisma.authAccount.upsert({
+    where: {
+      providerId_accountId: {
+        providerId: "credential",
+        accountId: user.id,
+      },
+    },
+    update: {
+      password: demoPasswordHash,
+    },
+    create: {
+      providerId: "credential",
+      accountId: user.id,
+      userId: user.id,
+      password: demoPasswordHash,
     },
   });
 

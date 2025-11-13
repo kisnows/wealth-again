@@ -71,7 +71,7 @@
   - 每个 Tab 内含规则表格和用于新增/编辑的 `RulesUpsertForm`。
 
 - **/settings**: 用户个人与全局设置中心。
-  - **展示偏好**: 统一维护展示币种、统计日期等，通过 `useUserPrefsStore` 管理。
+  - **展示偏好**: 统一维护展示币种，通过 `useUserPrefsStore` 管理。
   - **基础设置**: 管理基准币种、工作城市等。
   - **汇率维护**: 使用 `AccountFxPanel` 维护涉及币种的 USD 中间价，更新后自动刷新账户估值。
   - **年度专项扣除**: 维护个人年度专项附加扣除额。
@@ -89,7 +89,7 @@
   - **Key 策略**: 使用数组形式，如 `["dashboard", params]`, `["incomeRecords", year, userId]`。
   - **写操作**: 封装为独立的 async 函数（如 `createAccount()`），成功后调用 `mutate` 来刷新相关的 SWR key。
 - **Zustand**: 仅用于管理与服务端数据无直接关联的全局客户端状态。
-  - `useUserPrefsStore`: `displayCurrency`, `asOfDate` 等 UI 偏好。
+  - `useUserPrefsStore`: `displayCurrency` 等 UI 偏好。
     - 扩展字段 `pendingTasks`, `lastDataSyncAt` 统一本地显示任务状态、数据刷新时间。
   - `useTaskCenterStore`: 聚合后台任务（回算、导出、Outbox、Audit）以便 Dashboard/Activity/Income 等页面统一访问。
   - `useDialogStore`: 全局共享的对话框开关状态（如全局转账弹窗）。

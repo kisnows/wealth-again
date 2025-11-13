@@ -55,8 +55,8 @@ npx prisma migrate dev
 # 本地 SQLite 示例
 DATABASE_URL="file:./prisma/dev.db"
 
-# 如使用 NextAuth，可配置：
-# NEXTAUTH_SECRET=your-secret
+# 如使用 better-auth，可配置：
+# BETTER_AUTH_SECRET=your-secret
 ```
 
 3. 运行测试
