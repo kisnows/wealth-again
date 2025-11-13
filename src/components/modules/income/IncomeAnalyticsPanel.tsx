@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import IncomeStackedBar from "@/components/modules/reporting/Charts/IncomeStackedBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
   CardContent,
@@ -82,7 +83,9 @@ export default function IncomeAnalyticsPanel({
     range.to,
     displayCurrency ?? undefined,
   );
-  const [editingItem, setEditingItem] = useState<IncomeTimelineItem | null>(null);
+  const [editingItem, setEditingItem] = useState<IncomeTimelineItem | null>(
+    null,
+  );
   const [manualNetInput, setManualNetInput] = useState("");
   const [manualNoteInput, setManualNoteInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -97,7 +100,10 @@ export default function IncomeAnalyticsPanel({
       };
     }
     const currency =
-      data.summary.currency ?? displayCurrency ?? (data.items[0]?.currency ?? "CNY");
+      data.summary.currency ??
+      displayCurrency ??
+      data.items[0]?.currency ??
+      "CNY";
     const chartItems = data.items.map((item) => ({
       month: monthLabel(item.month),
       gross: item.gross,
@@ -256,10 +262,7 @@ export default function IncomeAnalyticsPanel({
   }
 
   return (
-    <div
-      className="space-y-6"
-      data-testid={`${testIdPrefix}-analytics-panel`}
-    >
+    <div className="space-y-6" data-testid={`${testIdPrefix}-analytics-panel`}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-foreground">{title}</h2>
@@ -273,7 +276,9 @@ export default function IncomeAnalyticsPanel({
       <Card data-testid={`${testIdPrefix}-analytics-range`}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarIcon className={cn("h-5 w-5", accentTokens.primary.text)} />
+            <CalendarIcon
+              className={cn("h-5 w-5", accentTokens.primary.text)}
+            />
             统计区间
           </CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
@@ -340,8 +345,33 @@ export default function IncomeAnalyticsPanel({
 
       {isLoading ? (
         <Card data-testid={`${testIdPrefix}-analytics-loading`}>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            正在加载收入数据...
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Skeleton className="h-5 w-5 rounded" />
+              <Skeleton className="h-5 w-32" />
+            </CardTitle>
+            <CardDescription>
+              <Skeleton className="h-4 w-64" />
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {["summary-1", "summary-2", "summary-3", "summary-4"].map(
+                (key) => (
+                  <div
+                    key={key}
+                    className="space-y-2 rounded-lg border border-border/60 bg-card/80 p-4 shadow-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                    <Skeleton className="h-7 w-32" />
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                ),
+              )}
+            </div>
           </CardContent>
         </Card>
       ) : processed.items.length === 0 ? (
@@ -356,11 +386,14 @@ export default function IncomeAnalyticsPanel({
           <Card data-testid={`${testIdPrefix}-analytics-summary`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <DollarSignIcon className={cn("h-5 w-5", accentTokens.primary.text)} />
+                <DollarSignIcon
+                  className={cn("h-5 w-5", accentTokens.primary.text)}
+                />
                 汇总指标（{processed.currency}）
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
-                结合实际 {totalsCombined.counts.actual} 个月与预测 {totalsCombined.counts.forecast} 个月的数据。
+                结合实际 {totalsCombined.counts.actual} 个月与预测{" "}
+                {totalsCombined.counts.forecast} 个月的数据。
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -425,7 +458,9 @@ export default function IncomeAnalyticsPanel({
           <Card data-testid={`${testIdPrefix}-analytics-chart`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <BarChart3Icon className={cn("h-5 w-5", accentTokens.primary.text)} />
+                <BarChart3Icon
+                  className={cn("h-5 w-5", accentTokens.primary.text)}
+                />
                 月度结构
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
@@ -443,7 +478,9 @@ export default function IncomeAnalyticsPanel({
           <Card data-testid={`${testIdPrefix}-analytics-table`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <DollarSignIcon className={cn("h-5 w-5", accentTokens.primary.text)} />
+                <DollarSignIcon
+                  className={cn("h-5 w-5", accentTokens.primary.text)}
+                />
                 月度明细
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
@@ -478,7 +515,8 @@ export default function IncomeAnalyticsPanel({
                           ? item.sourceCurrency
                           : item.recordCurrency;
                       const recordCurrency = item.recordCurrency;
-                      const displayCurrency = item.displayCurrency ?? processed.currency;
+                      const displayCurrency =
+                        item.displayCurrency ?? processed.currency;
                       const formatRate = (value: number) => {
                         if (!Number.isFinite(value) || value === 0) return "-";
                         if (value >= 100) return value.toFixed(2);
@@ -492,20 +530,31 @@ export default function IncomeAnalyticsPanel({
                         return date.toISOString().slice(0, 10);
                       };
                       const detailLines: string[] = [];
-                      if (originalCurrency && originalCurrency !== recordCurrency) {
+                      if (
+                        originalCurrency &&
+                        originalCurrency !== recordCurrency
+                      ) {
                         const parts = [
                           `原币 ${originalCurrency} → 计算 ${recordCurrency}`,
                         ];
-                        if (item.fxAppliedRate && Math.abs(item.fxAppliedRate - 1) > 1e-6) {
+                        if (
+                          item.fxAppliedRate &&
+                          Math.abs(item.fxAppliedRate - 1) > 1e-6
+                        ) {
                           parts.push(`汇率 ${formatRate(item.fxAppliedRate)}`);
                         }
-                        const captured = formatDate(item.fxSnapshotCapturedAt ?? null);
+                        const captured = formatDate(
+                          item.fxSnapshotCapturedAt ?? null,
+                        );
                         if (captured) {
                           parts.push(`快照 ${captured}`);
                         }
                         detailLines.push(parts.join(" · "));
                       }
-                      if (displayCurrency && displayCurrency !== recordCurrency) {
+                      if (
+                        displayCurrency &&
+                        displayCurrency !== recordCurrency
+                      ) {
                         detailLines.push(
                           `展示 ${displayCurrency}（1 ${recordCurrency} ≈ ${formatRate(item.displayRate)} ${displayCurrency}）`,
                         );
@@ -523,10 +572,7 @@ export default function IncomeAnalyticsPanel({
                           <TableCell className="font-medium">
                             {monthText}
                             {item.isForecast ? (
-                              <Badge
-                                className="ml-2"
-                                variant="outline"
-                              >
+                              <Badge className="ml-2" variant="outline">
                                 预测
                               </Badge>
                             ) : null}
@@ -538,7 +584,9 @@ export default function IncomeAnalyticsPanel({
                             {detailLines.length ? (
                               <div className="mt-1 space-y-1 text-xs text-muted-foreground">
                                 {detailLines.map((line, index) => (
-                                  <div key={`${item.monthDate}-detail-${index}`}>
+                                  <div
+                                    key={`${item.monthDate}-detail-${index}`}
+                                  >
                                     {line}
                                   </div>
                                 ))}
@@ -558,7 +606,10 @@ export default function IncomeAnalyticsPanel({
                             {formatMoney(item.equityIncome, processed.currency)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-orange-600">
-                            {formatMoney(item.socialInsurance, processed.currency)}
+                            {formatMoney(
+                              item.socialInsurance,
+                              processed.currency,
+                            )}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-orange-600">
                             {formatMoney(item.housingFund, processed.currency)}
@@ -567,16 +618,28 @@ export default function IncomeAnalyticsPanel({
                             {formatMoney(item.incomeTax, processed.currency)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
-                            {formatMoney(item.taxableCurrent, processed.currency)}
+                            {formatMoney(
+                              item.taxableCurrent,
+                              processed.currency,
+                            )}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
-                            {formatMoney(item.taxableCumulative, processed.currency)}
+                            {formatMoney(
+                              item.taxableCumulative,
+                              processed.currency,
+                            )}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
-                            {formatMoney(item.taxCumulative, processed.currency)}
+                            {formatMoney(
+                              item.taxCumulative,
+                              processed.currency,
+                            )}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
-                            {formatMoney(item.taxPaidCumulative, processed.currency)}
+                            {formatMoney(
+                              item.taxPaidCumulative,
+                              processed.currency,
+                            )}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm font-semibold">
                             {formatMoney(item.netIncome, processed.currency)}
@@ -604,11 +667,16 @@ export default function IncomeAnalyticsPanel({
         </>
       )}
 
-      <Dialog open={Boolean(editingItem)} onOpenChange={(open) => (!open ? closeEdit() : null)}>
+      <Dialog
+        open={Boolean(editingItem)}
+        onOpenChange={(open) => (!open ? closeEdit() : null)}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingItem ? `${monthLabel(editingItem.month)} 人工调整` : "人工调整"}
+              {editingItem
+                ? `${monthLabel(editingItem.month)} 人工调整`
+                : "人工调整"}
             </DialogTitle>
             <DialogDescription>
               修改税后净收入用于对账，系统会保留人工记录并在列表中标记。
@@ -657,11 +725,7 @@ export default function IncomeAnalyticsPanel({
             >
               恢复系统值
             </Button>
-            <Button
-              disabled={submitting}
-              onClick={handleSave}
-              type="button"
-            >
+            <Button disabled={submitting} onClick={handleSave} type="button">
               {submitting ? "保存中…" : "保存调整"}
             </Button>
           </DialogFooter>
@@ -693,12 +757,19 @@ function SummaryCard({
       data-testid={testId}
     >
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <span className={cn("flex h-8 w-8 items-center justify-center rounded-full", accentToken.surface)}>
+        <span
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-full",
+            accentToken.surface,
+          )}
+        >
           <Icon className="h-4 w-4" />
         </span>
         {label}
       </div>
-      <div className={cn("text-xl font-semibold", accentToken.emphasis)}>{value}</div>
+      <div className={cn("text-xl font-semibold", accentToken.emphasis)}>
+        {value}
+      </div>
       {helper ? (
         <div className="text-xs text-muted-foreground">{helper}</div>
       ) : null}

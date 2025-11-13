@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw, RepeatIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   PageContainer,
   PageHeader,
@@ -56,36 +57,26 @@ export default function ActivityPage() {
   const handleRunFxTask = async (task: FxRateUpdateTask) => {
     setRunningFxTaskId(task.id);
     try {
-      await notifyAsync(
-        () => runFxRateUpdateTaskNow(task.id),
-        {
-          loading: "正在立即执行汇率任务…",
-          success: (result) => {
-            switch (result.status) {
-              case "completed":
-                return result.message ?? "任务已成功执行，稍后刷新查看状态。";
-              case "already_completed":
-                return (
-                  result.message ??
-                  "任务已完成，如需重新补齐请创建新任务。"
-                );
-              case "conflict":
-                return (
-                  result.message ?? "任务状态已更新，请刷新列表后再试。"
-                );
-              default:
-                return (
-                  result.message ?? "任务正在执行中，请稍后刷新查看结果。"
-                );
-            }
-          },
-          error: (error) => {
-            return error instanceof Error
-              ? error.message
-              : "执行失败，请稍后重试。";
-          },
+      await notifyAsync(() => runFxRateUpdateTaskNow(task.id), {
+        loading: "正在立即执行汇率任务…",
+        success: (result) => {
+          switch (result.status) {
+            case "completed":
+              return result.message ?? "任务已成功执行，稍后刷新查看状态。";
+            case "already_completed":
+              return result.message ?? "任务已完成，如需重新补齐请创建新任务。";
+            case "conflict":
+              return result.message ?? "任务状态已更新，请刷新列表后再试。";
+            default:
+              return result.message ?? "任务正在执行中，请稍后刷新查看结果。";
+          }
         },
-      );
+        error: (error) => {
+          return error instanceof Error
+            ? error.message
+            : "执行失败，请稍后重试。";
+        },
+      });
     } catch (err) {
       console.error("run fx task failed", err);
     } finally {
@@ -198,11 +189,52 @@ export default function ActivityPage() {
                 title="加载失败"
               />
             ) : isLoading ? (
-              <PlaceholderCard
-                description="正在加载回算任务…"
-                testId="activity-ui-recalc-loading"
-                title="加载中"
-              />
+              <div className="overflow-x-auto">
+                <Table data-testid="activity-ui-recalc-loading">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>税年</TableHead>
+                      <TableHead>月份范围</TableHead>
+                      <TableHead>城市</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>计划执行</TableHead>
+                      <TableHead>完成时间</TableHead>
+                      <TableHead>尝试</TableHead>
+                      <TableHead>备注</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {["task-1", "task-2", "task-3"].map((key) => (
+                      <TableRow key={key}>
+                        <TableCell>
+                          <Skeleton className="h-4 w-12" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-24" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-16" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-32" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-32" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-8" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-40" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : tasks.length ? (
               <div className="overflow-x-auto">
                 <Table data-testid="activity-ui-recalc-table">
@@ -265,11 +297,56 @@ export default function ActivityPage() {
                 title="加载失败"
               />
             ) : fxLoading ? (
-              <PlaceholderCard
-                description="正在加载汇率任务…"
-                testId="activity-ui-fx-loading"
-                title="加载中"
-              />
+              <div className="overflow-x-auto">
+                <Table data-testid="activity-ui-fx-loading">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>币种</TableHead>
+                      <TableHead>区间</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>计划执行</TableHead>
+                      <TableHead>完成时间</TableHead>
+                      <TableHead>尝试</TableHead>
+                      <TableHead>触发来源</TableHead>
+                      <TableHead>错误信息</TableHead>
+                      <TableHead>操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {["fx-1", "fx-2", "fx-3"].map((key) => (
+                      <TableRow key={key}>
+                        <TableCell>
+                          <Skeleton className="h-4 w-12" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-8 w-24" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-32" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-32" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-8" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-20" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-40" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-8 w-20" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : fxTasks.length ? (
               <div className="overflow-x-auto">
                 <Table data-testid="activity-ui-fx-table">
@@ -324,7 +401,9 @@ export default function ActivityPage() {
                               size="sm"
                               variant="outline"
                             >
-                              {runningFxTaskId === task.id ? "执行中…" : "立即执行"}
+                              {runningFxTaskId === task.id
+                                ? "执行中…"
+                                : "立即执行"}
                             </Button>
                             <Button
                               data-testid="activity-ui-fx-detail"

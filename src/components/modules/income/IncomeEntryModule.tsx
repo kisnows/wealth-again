@@ -13,6 +13,7 @@ import { useState } from "react";
 import { mutate } from "swr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
   CardContent,
@@ -44,7 +45,9 @@ export default function IncomeEntryModule() {
     <div className="space-y-6" data-testid="income-ui-entry-module">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">收入信息录入</h2>
+          <h2 className="text-xl font-semibold text-foreground">
+            收入信息录入
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             管理工资变更、奖金和长期现金计划
           </p>
@@ -74,17 +77,12 @@ function SalaryChangesSection() {
 
     setDeletingId(id);
     try {
-      await notifyAsync(
-        () => deleteSalaryChange(id),
-        {
-          loading: "正在删除工资变更…",
-          success: "工资变更记录已删除",
-          error: (error) =>
-            error instanceof Error && error.message
-              ? error.message
-              : "删除失败",
-        },
-      );
+      await notifyAsync(() => deleteSalaryChange(id), {
+        loading: "正在删除工资变更…",
+        success: "工资变更记录已删除",
+        error: (error) =>
+          error instanceof Error && error.message ? error.message : "删除失败",
+      });
       mutate("/api/v1/income-tax/salary-changes");
     } catch (error) {
       console.error("delete salary change error", error);
@@ -117,9 +115,38 @@ function SalaryChangesSection() {
 
       <CardContent>
         {isLoading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            加载中...
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>生效日期</TableHead>
+                <TableHead>月薪</TableHead>
+                <TableHead>币种</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {["salary-1", "salary-2", "salary-3"].map((key) => (
+                <TableRow key={key}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-12 rounded" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-8 w-20" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         ) : error ? (
           <div className="py-8 text-center text-sm text-destructive">
             加载失败
@@ -202,17 +229,12 @@ function BonusSection() {
 
     setDeletingId(id);
     try {
-      await notifyAsync(
-        () => deleteBonus(id),
-        {
-          loading: "正在删除奖金记录…",
-          success: "奖金记录已删除",
-          error: (error) =>
-            error instanceof Error && error.message
-              ? error.message
-              : "删除失败",
-        },
-      );
+      await notifyAsync(() => deleteBonus(id), {
+        loading: "正在删除奖金记录…",
+        success: "奖金记录已删除",
+        error: (error) =>
+          error instanceof Error && error.message ? error.message : "删除失败",
+      });
       mutate("/api/v1/income-tax/bonus");
     } catch (error) {
       console.error("delete bonus error", error);
@@ -349,17 +371,12 @@ function LongTermCashSection() {
 
     setDeletingId(id);
     try {
-      await notifyAsync(
-        () => deleteLTCPlan(id),
-        {
-          loading: "正在删除长期现金计划…",
-          success: "长期现金计划已删除",
-          error: (error) =>
-            error instanceof Error && error.message
-              ? error.message
-              : "删除失败",
-        },
-      );
+      await notifyAsync(() => deleteLTCPlan(id), {
+        loading: "正在删除长期现金计划…",
+        success: "长期现金计划已删除",
+        error: (error) =>
+          error instanceof Error && error.message ? error.message : "删除失败",
+      });
       mutate("/api/v1/income-tax/ltc/plans");
     } catch (error) {
       console.error("delete ltc plan error", error);

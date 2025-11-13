@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { RefreshCcw, UploadCloudIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   PageContainer,
   PageHeader,
@@ -91,11 +92,40 @@ export default function ReportingPage() {
             </CardHeader>
           </Card>
         ) : isLoading ? (
-          <Card data-testid="reporting-ui-dataset-loading">
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              正在加载报表缓存…
-            </CardContent>
-          </Card>
+          <div className="overflow-x-auto">
+            <Table data-testid="reporting-ui-dataset-loading">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Scope</TableHead>
+                  <TableHead>Bucket</TableHead>
+                  <TableHead>更新时间</TableHead>
+                  <TableHead>来源时间</TableHead>
+                  <TableHead>摘要</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {["report-1", "report-2", "report-3"].map((key) => (
+                  <TableRow key={key}>
+                    <TableCell>
+                      <Skeleton className="h-5 w-32 rounded-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-36" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-36" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-64" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         ) : data?.items?.length ? (
           <div className="overflow-x-auto">
             <Table data-testid="reporting-ui-dataset-table">
@@ -110,7 +140,10 @@ export default function ReportingPage() {
               </TableHeader>
               <TableBody>
                 {data.items.map((item) => (
-                  <TableRow key={item.id} data-testid="reporting-ui-dataset-row">
+                  <TableRow
+                    key={item.id}
+                    data-testid="reporting-ui-dataset-row"
+                  >
                     <TableCell>
                       <Badge variant="outline">{item.scope}</Badge>
                     </TableCell>
@@ -128,7 +161,9 @@ export default function ReportingPage() {
                         : "—"}
                     </TableCell>
                     <TableCell>
-                      <pre className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{JSON.stringify(item.payload ?? {}, null, 2)}</pre>
+                      <pre className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">
+                        {JSON.stringify(item.payload ?? {}, null, 2)}
+                      </pre>
                     </TableCell>
                   </TableRow>
                 ))}

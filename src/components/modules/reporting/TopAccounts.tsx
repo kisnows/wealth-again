@@ -3,12 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -24,6 +19,7 @@ import DepositDialog from "@/components/modules/accounts/DepositDialog";
 import TransferDialog from "@/components/modules/accounts/TransferDialog";
 import ValuationFormDialog from "@/components/modules/accounts/ValuationFormDialog";
 import WithdrawDialog from "@/components/modules/accounts/WithdrawDialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function TopAccounts() {
   const { displayCurrency } = useUserPrefsStore();
@@ -45,9 +41,42 @@ export default function TopAccounts() {
       </CardHeader>
       <CardContent className="pt-4">
         {isLoading ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            加载中…
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>名称</TableHead>
+                <TableHead>估值</TableHead>
+                <TableHead>ROI</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[
+                "account-1",
+                "account-2",
+                "account-3",
+                "account-4",
+                "account-5",
+              ].map((key) => (
+                <TableRow key={`skeleton-${key}`}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-16" />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end">
+                      <Skeleton className="h-8 w-14" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         ) : (
           <Table>
             <TableHeader>

@@ -16,6 +16,7 @@ import { mutate as globalMutate } from "swr";
 import CitySelect from "@/components/modules/identity/CitySelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
   CardContent,
@@ -45,7 +46,10 @@ import { toast } from "sonner";
 
 const TASK_STATUS_ICON: Record<
   IncomeRecalcTask["status"],
-  { icon: LucideIcon; variant: "default" | "secondary" | "destructive" | "outline" }
+  {
+    icon: LucideIcon;
+    variant: "default" | "secondary" | "destructive" | "outline";
+  }
 > = {
   PENDING: { icon: Clock4Icon, variant: "secondary" },
   RUNNING: { icon: Loader2Icon, variant: "outline" },
@@ -111,9 +115,43 @@ export function IncomeRecalcTaskBoard() {
               任务列表加载失败，请稍后重试。
             </div>
           ) : isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-              加载中…
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>税年</TableHead>
+                    <TableHead>月份范围</TableHead>
+                    <TableHead>城市</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>创建时间</TableHead>
+                    <TableHead>完成时间</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {["task-1", "task-2", "task-3"].map((key) => (
+                    <TableRow key={key}>
+                      <TableCell>
+                        <Skeleton className="h-4 w-12" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           ) : tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-10 text-sm text-muted-foreground">
@@ -158,7 +196,9 @@ export function IncomeRecalcTaskBoard() {
                             <StatusIcon
                               className={cn(
                                 "h-3.5 w-3.5",
-                                task.status === "RUNNING" ? "animate-spin" : undefined,
+                                task.status === "RUNNING"
+                                  ? "animate-spin"
+                                  : undefined,
                               )}
                             />
                             {task.status}
@@ -253,7 +293,8 @@ function IncomeRecalcManualForm() {
           立即回算
         </CardTitle>
         <CardDescription>
-          提交后任务会排入后台队列，请在右侧任务列表关注进度或等待 worker 完成处理。
+          提交后任务会排入后台队列，请在右侧任务列表关注进度或等待 worker
+          完成处理。
         </CardDescription>
       </CardHeader>
       <CardContent>

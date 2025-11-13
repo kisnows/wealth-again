@@ -1,6 +1,7 @@
 "use client";
 
 import { useAccountTransactions } from "@/lib/api/accounts";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   formatAmount,
@@ -38,10 +39,33 @@ export function AccountTransactionsList({
   if (isLoading) {
     return (
       <div
-        className="rounded border border-dashed bg-background/60 p-3 text-xs text-muted-foreground"
+        className="space-y-2"
         data-testid={`accounts-ui-transactions-loading-${accountId}`}
       >
-        交易明细加载中…
+        <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
+          <span>交易记录</span>
+          <Skeleton className="h-3 w-12" />
+        </div>
+        <div className="space-y-2">
+          {["tx-1", "tx-2", "tx-3"].map((key) => (
+            <div
+              key={key}
+              className="rounded border border-border/50 bg-card/80 p-2 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-12 rounded" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <div className="mt-1 flex items-center justify-between text-xs">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -89,8 +113,8 @@ export function AccountTransactionsList({
             : "—";
           const formattedRateValue =
             txn.exchangeRateAB != null
-              ? formatFxRate(txn.exchangeRateAB) ??
-                txn.exchangeRateAB.toFixed(6)
+              ? (formatFxRate(txn.exchangeRateAB) ??
+                txn.exchangeRateAB.toFixed(6))
               : null;
           const toCurrency =
             txn.counterpartyCurrency ?? displayCurrency ?? null;

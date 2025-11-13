@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   type Account,
   archiveAccount,
@@ -107,8 +108,7 @@ export function AccountTable({
   );
 
   const filteredAccounts = useMemo(
-    () =>
-      filterAccounts(mergedAccounts, typeFilter, statusFilter, searchTerm),
+    () => filterAccounts(mergedAccounts, typeFilter, statusFilter, searchTerm),
     [mergedAccounts, typeFilter, statusFilter, searchTerm],
   );
 
@@ -135,15 +135,11 @@ export function AccountTable({
   const handleArchive = async (id: string) => {
     setPendingAction(pendingKey("archive", id));
     try {
-      await notifyAsync(
-        () => archiveAccount(id),
-        {
-          loading: "正在归档账户…",
-          success: "账户已归档",
-          error: (error) =>
-            parseErrorMessage(error, "归档失败，请稍后重试。"),
-        },
-      );
+      await notifyAsync(() => archiveAccount(id), {
+        loading: "正在归档账户…",
+        success: "账户已归档",
+        error: (error) => parseErrorMessage(error, "归档失败，请稍后重试。"),
+      });
     } catch (error) {
       console.error("archive account error", error);
     } finally {
@@ -154,15 +150,11 @@ export function AccountTable({
   const handleRestore = async (id: string) => {
     setPendingAction(pendingKey("restore", id));
     try {
-      await notifyAsync(
-        () => updateAccount(id, { status: "ACTIVE" }),
-        {
-          loading: "正在恢复账户…",
-          success: "账户已恢复为在用状态",
-          error: (error) =>
-            parseErrorMessage(error, "恢复失败，请稍后重试。"),
-        },
-      );
+      await notifyAsync(() => updateAccount(id, { status: "ACTIVE" }), {
+        loading: "正在恢复账户…",
+        success: "账户已恢复为在用状态",
+        error: (error) => parseErrorMessage(error, "恢复失败，请稍后重试。"),
+      });
     } catch (error) {
       console.error("restore account error", error);
     } finally {
@@ -180,18 +172,12 @@ export function AccountTable({
     }
     setPendingAction(pendingKey("delete", id));
     try {
-      await notifyAsync(
-        () => deleteAccount(id),
-        {
-          loading: "正在删除账户…",
-          success: "账户已删除",
-          error: (error) =>
-            parseErrorMessage(
-              error,
-              "删除失败，请检查账户是否仍有关联记录。",
-            ),
-        },
-      );
+      await notifyAsync(() => deleteAccount(id), {
+        loading: "正在删除账户…",
+        success: "账户已删除",
+        error: (error) =>
+          parseErrorMessage(error, "删除失败，请检查账户是否仍有关联记录。"),
+      });
       setExpandedId((prev) => (prev === id ? null : prev));
     } catch (error) {
       console.error("delete account error", error);
@@ -202,8 +188,56 @@ export function AccountTable({
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border p-6 text-sm text-muted-foreground">
-        加载中…
+      <div className="space-y-4" data-testid="accounts-ui-list">
+        <div
+          className="flex flex-wrap items-center gap-2"
+          data-testid="accounts-ui-filters"
+        >
+          <div className="flex flex-wrap gap-2">
+            {TYPE_FILTERS.map((filter) => (
+              <Button key={filter.value} disabled size="sm" variant="outline">
+                {filter.label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FILTERS.map((filter) => (
+              <Button key={filter.value} disabled size="sm" variant="outline">
+                {filter.label}
+              </Button>
+            ))}
+          </div>
+          <Input
+            className="ms-auto w-full max-w-xs"
+            disabled
+            placeholder="搜索名称、币种或说明"
+            value=""
+          />
+        </div>
+        <div
+          className="grid gap-4 md:grid-cols-2"
+          data-testid="accounts-ui-loading-grid"
+        >
+          {["account-1", "account-2", "account-3", "account-4"].map((key) => (
+            <div
+              key={key}
+              className="rounded-lg border border-border/60 bg-card p-4 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-8 w-8 rounded-md" />
+              </div>
+              <div className="mt-3 space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-6 w-40" />
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Skeleton className="h-9 w-20" />
+                <Skeleton className="h-9 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -277,7 +311,10 @@ export function AccountTable({
           ) : null}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2" data-testid="accounts-ui-list-grid">
+        <div
+          className="grid gap-4 md:grid-cols-2"
+          data-testid="accounts-ui-list-grid"
+        >
           {filteredAccounts.map((account) => (
             <AccountCard
               account={account}

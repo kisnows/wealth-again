@@ -35,11 +35,15 @@ import {
 import { formatMoney } from "@/lib/domain/money";
 import { cn } from "@/lib/utils";
 import PeriodSelect from "@/components/modules/filters/PeriodSelect";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useUserPrefsStore } from "@/lib/state/identity";
 import { accentTokens, semanticAccents } from "@/lib/theme/palette";
 import type { AccentKey } from "@/lib/theme/palette";
 
-type MetricAccent = Extract<AccentKey, "primary" | "success" | "accent" | "warning" | "info">;
+type MetricAccent = Extract<
+  AccentKey,
+  "primary" | "success" | "accent" | "warning" | "info"
+>;
 
 type MetricCardProps = {
   icon: ReactNode;
@@ -50,7 +54,14 @@ type MetricCardProps = {
   testId: string;
 };
 
-function MetricCard({ icon, title, value, hint, accent, testId }: MetricCardProps) {
+function MetricCard({
+  icon,
+  title,
+  value,
+  hint,
+  accent,
+  testId,
+}: MetricCardProps) {
   const accentToken = accentTokens[accent];
   return (
     <Card
@@ -58,14 +69,22 @@ function MetricCard({ icon, title, value, hint, accent, testId }: MetricCardProp
       data-testid={testId}
     >
       <div
-        className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", accentToken.gradient)}
+        className={cn(
+          "absolute inset-x-0 top-0 h-1 bg-gradient-to-r",
+          accentToken.gradient,
+        )}
       />
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div className="text-sm font-medium text-muted-foreground">{title}</div>
         <div className={cn("rounded-md p-2", accentToken.surface)}>{icon}</div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className={cn("text-2xl font-semibold md:text-3xl", accentToken.emphasis)}>
+        <div
+          className={cn(
+            "text-2xl font-semibold md:text-3xl",
+            accentToken.emphasis,
+          )}
+        >
           {value}
         </div>
         {hint ? (
@@ -216,75 +235,84 @@ export default function DashboardPage() {
       title: "净资产",
       accent: semanticAccents.netWorth as MetricAccent,
       icon: <PiggyBankIcon className="h-4 w-4" />,
-      value: dashboardLoading
-        ? "..."
-        : formatMoney(totals.netWorth, dashboardCurrency),
-      hint: dashboardLoading
-        ? null
-        : `资产 ${formatMoney(totals.assets, dashboardCurrency)} · 负债 ${formatMoney(totals.liabilities, dashboardCurrency)}`,
+      value: dashboardLoading ? (
+        <Skeleton className="h-8 w-32" />
+      ) : (
+        formatMoney(totals.netWorth, dashboardCurrency)
+      ),
+      hint: dashboardLoading ? (
+        <Skeleton className="mt-2 h-3 w-40" />
+      ) : (
+        `资产 ${formatMoney(totals.assets, dashboardCurrency)} · 负债 ${formatMoney(totals.liabilities, dashboardCurrency)}`
+      ),
     },
     {
       key: "annual-income",
       title: "年度总收入",
       accent: semanticAccents.income.total as MetricAccent,
       icon: <DollarSignIcon className="h-4 w-4" />,
-      value: incomeLoading
-        ? "..."
-        : incomeStatistics
-          ? formatMoney(incomeStatistics.totalIncome, incomeStatistics.currency)
-          : "--",
-      hint:
-        incomeStatistics && !incomeLoading
-          ? `${incomeStatistics.months} 个月累计`
-          : null,
+      value: incomeLoading ? (
+        <Skeleton className="h-8 w-32" />
+      ) : incomeStatistics ? (
+        formatMoney(incomeStatistics.totalIncome, incomeStatistics.currency)
+      ) : (
+        "--"
+      ),
+      hint: incomeLoading ? (
+        <Skeleton className="mt-2 h-3 w-24" />
+      ) : incomeStatistics ? (
+        `${incomeStatistics.months} 个月累计`
+      ) : null,
     },
     {
       key: "monthly-income",
       title: "本月税前收入",
       accent: semanticAccents.income.total as MetricAccent,
       icon: <BanknoteIcon className="h-4 w-4" />,
-      value: incomeLoading
-        ? "..."
-        : incomeStatistics
-          ? formatMoney(
-              incomeStatistics.currentMonthGross,
-              incomeStatistics.currency,
-            )
-          : "--",
-      hint:
-        incomeStatistics && !incomeLoading
-          ? `税后 ${formatMoney(
-              incomeStatistics.currentMonthNet,
-              incomeStatistics.currency,
-            )}`
-          : null,
+      value: incomeLoading ? (
+        <Skeleton className="h-8 w-32" />
+      ) : incomeStatistics ? (
+        formatMoney(
+          incomeStatistics.currentMonthGross,
+          incomeStatistics.currency,
+        )
+      ) : (
+        "--"
+      ),
+      hint: incomeLoading ? (
+        <Skeleton className="mt-2 h-3 w-28" />
+      ) : incomeStatistics ? (
+        `税后 ${formatMoney(
+          incomeStatistics.currentMonthNet,
+          incomeStatistics.currency,
+        )}`
+      ) : null,
     },
     {
       key: "tax-rate",
       title: "有效税率",
       accent: semanticAccents.income.taxRate as MetricAccent,
       icon: <CalculatorIcon className="h-4 w-4" />,
-      value: incomeLoading
-        ? "..."
-        : incomeStatistics
-          ? `${incomeStatistics.effectiveTaxRate.toFixed(1)}%`
-          : "--",
-      hint:
-        incomeStatistics && !incomeLoading
-          ? `个税 ${formatMoney(
-              incomeStatistics.totalTax,
-              incomeStatistics.currency,
-            )}`
-          : null,
+      value: incomeLoading ? (
+        <Skeleton className="h-8 w-20" />
+      ) : incomeStatistics ? (
+        `${incomeStatistics.effectiveTaxRate.toFixed(1)}%`
+      ) : (
+        "--"
+      ),
+      hint: incomeLoading ? (
+        <Skeleton className="mt-2 h-3 w-28" />
+      ) : incomeStatistics ? (
+        `个税 ${formatMoney(
+          incomeStatistics.totalTax,
+          incomeStatistics.currency,
+        )}`
+      ) : null,
     },
   ];
 
   return (
-    <PageContainer
-      gap="lg"
-      padding="md"
-      testId="dashboard-ui-page"
-    >
+    <PageContainer gap="lg" padding="md" testId="dashboard-ui-page">
       <PageHeader
         actions={
           <div
@@ -347,109 +375,147 @@ export default function DashboardPage() {
         </div>
       </PageSection>
 
-      {incomeStatistics ? (
-        <PageSection
-          testId="dashboard-ui-section-income-summary"
-          title={`${selectedIncomePeriod.label} 收入概览`}
-          description="切换不同年度或近三年数据，自动同步社保、公积金与个税。"
-        >
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              数据区间：{selectedIncomePeriod.description}
-            </p>
-            <PeriodSelect
-              data-testid="dashboard-ui-income-period-select"
-              onChange={setIncomePeriod}
-              options={incomePeriodPresets.map(({ value, label }) => ({
-                label,
-                value,
-              }))}
-              value={incomePeriod}
-            />
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            <IncomeSummaryItem
-              label="总收入"
-              testId="dashboard-ui-income-total"
-              tone={semanticAccents.income.total}
-              value={formatMoney(
-                incomeStatistics.totalIncome,
-                incomeStatistics.currency,
-              )}
-            />
-            <IncomeSummaryItem
-              label="净收入"
-              testId="dashboard-ui-income-net"
-              tone={semanticAccents.income.net}
-              value={formatMoney(
-                incomeStatistics.totalNet,
-                incomeStatistics.currency,
-              )}
-            />
-            <IncomeSummaryItem
-              label="社保公积金"
-              testId="dashboard-ui-income-si"
-              tone={semanticAccents.income.deductions}
-              value={formatMoney(
-                incomeStatistics.totalSocialInsurance +
-                  incomeStatistics.totalHousingFund,
-                incomeStatistics.currency,
-              )}
-            />
-            <IncomeSummaryItem
-              label="月均净收入"
-              testId="dashboard-ui-income-avg"
-              tone={semanticAccents.income.net}
-              value={formatMoney(
-                incomeStatistics.avgMonthlyNet,
-                incomeStatistics.currency,
-              )}
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button
-              asChild
-              className="flex items-center gap-2"
-              size="sm"
-              variant="outline"
-            >
-              <Link href="/income">
-                查看收入报表
-                <ArrowRightIcon className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </PageSection>
-      ) : null}
+      <PageSection
+        testId="dashboard-ui-section-income-summary"
+        title={`${selectedIncomePeriod.label} 收入概览`}
+        description="切换不同年度或近三年数据，自动同步社保、公积金与个税。"
+      >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            数据区间：{selectedIncomePeriod.description}
+          </p>
+          <PeriodSelect
+            data-testid="dashboard-ui-income-period-select"
+            onChange={setIncomePeriod}
+            options={incomePeriodPresets.map(({ value, label }) => ({
+              label,
+              value,
+            }))}
+            value={incomePeriod}
+          />
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <IncomeSummaryItem
+            label="总收入"
+            testId="dashboard-ui-income-total"
+            tone={semanticAccents.income.total}
+            value={
+              incomeLoading ? (
+                <Skeleton className="h-7 w-32" />
+              ) : incomeStatistics ? (
+                formatMoney(
+                  incomeStatistics.totalIncome,
+                  incomeStatistics.currency,
+                )
+              ) : (
+                "--"
+              )
+            }
+          />
+          <IncomeSummaryItem
+            label="净收入"
+            testId="dashboard-ui-income-net"
+            tone={semanticAccents.income.net}
+            value={
+              incomeLoading ? (
+                <Skeleton className="h-7 w-32" />
+              ) : incomeStatistics ? (
+                formatMoney(
+                  incomeStatistics.totalNet,
+                  incomeStatistics.currency,
+                )
+              ) : (
+                "--"
+              )
+            }
+          />
+          <IncomeSummaryItem
+            label="社保公积金"
+            testId="dashboard-ui-income-si"
+            tone={semanticAccents.income.deductions}
+            value={
+              incomeLoading ? (
+                <Skeleton className="h-7 w-32" />
+              ) : incomeStatistics ? (
+                formatMoney(
+                  incomeStatistics.totalSocialInsurance +
+                    incomeStatistics.totalHousingFund,
+                  incomeStatistics.currency,
+                )
+              ) : (
+                "--"
+              )
+            }
+          />
+          <IncomeSummaryItem
+            label="月均净收入"
+            testId="dashboard-ui-income-avg"
+            tone={semanticAccents.income.net}
+            value={
+              incomeLoading ? (
+                <Skeleton className="h-7 w-32" />
+              ) : incomeStatistics ? (
+                formatMoney(
+                  incomeStatistics.avgMonthlyNet,
+                  incomeStatistics.currency,
+                )
+              ) : (
+                "--"
+              )
+            }
+          />
+        </div>
+        <div className="flex justify-end">
+          <Button
+            asChild
+            className="flex items-center gap-2"
+            disabled={!incomeStatistics}
+            size="sm"
+            variant="outline"
+          >
+            <Link aria-disabled={!incomeStatistics} href="/income">
+              查看收入报表
+              <ArrowRightIcon className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </PageSection>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <PageSection
           className="h-full"
-          contentClassName="min-h-[260px]"
+          contentClassName="min-h-[320px] flex items-center justify-center"
           description="追踪净资产走势，折线图按选择的币种展示。"
           testId="dashboard-ui-chart-networth"
           title="净资产趋势"
         >
           {dashboardLoading ? (
-            <div className="flex h-56 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
               <div className="size-8 animate-spin rounded-full border-b-2 border-primary" />
               加载中...
             </div>
           ) : (
-            <NetWorthLine currency={dashboardCurrency} data={netWorthSeries} />
+            <div className="h-full w-full">
+              <NetWorthLine
+                currency={dashboardCurrency}
+                data={netWorthSeries}
+              />
+            </div>
           )}
         </PageSection>
         <PageSection
           className="h-full"
-          contentClassName="min-h-[260px]"
+          contentClassName="min-h-[320px] flex items-center justify-center"
           description="按账户类型划分资产配置，便于识别集中度风险。"
           testId="dashboard-ui-chart-allocation"
           title="资产分配"
         >
           {allocEntries.length > 0 ? (
-            <AllocPie currency={dashboardCurrency} data={allocEntries} />
+            <div className="h-full w-full">
+              <AllocPie currency={dashboardCurrency} data={allocEntries} />
+            </div>
           ) : (
-            <div className="flex h-56 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
               <PiggyBankIcon className="h-8 w-8 text-muted-foreground/60" />
               暂无资产数据
             </div>
@@ -466,7 +532,7 @@ export default function DashboardPage() {
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <DepositDialog
-            trigger={(
+            trigger={
               <Button
                 className="flex w-full items-center gap-2"
                 data-testid="dashboard-ui-action-deposit"
@@ -475,10 +541,10 @@ export default function DashboardPage() {
                 <TrendingUpIcon className="h-4 w-4" />
                 记录存入
               </Button>
-            )}
+            }
           />
           <WithdrawDialog
-            trigger={(
+            trigger={
               <Button
                 className="flex w-full items-center gap-2"
                 data-testid="dashboard-ui-action-withdraw"
@@ -487,10 +553,10 @@ export default function DashboardPage() {
                 <TrendingDownIcon className="h-4 w-4" />
                 记录取出
               </Button>
-            )}
+            }
           />
           <TransferDialog
-            trigger={(
+            trigger={
               <Button
                 className="flex w-full items-center gap-2"
                 data-testid="dashboard-ui-action-transfer"
@@ -499,10 +565,10 @@ export default function DashboardPage() {
                 <ArrowRightIcon className="h-4 w-4" />
                 发起转账
               </Button>
-            )}
+            }
           />
           <ValuationFormDialog
-            trigger={(
+            trigger={
               <Button
                 className="flex w-full items-center gap-2"
                 data-testid="dashboard-ui-action-valuation"
@@ -511,7 +577,7 @@ export default function DashboardPage() {
                 <CalculatorIcon className="h-4 w-4" />
                 记录估值
               </Button>
-            )}
+            }
           />
         </div>
       </PageSection>
@@ -521,7 +587,7 @@ export default function DashboardPage() {
 
 type IncomeSummaryItemProps = {
   label: string;
-  value: string;
+  value: ReactNode;
   tone: Extract<AccentKey, "primary" | "success" | "warning" | "accent">;
   testId: string;
 };
@@ -539,7 +605,12 @@ function IncomeSummaryItem({
       className="rounded-lg border border-border/60 bg-card/90 p-4 shadow-sm"
       data-testid={testId}
     >
-      <div className={cn("inline-flex items-center rounded-full px-2 py-1 text-xs font-medium", toneToken.surface)}>
+      <div
+        className={cn(
+          "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium",
+          toneToken.surface,
+        )}
+      >
         {label}
       </div>
       <div className={cn("mt-3 text-xl font-semibold", toneToken.emphasis)}>

@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { AccountSummaryItem } from "@/lib/api/reports";
 import { formatMoney } from "@/lib/domain/money";
 import { cn } from "@/lib/utils";
@@ -28,12 +29,41 @@ export function AccountsSummaryTable({
 }: AccountsSummaryTableProps) {
   if (isLoading) {
     return (
-      <div
-        className="py-8 text-center text-sm text-muted-foreground"
-        data-testid={`${testId}-loading`}
-      >
-        加载中…
-      </div>
+      <Table className="text-sm" data-testid={`${testId}-loading`}>
+        <TableHeader className="[&_th]:whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:text-muted-foreground/80">
+          <TableRow className="border-b border-border/70">
+            <TableHead>名称</TableHead>
+            <TableHead>本金</TableHead>
+            <TableHead>估值</TableHead>
+            <TableHead>收益</TableHead>
+            <TableHead>ROI</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {["row-1", "row-2", "row-3"].map((key) => (
+            <TableRow
+              key={key}
+              className="border-b border-border/40 [&>td]:px-3 [&>td]:py-2"
+            >
+              <TableCell>
+                <Skeleton className="h-4 w-24" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-20" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-20" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-16" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-16" />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     );
   }
 
@@ -49,10 +79,7 @@ export function AccountsSummaryTable({
   }
 
   return (
-    <Table
-      className="text-sm"
-      data-testid={testId}
-    >
+    <Table className="text-sm" data-testid={testId}>
       <TableHeader className="[&_th]:whitespace-nowrap [&_th]:px-3 [&_th]:py-2 [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:text-muted-foreground/80">
         <TableRow className="border-b border-border/70">
           <TableHead>名称</TableHead>
