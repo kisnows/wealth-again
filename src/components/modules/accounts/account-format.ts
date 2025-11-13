@@ -1,19 +1,7 @@
-export function formatAmount(value: number, currency?: string | null) {
-  if (!Number.isFinite(value)) return "-";
-  const currencyCode = currency ?? "CNY";
-  try {
-    return new Intl.NumberFormat("zh-CN", {
-      style: "currency",
-      currency: currencyCode,
-      maximumFractionDigits: 2,
-    }).format(value);
-  } catch {
-    return new Intl.NumberFormat("zh-CN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-  }
-}
+// Re-export formatMoney from domain for convenience
+export { formatMoney } from "@/lib/domain/money";
+// Alias for backward compatibility
+export { formatMoney as formatAmount } from "@/lib/domain/money";
 
 export function formatPercent(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "—";

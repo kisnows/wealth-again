@@ -15,6 +15,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import AllocPie from "@/components/modules/reporting/Charts/AllocPie";
 import NetWorthLine from "@/components/modules/reporting/Charts/NetWorthLine";
 import TopAccounts from "@/components/modules/reporting/TopAccounts";
+import { MetricCard } from "@/components/modules/reporting/MetricCard";
 import {
   PageContainer,
   PageHeader,
@@ -25,7 +26,6 @@ import TransferDialog from "@/components/modules/accounts/TransferDialog";
 import ValuationFormDialog from "@/components/modules/accounts/ValuationFormDialog";
 import WithdrawDialog from "@/components/modules/accounts/WithdrawDialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   useAccountsSummary,
@@ -38,62 +38,12 @@ import PeriodSelect from "@/components/modules/filters/PeriodSelect";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserPrefsStore } from "@/lib/state/identity";
 import { accentTokens, semanticAccents } from "@/lib/theme/palette";
-import type { AccentKey } from "@/lib/theme/palette";
+import type { AccentKey } from "@/lib/theme/tokens";
 
 type MetricAccent = Extract<
   AccentKey,
   "primary" | "success" | "accent" | "warning" | "info"
 >;
-
-type MetricCardProps = {
-  icon: ReactNode;
-  title: string;
-  value: ReactNode;
-  hint?: ReactNode;
-  accent: MetricAccent;
-  testId: string;
-};
-
-function MetricCard({
-  icon,
-  title,
-  value,
-  hint,
-  accent,
-  testId,
-}: MetricCardProps) {
-  const accentToken = accentTokens[accent];
-  return (
-    <Card
-      className="relative overflow-hidden border border-border/60 bg-card shadow-sm"
-      data-testid={testId}
-    >
-      <div
-        className={cn(
-          "absolute inset-x-0 top-0 h-1 bg-gradient-to-r",
-          accentToken.gradient,
-        )}
-      />
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div className="text-sm font-medium text-muted-foreground">{title}</div>
-        <div className={cn("rounded-md p-2", accentToken.surface)}>{icon}</div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div
-          className={cn(
-            "text-2xl font-semibold md:text-3xl",
-            accentToken.emphasis,
-          )}
-        >
-          {value}
-        </div>
-        {hint ? (
-          <div className="mt-2 text-xs text-muted-foreground">{hint}</div>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
 
 type PeriodPreset = {
   value: string;
@@ -234,7 +184,7 @@ export default function DashboardPage() {
       key: "net-worth",
       title: "净资产",
       accent: semanticAccents.netWorth as MetricAccent,
-      icon: <PiggyBankIcon className="h-4 w-4" />,
+      icon: PiggyBankIcon,
       value: dashboardLoading ? (
         <Skeleton className="h-8 w-32" />
       ) : (
@@ -250,7 +200,7 @@ export default function DashboardPage() {
       key: "annual-income",
       title: "年度总收入",
       accent: semanticAccents.income.total as MetricAccent,
-      icon: <DollarSignIcon className="h-4 w-4" />,
+      icon: DollarSignIcon,
       value: incomeLoading ? (
         <Skeleton className="h-8 w-32" />
       ) : incomeStatistics ? (
@@ -268,7 +218,7 @@ export default function DashboardPage() {
       key: "monthly-income",
       title: "本月税前收入",
       accent: semanticAccents.income.total as MetricAccent,
-      icon: <BanknoteIcon className="h-4 w-4" />,
+      icon: BanknoteIcon,
       value: incomeLoading ? (
         <Skeleton className="h-8 w-32" />
       ) : incomeStatistics ? (
@@ -292,7 +242,7 @@ export default function DashboardPage() {
       key: "tax-rate",
       title: "有效税率",
       accent: semanticAccents.income.taxRate as MetricAccent,
-      icon: <CalculatorIcon className="h-4 w-4" />,
+      icon: CalculatorIcon,
       value: incomeLoading ? (
         <Skeleton className="h-8 w-20" />
       ) : incomeStatistics ? (
@@ -370,6 +320,8 @@ export default function DashboardPage() {
               testId={`dashboard-ui-metric-${metric.key}`}
               title={metric.title}
               value={metric.value}
+              variant="default"
+              showTopBorder
             />
           ))}
         </div>

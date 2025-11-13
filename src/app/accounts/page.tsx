@@ -27,29 +27,26 @@ import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/lib/api/accounts";
 import { useAccountsSummary } from "@/lib/api/reports";
 import { useUserPrefsStore } from "@/lib/state/identity";
+import { formatMoney } from "@/lib/domain/money";
+import { calculateAccountTotals } from "@/lib/domain/accounts";
 
 const SUMMARY_CARDS = [
-  { key: "assets", label: "资产总额", badge: { label: "资产", variant: "secondary" as const } },
-  { key: "liabilities", label: "负债总额", badge: { label: "负债", variant: "outline" as const } },
-  { key: "net", label: "净资产", badge: { label: "净值", variant: "default" as const } },
+  {
+    key: "assets",
+    label: "资产总额",
+    badge: { label: "资产", variant: "secondary" as const },
+  },
+  {
+    key: "liabilities",
+    label: "负债总额",
+    badge: { label: "负债", variant: "outline" as const },
+  },
+  {
+    key: "net",
+    label: "净资产",
+    badge: { label: "净值", variant: "default" as const },
+  },
 ] as const;
-
-function formatAmount(value: number, currency: string | null | undefined) {
-  if (!Number.isFinite(value)) return "-";
-  const fmtCurrency = currency ?? "CNY";
-  try {
-    return new Intl.NumberFormat("zh-CN", {
-      style: "currency",
-      currency: fmtCurrency,
-      maximumFractionDigits: 2,
-    }).format(value);
-  } catch {
-    return new Intl.NumberFormat("zh-CN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-  }
-}
 
 export default function AccountsPage() {
   const { displayCurrency } = useUserPrefsStore();
@@ -68,22 +65,10 @@ export default function AccountsPage() {
   const summaries = summaryData?.items ?? [];
   const totals = useMemo(() => {
     if (summaryData?.totals) return summaryData.totals;
-    return summaries.reduce(
-      (acc, item) => {
-        const valuationValue =
-          displayCurrency && typeof item.displayValue === "number"
-            ? Number(item.displayValue)
-            : Number(item.valuation ?? 0);
-        if ((item.status ?? "ACTIVE") === "ARCHIVED") {
-          acc.archived += valuationValue;
-        }
-        if (item.accountType === "LOAN") acc.liabilities += valuationValue;
-        else acc.assets += valuationValue;
-        acc.netWorth = acc.assets - acc.liabilities;
-        return acc;
-      },
-      { assets: 0, liabilities: 0, archived: 0, netWorth: 0 },
-    );
+    return calculateAccountTotals(summaries, {
+      includeArchived: true,
+      preferDisplayValue: Boolean(displayCurrency),
+    });
   }, [summaries, summaryData?.totals, displayCurrency]);
   const netWorth = totals.netWorth ?? totals.assets - totals.liabilities;
   const totalsCurrency =
@@ -96,7 +81,10 @@ export default function AccountsPage() {
     <PageContainer padding="md" testId="accounts-ui-page">
       <PageHeader
         actions={
-          <div className="flex flex-wrap items-center gap-2" data-testid="accounts-ui-actions">
+          <div
+            className="flex flex-wrap items-center gap-2"
+            data-testid="accounts-ui-actions"
+          >
             <div data-testid="accounts-ui-action-create">
               <CreateAccountDialog />
             </div>
@@ -118,9 +106,7 @@ export default function AccountsPage() {
               size="sm"
               variant="outline"
             >
-              <Link href="/settings">
-                管理全局设置
-              </Link>
+              <Link href="/settings">管理全局设置</Link>
             </Button>
           </div>
         }
@@ -139,7 +125,10 @@ export default function AccountsPage() {
         title="账户概览"
       >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,380px)_minmax(0,1.35fr)]">
-          <Card className="h-full border-border/70 bg-card/95 shadow-sm" data-testid="accounts-ui-summary-card">
+          <Card
+            className="h-full border-border/70 bg-card/95 shadow-sm"
+            data-testid="accounts-ui-summary-card"
+          >
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-semibold text-foreground">
                 关键指标
@@ -168,11 +157,14 @@ export default function AccountsPage() {
                           {card.label}
                         </dt>
                         <dd className="text-xl font-semibold leading-tight text-foreground">
-                          {formatAmount(value, totalsCurrency)}
+                          {formatMoney(value, totalsCurrency)}
                         </dd>
                       </div>
                       {card.badge ? (
-                        <Badge className="text-[11px]" variant={card.badge.variant}>
+                        <Badge
+                          className="text-[11px]"
+                          variant={card.badge.variant}
+                        >
                           {card.badge.label}
                         </Badge>
                       ) : null}
@@ -183,9 +175,9 @@ export default function AccountsPage() {
             </CardContent>
             {totals.archived > 0 ? (
               <CardFooter className="border-t border-border/60 px-4 py-2">
-                <p className="text-xs text-muted-foreground">
-                  含已归档估值 {formatAmount(totals.archived, totalsCurrency)}
-                </p>
+                <div className="text-xs text-muted-foreground">
+                  含已归档估值 {formatMoney(totals.archived, totalsCurrency)}
+                </div>
               </CardFooter>
             ) : null}
           </Card>

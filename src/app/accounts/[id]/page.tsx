@@ -19,8 +19,14 @@ import { AccountTransactionsTable } from "@/components/modules/accounts/AccountT
 import { useAccountSummary, useAccountTimeseries } from "@/lib/api/accounts";
 import { useAccountsSummary } from "@/lib/api/reports";
 import { useUserPrefsStore } from "@/lib/state/identity";
-import { formatAmount, formatPercent } from "@/components/modules/accounts/account-format";
-import { ACCOUNT_TYPE_LABELS, STATUS_LABELS } from "@/components/modules/accounts/account-table-utils";
+import {
+  formatMoney,
+  formatPercent,
+} from "@/components/modules/accounts/account-format";
+import {
+  ACCOUNT_TYPE_LABELS,
+  STATUS_LABELS,
+} from "@/components/modules/accounts/account-table-utils";
 
 function buildSummaryDisplay(
   accountId: string,
@@ -35,12 +41,13 @@ export default function AccountDetailPage() {
   const accountId = params.id;
   const { displayCurrency } = useUserPrefsStore();
 
-  const { data: summaryData, isLoading: summaryLoading, error: summaryError } =
-    useAccountSummary(accountId);
   const {
-    data: summariesWithDisplay,
-    isLoading: displaySummaryLoading,
-  } = useAccountsSummary(displayCurrency ?? undefined);
+    data: summaryData,
+    isLoading: summaryLoading,
+    error: summaryError,
+  } = useAccountSummary(accountId);
+  const { data: summariesWithDisplay, isLoading: displaySummaryLoading } =
+    useAccountsSummary(displayCurrency ?? undefined);
   const valuationSeries = useAccountTimeseries(accountId, "valuation");
   const principalSeries = useAccountTimeseries(accountId, "principal");
 
@@ -59,33 +66,36 @@ export default function AccountDetailPage() {
     typeof displaySummary?.displayValue === "number" &&
     Number.isFinite(displaySummary.displayValue)
       ? displaySummary.displayValue
-      : summaryData?.valuation ?? null;
+      : (summaryData?.valuation ?? null);
   const principalDisplayValue =
     displayCurrency &&
     typeof displaySummary?.displayPrincipal === "number" &&
     Number.isFinite(displaySummary.displayPrincipal)
       ? displaySummary.displayPrincipal
-      : summaryData?.principal ?? null;
+      : (summaryData?.principal ?? null);
   const profitDisplayValue =
     displayCurrency &&
     typeof displaySummary?.displayProfit === "number" &&
     Number.isFinite(displaySummary.displayProfit)
       ? displaySummary.displayProfit
-      : summaryData?.profit ?? null;
+      : (summaryData?.profit ?? null);
   const cards = [
     {
       key: "valuation",
       label: "当前估值",
       value:
         valuationDisplayValue != null
-          ? formatAmount(
+          ? formatMoney(
               valuationDisplayValue,
-              displayCurrency ?? valuationCurrency ?? summaryData?.currency ?? "CNY",
+              displayCurrency ??
+                valuationCurrency ??
+                summaryData?.currency ??
+                "CNY",
             )
           : "—",
       detail:
         displayCurrency && summaryData
-          ? `原币 ${formatAmount(summaryData.valuation ?? 0, valuationCurrency)}`
+          ? `原币 ${formatMoney(summaryData.valuation ?? 0, valuationCurrency)}`
           : "",
     },
     {
@@ -93,14 +103,14 @@ export default function AccountDetailPage() {
       label: "累计本金",
       value:
         principalDisplayValue != null
-          ? formatAmount(
+          ? formatMoney(
               principalDisplayValue,
               displayCurrency ?? summaryData?.currency ?? "CNY",
             )
           : "—",
       detail:
         displayCurrency && summaryData
-          ? `原币 ${formatAmount(summaryData.principal ?? 0, summaryData.currency)}`
+          ? `原币 ${formatMoney(summaryData.principal ?? 0, summaryData.currency)}`
           : "",
     },
     {
@@ -108,11 +118,14 @@ export default function AccountDetailPage() {
       label: "收益",
       value:
         profitDisplayValue != null
-          ? formatAmount(profitDisplayValue, displayCurrency ?? summaryData?.currency ?? "CNY")
+          ? formatMoney(
+              profitDisplayValue,
+              displayCurrency ?? summaryData?.currency ?? "CNY",
+            )
           : "—",
       detail:
         displayCurrency && summaryData
-          ? `原币 ${formatAmount(summaryData.profit ?? 0, summaryData.currency)}`
+          ? `原币 ${formatMoney(summaryData.profit ?? 0, summaryData.currency)}`
           : "",
     },
     {
@@ -127,7 +140,10 @@ export default function AccountDetailPage() {
     <PageContainer padding="md" testId="accounts-detail-page">
       <PageHeader
         actions={
-          <div className="flex flex-wrap gap-2" data-testid="accounts-detail-actions">
+          <div
+            className="flex flex-wrap gap-2"
+            data-testid="accounts-detail-actions"
+          >
             {!isArchived ? (
               <>
                 <DepositDialog defaultAccountId={accountId} />
@@ -169,9 +185,13 @@ export default function AccountDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-xl font-semibold text-foreground">{card.value}</p>
+                <p className="text-xl font-semibold text-foreground">
+                  {card.value}
+                </p>
                 {card.detail ? (
-                  <p className="mt-1 text-xs text-muted-foreground">{card.detail}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {card.detail}
+                  </p>
                 ) : null}
               </CardContent>
             </Card>
@@ -187,7 +207,9 @@ export default function AccountDetailPage() {
       >
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">基础信息</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">
+              基础信息
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
@@ -206,7 +228,9 @@ export default function AccountDetailPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">账户币种</span>
-              <span className="font-medium">{summaryData?.currency ?? "—"}</span>
+              <span className="font-medium">
+                {summaryData?.currency ?? "—"}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">估值币种</span>
@@ -218,7 +242,9 @@ export default function AccountDetailPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">说明</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">
+              说明
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p className="text-muted-foreground">
@@ -241,7 +267,9 @@ export default function AccountDetailPage() {
       >
         <Card data-testid="accounts-detail-chart-valuation">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">估值走势</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">
+              估值走势
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <NetWorthLine
@@ -254,7 +282,9 @@ export default function AccountDetailPage() {
         </Card>
         <Card data-testid="accounts-detail-chart-principal">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">本金走势</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">
+              本金走势
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <NetWorthLine

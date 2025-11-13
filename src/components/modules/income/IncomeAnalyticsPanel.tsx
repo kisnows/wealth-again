@@ -1,17 +1,17 @@
 "use client";
 
 import {
-  AlertCircleIcon,
   BarChart3Icon,
   CalendarIcon,
   DollarSignIcon,
   PercentIcon,
   TrendingUpIcon,
-  type LucideIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import IncomeStackedBar from "@/components/modules/reporting/Charts/IncomeStackedBar";
+import { MetricCard } from "@/components/modules/reporting/MetricCard";
+import { StateCard } from "@/components/modules/common/StateCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,7 +51,6 @@ import { notifyAsync } from "@/lib/utils/notify";
 import { updateIncomeRecord } from "@/lib/api/income";
 import { Textarea } from "@/components/ui/textarea";
 import { accentTokens, semanticAccents } from "@/lib/theme/palette";
-import type { AccentKey } from "@/lib/theme/palette";
 
 type Props = {
   testIdPrefix: string;
@@ -252,12 +251,11 @@ export default function IncomeAnalyticsPanel({
 
   if (error) {
     return (
-      <Card data-testid={`${testIdPrefix}-analytics-error`}>
-        <CardContent className="flex items-center gap-3 py-8 text-sm text-destructive">
-          <AlertCircleIcon className="h-5 w-5 shrink-0" />
-          <span>收入数据加载失败，请稍后重试。</span>
-        </CardContent>
-      </Card>
+      <StateCard
+        variant="error"
+        description="收入数据加载失败，请稍后重试。"
+        testId={`${testIdPrefix}-analytics-error`}
+      />
     );
   }
 
@@ -375,12 +373,11 @@ export default function IncomeAnalyticsPanel({
           </CardContent>
         </Card>
       ) : processed.items.length === 0 ? (
-        <Card data-testid={`${testIdPrefix}-analytics-empty`}>
-          <CardContent className="flex items-center gap-3 py-10 text-sm text-muted-foreground">
-            <AlertCircleIcon className="h-5 w-5 shrink-0" />
-            <span>当前区间暂无收入记录或预测数据。</span>
-          </CardContent>
-        </Card>
+        <StateCard
+          variant="empty"
+          description="当前区间暂无收入记录或预测数据。"
+          testId={`${testIdPrefix}-analytics-empty`}
+        />
       ) : (
         <>
           <Card data-testid={`${testIdPrefix}-analytics-summary`}>
@@ -398,58 +395,66 @@ export default function IncomeAnalyticsPanel({
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <SummaryCard
+                <MetricCard
                   accent={semanticAccents.income.total}
                   icon={DollarSignIcon}
-                  label="总收入"
+                  title="总收入"
                   testId={`${testIdPrefix}-analytics-total-income`}
                   value={formatMoney(
                     totalsCombined.totalIncome,
                     processed.currency,
                   )}
-                  helper={`实际 ${formatMoney(
+                  hint={`实际 ${formatMoney(
                     totalsCombined.actualIncome,
                     processed.currency,
                   )} · 预测 ${formatMoney(
                     totalsCombined.forecastIncome,
                     processed.currency,
                   )}`}
+                  variant="compact"
+                  showTopBorder={false}
                 />
-                <SummaryCard
+                <MetricCard
                   accent={semanticAccents.income.net}
                   icon={TrendingUpIcon}
-                  label="净收入"
+                  title="净收入"
                   testId={`${testIdPrefix}-analytics-total-net`}
                   value={formatMoney(
                     totalsCombined.totalNet,
                     processed.currency,
                   )}
-                  helper={`实际 ${formatMoney(
+                  hint={`实际 ${formatMoney(
                     totalsCombined.actualNet,
                     processed.currency,
                   )} · 预测 ${formatMoney(
                     totalsCombined.forecastNet,
                     processed.currency,
                   )}`}
+                  variant="compact"
+                  showTopBorder={false}
                 />
-                <SummaryCard
+                <MetricCard
                   accent={semanticAccents.income.deductions}
                   icon={BarChart3Icon}
-                  label="总扣除"
+                  title="总扣除"
                   testId={`${testIdPrefix}-analytics-total-deduction`}
                   value={formatMoney(
                     totalsCombined.totalDeductions,
                     processed.currency,
                   )}
-                  helper={`含社保、公积金及个税`}
+                  hint={`含社保、公积金及个税`}
+                  variant="compact"
+                  showTopBorder={false}
                 />
-                <SummaryCard
+                <MetricCard
                   accent={semanticAccents.income.taxRate}
                   icon={PercentIcon}
-                  label="有效税率"
+                  title="有效税率"
                   testId={`${testIdPrefix}-analytics-effective-tax`}
                   value={`${totalsCombined.effectiveTaxRate.toFixed(1)}%`}
-                  helper={`实际月数 ${totalsCombined.counts.actual} | 预测月数 ${totalsCombined.counts.forecast}`}
+                  hint={`实际月数 ${totalsCombined.counts.actual} | 预测月数 ${totalsCombined.counts.forecast}`}
+                  variant="compact"
+                  showTopBorder={false}
                 />
               </div>
             </CardContent>
@@ -731,48 +736,6 @@ export default function IncomeAnalyticsPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function SummaryCard({
-  icon: Icon,
-  label,
-  value,
-  helper,
-  testId,
-  accent,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  helper?: string;
-  testId: string;
-  accent: AccentKey;
-}) {
-  const accentToken = accentTokens[accent];
-  return (
-    <div
-      className="space-y-2 rounded-lg border border-border/60 bg-card/80 p-4 shadow-sm"
-      data-testid={testId}
-    >
-      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <span
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full",
-            accentToken.surface,
-          )}
-        >
-          <Icon className="h-4 w-4" />
-        </span>
-        {label}
-      </div>
-      <div className={cn("text-xl font-semibold", accentToken.emphasis)}>
-        {value}
-      </div>
-      {helper ? (
-        <div className="text-xs text-muted-foreground">{helper}</div>
-      ) : null}
     </div>
   );
 }
