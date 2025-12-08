@@ -121,3 +121,22 @@ pnpm prisma migrate dev
 # 执行种子脚本填充数据
 pnpm tsx prisma/seed.ts
 ```
+
+## 12. 安全策略
+
+### 12.1 注册与登录防护
+
+- **验证码服务**: 推荐使用 hCaptcha / reCAPTCHA v2/v3 / 腾讯防水墙等 SaaS 服务。
+  - 前端：在注册表单提交前请求验证码，并将 `token` 附带到注册接口中。
+  - 后端：在 `/api/v1/identity/register` 中校验 `token`，失败时返回 422。
+  - 配置：密钥写入 `.env`（如 `CAPTCHA_SITE_KEY`、`CAPTCHA_SECRET`）。
+
+- **限流策略**: 对注册接口增加基础限流，可使用 Edge Middleware 或带 Redis 的限流器实现。
+
+- **审计记录**: 将验证码失败、注册失败次数写入 `AuditLog`，便于后续监控。
+
+### 12.2 敏感操作防护
+
+- **管理员模拟登录**: 需双重确认并写入 `AuditLog`，包含 `actorId`、`asUserId`、`action`、`payload`。
+- **规则修改**: 税率表、城市规则等全局配置变更需记录审计日志。
+- **数据删除**: 账户、收入记录的删除操作需写入审计日志。

@@ -1,1 +1,0 @@
-你可以通过 https://www.better-auth.com/llms.txt 获取最新的 better-auth 的 llms.txt 文件。
