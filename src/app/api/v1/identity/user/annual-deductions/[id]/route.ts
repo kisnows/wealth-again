@@ -1,6 +1,6 @@
-import { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { userAnnualDeductions } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -8,6 +8,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { eq } from "drizzle-orm";
 
 const ALLOCATION_RULES = new Set(["AVERAGE", "ONCE"]);
 
@@ -25,9 +26,11 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "missing id" }, { status: 400 });
   }
 
-  const existing = await prisma.userAnnualDeduction.findUnique({
-    where: { id: deductionId },
-  });
+  const [existing] = await db
+    .select()
+    .from(userAnnualDeductions)
+    .where(eq(userAnnualDeductions.id, deductionId))
+    .limit(1);
   if (!existing) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
@@ -49,7 +52,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
   const data: {
     taxYear?: number;
-    annualAmount?: Prisma.Decimal;
+    annualAmount?: string | null;
     allocationRule?: string | null;
     note?: string | null;
   } = {};
@@ -72,7 +75,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         { status: 400 },
       );
     }
-    data.annualAmount = new Prisma.Decimal(annualAmount);
+    data.annualAmount = String(annualAmount);
   }
 
   if (body.allocationRule !== undefined) {
@@ -117,10 +120,11 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     );
   }
 
-  const updated = await prisma.userAnnualDeduction.update({
-    where: { id: deductionId },
-    data,
-  });
+  const [updated] = await db
+    .update(userAnnualDeductions)
+    .set(data)
+    .where(eq(userAnnualDeductions.id, deductionId))
+    .returning();
 
   await logAudit("SETTINGS_ANNUAL_DEDUCTION_UPDATE", {
     userId: viewer.id,

@@ -1,7 +1,8 @@
-import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { incomeRecords, users } from "@/server/db/schema";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 
 /**
  * GET /api/v1/income-tax/overview?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&cityId=optional
@@ -27,25 +28,28 @@ export async function GET(req: NextRequest) {
 
   try {
     const userId = user.id;
-    const userRecord = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const [userRecord] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
     if (!userRecord) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // 获取收入记录
-    const incomeRecords = await prisma.incomeRecord.findMany({
-      where: {
-        userId,
-        monthDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      },
-      orderBy: { monthDate: "asc" },
-    });
+    const incomeRecords = await db
+      .select()
+      .from(incomeRecords)
+      .where(
+        and(
+          eq(incomeRecords.userId, userId),
+          gte(incomeRecords.monthDate, new Date(startDate)),
+          lte(incomeRecords.monthDate, new Date(endDate)),
+        ),
+      )
+      .orderBy(asc(incomeRecords.monthDate));
 
     if (incomeRecords.length === 0) {
       return NextResponse.json({
@@ -64,7 +68,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 计算汇总统计
-    const toNumber = (value: Prisma.Decimal | number | null | undefined) =>
+    const toNumber = (value: string | number | null | undefined) =>
       Number(value ?? 0);
     const totals = incomeRecords.reduce(
       (acc, record) => ({

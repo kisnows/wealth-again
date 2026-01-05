@@ -1,11 +1,13 @@
-import type { City, CityRuleSS } from "@prisma/client";
+import type { City, CityRuleSS } from "@/server/db/types";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { cities, cityRuleSS } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { and, desc, eq, gt, isNull, lte, or } from "drizzle-orm";
 
 /**
  * GET /api/v1/income-tax/rules/social-security?city=Hangzhou&on=2025-01-01
@@ -21,18 +23,26 @@ export async function GET(req: NextRequest) {
   const on = searchParams.get("on");
   if (!cityName || !on)
     return NextResponse.json({ error: "city & on required" }, { status: 400 });
-  const city = await prisma.city.findUnique({ where: { name: cityName } });
+  const [city] = await db
+    .select()
+    .from(cities)
+    .where(eq(cities.name, cityName))
+    .limit(1);
   if (!city)
     return NextResponse.json({ error: "city not found" }, { status: 404 });
   const onDate = new Date(on);
-  const rule = await prisma.cityRuleSS.findFirst({
-    where: {
-      cityId: city.id,
-      effectiveFrom: { lte: onDate },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gt: onDate } }],
-    },
-    orderBy: { effectiveFrom: "desc" },
-  });
+  const [rule] = await db
+    .select()
+    .from(cityRuleSS)
+    .where(
+      and(
+        eq(cityRuleSS.cityId, city.id),
+        lte(cityRuleSS.effectiveFrom, onDate),
+        or(isNull(cityRuleSS.effectiveTo), gt(cityRuleSS.effectiveTo, onDate)),
+      ),
+    )
+    .orderBy(desc(cityRuleSS.effectiveFrom))
+    .limit(1);
   if (!rule) return NextResponse.json({ error: "No rule" }, { status: 404 });
   return NextResponse.json(rule);
 }
@@ -67,9 +77,10 @@ export async function PUT(req: Request) {
       );
 
     // overlap check (JS 级别)
-    const existing = await prisma.cityRuleSS.findMany({
-      where: { cityId: city.id },
-    });
+    const existing = await db
+      .select()
+      .from(cityRuleSS)
+      .where(eq(cityRuleSS.cityId, city.id));
     let effectiveFrom: Date;
     let effectiveTo: Date | null;
     try {
@@ -91,36 +102,44 @@ export async function PUT(req: Request) {
         { error: "interval overlaps existing rule", city: city.id },
         { status: 409 },
       );
-    await prisma.cityRuleSS.upsert({
-      where: {
-        cityId_effectiveFrom: {
-          cityId: city.id,
-          effectiveFrom: ns,
-        },
-      },
-      update: {
-        currency,
-        effectiveTo: ne,
-        baseMin: it.baseMin,
-        baseMax: it.baseMax,
-        ratePension: it.ratePension,
-        rateMedical: it.rateMedical,
-        rateUnemployment: it.rateUnemployment,
-        fixedMedicalPersonal: it.fixedMedicalPersonal ?? null,
-      },
-      create: {
+    const baseMin = Number(it.baseMin ?? 0);
+    const baseMax = Number(it.baseMax ?? 0);
+    const ratePension = Number(it.ratePension ?? 0);
+    const rateMedical = Number(it.rateMedical ?? 0);
+    const rateUnemployment = Number(it.rateUnemployment ?? 0);
+    await db
+      .insert(cityRuleSS)
+      .values({
         cityId: city.id,
         currency,
         effectiveFrom: ns,
         effectiveTo: ne,
-        baseMin: it.baseMin,
-        baseMax: it.baseMax,
-        ratePension: it.ratePension,
-        rateMedical: it.rateMedical,
-        rateUnemployment: it.rateUnemployment,
-        fixedMedicalPersonal: it.fixedMedicalPersonal ?? null,
-      },
-    });
+        baseMin: String(baseMin),
+        baseMax: String(baseMax),
+        ratePension: String(ratePension),
+        rateMedical: String(rateMedical),
+        rateUnemployment: String(rateUnemployment),
+        fixedMedicalPersonal:
+          it.fixedMedicalPersonal != null
+            ? String(it.fixedMedicalPersonal)
+            : null,
+      })
+      .onConflictDoUpdate({
+        target: [cityRuleSS.cityId, cityRuleSS.effectiveFrom],
+        set: {
+          currency,
+          effectiveTo: ne,
+          baseMin: String(baseMin),
+          baseMax: String(baseMax),
+          ratePension: String(ratePension),
+          rateMedical: String(rateMedical),
+          rateUnemployment: String(rateUnemployment),
+          fixedMedicalPersonal:
+            it.fixedMedicalPersonal != null
+              ? String(it.fixedMedicalPersonal)
+              : null,
+        },
+      });
   }
   await logAudit("RULE_SS_UPSERT", { meta: { count: items.length } });
   await markIdempotencyUsed(key);
@@ -177,11 +196,20 @@ async function resolveCity(
 ): Promise<City | null> {
   const normalizedCountry = country ?? "CN";
   if (cityInput.length === 36) {
-    return prisma.city.findUnique({ where: { id: cityInput } });
+    const [found] = await db
+      .select()
+      .from(cities)
+      .where(eq(cities.id, cityInput))
+      .limit(1);
+    return found ?? null;
   }
-  return prisma.city.upsert({
-    where: { name: cityInput },
-    update: {},
-    create: { name: cityInput, country: normalizedCountry },
-  });
+  const [city] = await db
+    .insert(cities)
+    .values({ name: cityInput, country: normalizedCountry })
+    .onConflictDoUpdate({
+      target: cities.name,
+      set: { country: normalizedCountry },
+    })
+    .returning();
+  return city ?? null;
 }

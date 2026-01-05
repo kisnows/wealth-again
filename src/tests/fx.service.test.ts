@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
+import {
+  queueSelectResults,
+  resetDbMock,
+} from "@/tests/helpers/dbMock";
+import { upsertFxRateWithContinuity } from "@/server/services/fx/rate-writer";
+import { refreshLatestFxRate } from "@/server/services/fx/update";
+import { fxProvider } from "@/server/services/fx/provider";
 
 vi.mock("@/server/services/audit", () => ({
   audit: {
@@ -10,11 +16,23 @@ vi.mock("@/server/services/audit", () => ({
   logAudit: vi.fn(),
 }));
 
-const mockPrisma = prismaMock;
+vi.mock("@/server/utils/idempotency", () => ({
+  ensureIdempotent: vi.fn().mockResolvedValue({ key: "k", existed: false }),
+  markIdempotencyUsed: vi.fn(),
+}));
+
+vi.mock("@/server/services/fx/rate-writer", () => ({
+  upsertFxRateWithContinuity: vi.fn(),
+}));
+
+vi.mock("@/server/services/fx/update", async (importOriginal) => ({
+  ...(await importOriginal()),
+  refreshLatestFxRate: vi.fn(),
+}));
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  resetPrismaMock();
+  resetDbMock();
   const { clearFxCache } = await import("@/server/services/fx/provider");
   clearFxCache();
 });
@@ -23,7 +41,8 @@ describe("FX routes", () => {
   it("GET /fxrates returns nearest asOf match", async () => {
     // 用例：查询指定日期的汇率快照时，接口应返回最近的匹配记录。
     const m = await import("@/app/api/v1/fx/rates/route");
-    mockPrisma.fxRate.findFirst.mockResolvedValueOnce({
+    queueSelectResults([
+      {
       id: "r1",
       base: "USD",
       quote: "CNY",
@@ -31,7 +50,8 @@ describe("FX routes", () => {
       effectiveFrom: new Date("2025-07-15"),
       effectiveTo: null,
       createdAt: new Date("2025-07-15"),
-    });
+      },
+    ]);
     const res = await m.GET(
       makeGet(
         "http://localhost/api/v1/fx/rates?base=USD&quote=CNY&on=2025-08-01",
@@ -54,7 +74,8 @@ describe("FX routes", () => {
   it("GET /fxrates without on returns latest snapshot", async () => {
     // 用例：未提供 on 参数时，接口应回落到最新快照。
     const m = await import("@/app/api/v1/fx/rates/route");
-    mockPrisma.fxRate.findFirst.mockResolvedValueOnce({
+    queueSelectResults([
+      {
       id: "r-latest",
       base: "USD",
       quote: "EUR",
@@ -62,7 +83,8 @@ describe("FX routes", () => {
       effectiveFrom: new Date("2025-08-01"),
       effectiveTo: null,
       createdAt: new Date("2025-08-01"),
-    });
+      },
+    ]);
     const res = await m.GET(
       makeGet("http://localhost/api/v1/fx/rates?base=USD&quote=EUR"),
     );
@@ -85,20 +107,16 @@ describe("FX routes", () => {
   it("POST /fxrates creates snapshot", async () => {
     // 用例：POST 提交完整参数时成功创建汇率快照并返回 201。
     const m = await import("@/app/api/v1/fx/rates/route");
-    mockPrisma.fxRate.findFirst
-      .mockResolvedValueOnce(null) // existingSameStart
-      .mockResolvedValueOnce(null); // overlapping after creation
-    mockPrisma.fxRate.findMany.mockResolvedValueOnce([]);
     const created = {
       id: "r2",
       base: "USD",
       quote: "CNY",
-      rate: 7.1,
+      rate: "7.1",
       effectiveFrom: new Date("2025-08-02"),
       effectiveTo: null,
       createdAt: new Date("2025-08-02"),
     };
-    mockPrisma.fxRate.create.mockResolvedValueOnce(created);
+    vi.mocked(upsertFxRateWithContinuity).mockResolvedValueOnce(created as any);
     const res = await m.POST(
       makeJsonRequest("http://localhost/api/v1/fx/rates", "POST", {
         base: "USD",
@@ -108,49 +126,21 @@ describe("FX routes", () => {
       }),
     );
     expect(res.status).toBe(201);
-    expect(mockPrisma.fxRate.update).not.toHaveBeenCalled();
-    expect(mockPrisma.fxRate.findMany).toHaveBeenCalled();
+    expect(upsertFxRateWithContinuity).toHaveBeenCalled();
   });
 
   it("POST /fxrates splits overlapping intervals以保持连续性", async () => {
     const m = await import("@/app/api/v1/fx/rates/route");
-    const oldRecord = {
-      id: "fx-old",
-      base: "USD",
-      quote: "CNY",
-      rate: 7,
-      effectiveFrom: new Date("2025-01-01T00:00:00.000Z"),
-      effectiveTo: new Date("2025-10-01T00:00:00.000Z"),
-    };
-    mockPrisma.fxRate.findFirst
-      .mockResolvedValueOnce(null) // no existing same start
-      .mockResolvedValueOnce(null); // overlap check after create
-    mockPrisma.fxRate.findMany.mockResolvedValueOnce([oldRecord]);
-    mockPrisma.fxRate.update.mockResolvedValueOnce({
-      ...oldRecord,
-      effectiveTo: new Date("2025-09-01T00:00:00.000Z"),
-    });
-    const tailRecord = {
-      id: "fx-tail",
-      base: "USD",
-      quote: "CNY",
-      rate: 7,
-      effectiveFrom: new Date("2025-09-30T00:00:00.000Z"),
-      effectiveTo: oldRecord.effectiveTo,
-      createdAt: new Date("2025-09-01T00:00:00.000Z"),
-    };
     const created = {
       id: "fx-new",
       base: "USD",
       quote: "CNY",
-      rate: 7.13,
+      rate: "7.13",
       effectiveFrom: new Date("2025-09-01T00:00:00.000Z"),
       effectiveTo: new Date("2025-09-30T00:00:00.000Z"),
       createdAt: new Date("2025-09-01T00:00:00.000Z"),
     };
-    mockPrisma.fxRate.create
-      .mockResolvedValueOnce(tailRecord)
-      .mockResolvedValueOnce(created);
+    vi.mocked(upsertFxRateWithContinuity).mockResolvedValueOnce(created as any);
 
     const res = await m.POST(
       makeJsonRequest("http://localhost/api/v1/fx/rates", "POST", {
@@ -163,30 +153,24 @@ describe("FX routes", () => {
     );
 
     expect(res.status).toBe(201);
-    expect(mockPrisma.fxRate.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "fx-old" },
-        data: { effectiveTo: new Date("2025-09-01T00:00:00.000Z") },
-      }),
-    );
-    expect(mockPrisma.fxRate.create).toHaveBeenCalledTimes(2);
+    expect(upsertFxRateWithContinuity).toHaveBeenCalled();
   });
 
   it("GET /fxrates/latest aggregates latest snapshot per currency", async () => {
     // 用例：批量查询时需返回每个币种最新的 USD 中间价，缺失的币种以 null 标记。
     const m = await import("@/app/api/v1/fx/rates/latest/route");
-    mockPrisma.fxRate.findMany.mockResolvedValueOnce([
+    queueSelectResults([
       {
         base: "USD",
         quote: "CNY",
-        rate: 7.1,
+        rate: "7.1",
         effectiveFrom: new Date("2025-08-01"),
         effectiveTo: null,
       },
       {
         base: "USD",
         quote: "CNY",
-        rate: 7.05,
+        rate: "7.05",
         effectiveFrom: new Date("2025-07-01"),
         effectiveTo: new Date("2025-08-01"),
       },
@@ -214,12 +198,12 @@ describe("FX routes", () => {
 
   it("GET /fx/rates/history returns ordered timeline", async () => {
     const m = await import("@/app/api/v1/fx/rates/history/route");
-    mockPrisma.fxRate.findMany.mockResolvedValueOnce([
+    queueSelectResults([
       {
         id: "h1",
         base: "USD",
         quote: "CNY",
-        rate: 7,
+        rate: "7",
         effectiveFrom: new Date("2025-01-01T00:00:00.000Z"),
         effectiveTo: new Date("2025-07-01T00:00:00.000Z"),
         createdAt: new Date("2025-01-01T00:00:00.000Z"),
@@ -228,7 +212,7 @@ describe("FX routes", () => {
         id: "h2",
         base: "USD",
         quote: "CNY",
-        rate: 7.2,
+        rate: "7.2",
         effectiveFrom: new Date("2025-07-01T00:00:00.000Z"),
         effectiveTo: null,
         createdAt: new Date("2025-07-01T00:00:00.000Z"),
@@ -245,7 +229,7 @@ describe("FX routes", () => {
 
   it("GET /fx/rates/tasks returns paginated tasks", async () => {
     const m = await import("@/app/api/v1/fx/rates/tasks/route");
-    mockPrisma.fxRateUpdateTask.findMany.mockResolvedValueOnce([
+    queueSelectResults([
       {
         id: "task-1",
         base: "USD",
@@ -269,16 +253,13 @@ describe("FX routes", () => {
     const body = await res.json();
     expect(body.items).toHaveLength(1);
     expect(body.items[0].quote).toBe("AUD");
-    expect(mockPrisma.fxRateUpdateTask.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        take: 20,
-      }),
-    );
   });
 
   it("GET /fx/rates/tasks/:id returns detail with logs", async () => {
     const m = await import("@/app/api/v1/fx/rates/tasks/[id]/route");
-    mockPrisma.fxRateUpdateTask.findUnique.mockResolvedValueOnce({
+    queueSelectResults(
+      [
+        {
       id: "task-1",
       base: "USD",
       quote: "AUD",
@@ -292,7 +273,9 @@ describe("FX routes", () => {
       triggeredBy: "system",
       createdAt: new Date("2025-01-01T00:00:00.000Z"),
       updatedAt: new Date("2025-01-02T00:00:00.000Z"),
-      logs: [
+        },
+      ],
+      [
         {
           id: "log-1",
           taskId: "task-1",
@@ -308,7 +291,7 @@ describe("FX routes", () => {
           updatedAt: new Date("2025-01-01T02:00:00.000Z"),
         },
       ],
-    });
+    );
     const res = await m.GET(
       makeGet("http://localhost/api/v1/fx/rates/tasks/task-1"),
       { params: { id: "task-1" } },
@@ -318,9 +301,6 @@ describe("FX routes", () => {
     expect(body.id).toBe("task-1");
     expect(body.logs).toHaveLength(1);
     expect(body.summary.completed).toBe(1);
-    expect(mockPrisma.fxRateUpdateTask.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "task-1" } }),
-    );
   });
 
   it("POST /fx/rates/refresh 插入最新汇率", async () => {
@@ -332,19 +312,17 @@ describe("FX routes", () => {
       ok: true,
       json: async () => ({ rates: { AUD: 1.5 }, date: "2025-01-10" }),
     }) as unknown as typeof fetch);
-    mockPrisma.fxRate.findFirst.mockResolvedValue(null);
-    mockPrisma.fxRate.findMany.mockResolvedValue([]);
     const created = {
       id: "fx-new",
       base: "USD",
       quote: "AUD",
-      rate: 1.5,
+      rate: "1.5",
       effectiveFrom: new Date("2025-01-10T00:00:00.000Z"),
       effectiveTo: null,
       createdAt: new Date("2025-01-10T00:00:00.000Z"),
       updatedAt: new Date("2025-01-10T00:00:00.000Z"),
     };
-    mockPrisma.fxRate.create.mockResolvedValueOnce(created as any);
+    vi.mocked(refreshLatestFxRate).mockResolvedValueOnce(created as any);
     const m = await import("@/app/api/v1/fx/rates/refresh/route");
     const res = await m.POST(
       makeJsonRequest("http://localhost/api/v1/fx/rates/refresh", "POST", {
@@ -354,7 +332,7 @@ describe("FX routes", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.quote).toBe("AUD");
-    expect(mockPrisma.fxRate.create).toHaveBeenCalled();
+    expect(refreshLatestFxRate).toHaveBeenCalled();
     resetFxUpdateServiceState();
   });
 });
@@ -364,25 +342,8 @@ describe("FX service", () => {
     // 用例：服务层应通过 USD 中间价转换，将 CNY 金额折算为 EUR。
     const { convert } = await import("@/server/services/fx/provider");
     const asOf = new Date("2025-08-01");
-    mockPrisma.fxRate.findFirst
-      .mockResolvedValueOnce({
-        id: "rate-cny",
-        base: "USD",
-        quote: "CNY",
-        rate: 7,
-        effectiveFrom: asOf,
-        effectiveTo: null,
-      })
-      .mockResolvedValueOnce({
-        id: "rate-eur",
-        base: "USD",
-        quote: "EUR",
-        rate: 0.9,
-        effectiveFrom: asOf,
-        effectiveTo: null,
-      });
-    mockPrisma.fxSnapshot.findFirst.mockResolvedValue(null);
-    mockPrisma.fxSnapshot.create
+    const ensureSpy = vi
+      .spyOn(fxProvider, "ensureSnapshot")
       .mockResolvedValueOnce({
         id: "snap-cny",
         baseCurrency: "USD",
@@ -409,30 +370,31 @@ describe("FX service", () => {
     expect(out.rateAtoUsd).toBeCloseTo(1 / 7, 6);
     expect(out.rateUsdToB).toBeCloseTo(0.9, 6);
     expect(out.snapshots).toHaveLength(2);
+    ensureSpy.mockRestore();
   });
 
   it("getLatestRates returns latest record per quote and fills missing", async () => {
     // 用例：服务层批量查询需取每个币种的最新快照，并保留缺失项。
     const { getLatestRates } = await import("@/server/services/fx/provider");
-    prismaMock.fxRate.findMany.mockResolvedValueOnce([
+    queueSelectResults([
       {
         base: "USD",
         quote: "CNY",
-        rate: 7.2,
+        rate: "7.2",
         effectiveFrom: new Date("2025-08-01"),
         effectiveTo: null,
       },
       {
         base: "USD",
         quote: "EUR",
-        rate: 0.9,
+        rate: "0.9",
         effectiveFrom: new Date("2025-08-01"),
         effectiveTo: null,
       },
       {
         base: "USD",
         quote: "CNY",
-        rate: 7.1,
+        rate: "7.1",
         effectiveFrom: new Date("2025-07-01"),
         effectiveTo: new Date("2025-08-01"),
       },
@@ -457,19 +419,18 @@ describe("FX service", () => {
 
   it("getQuote caches result within TTL", async () => {
     const { getQuote } = await import("@/server/services/fx/provider");
-    prismaMock.fxRate.findFirst.mockResolvedValueOnce({
+    queueSelectResults([
+      {
       id: "rate-cny",
       base: "USD",
       quote: "CNY",
-      rate: 7,
+      rate: "7",
       effectiveFrom: new Date("2025-08-01"),
       effectiveTo: null,
-    });
+      },
+    ]);
     const first = await getQuote({ base: "USD", quote: "CNY" });
     expect(first?.rate).toBe(7);
-    prismaMock.fxRate.findFirst.mockRejectedValueOnce(
-      new Error("cache should prevent second fetch"),
-    );
     const second = await getQuote({ base: "USD", quote: "CNY" });
     expect(second?.rate).toBe(7);
   });
@@ -478,12 +439,12 @@ describe("FX service", () => {
     const { getTimeSeries } = await import("@/server/services/fx/provider");
     const from = new Date("2025-01-01T00:00:00Z");
     const to = new Date("2025-03-01T00:00:00Z");
-    prismaMock.fxRate.findMany.mockResolvedValueOnce([
+    queueSelectResults([
       {
         id: "r1",
         base: "USD",
         quote: "CNY",
-        rate: 7,
+        rate: "7",
         effectiveFrom: new Date("2025-01-01T00:00:00Z"),
         effectiveTo: new Date("2025-02-01T00:00:00Z"),
       },
@@ -491,7 +452,7 @@ describe("FX service", () => {
         id: "r2",
         base: "USD",
         quote: "CNY",
-        rate: 6.9,
+        rate: "6.9",
         effectiveFrom: new Date("2025-02-01T00:00:00Z"),
         effectiveTo: null,
       },

@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { accounts } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * POST /api/v1/accounts-ledger/accounts/:id/archive
@@ -19,14 +21,19 @@ export async function POST(
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const account = await prisma.account.findUnique({ where: { id } });
+  const [account] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, id))
+    .limit(1);
   const { id: userId } = user;
   if (!account || account.userId !== userId)
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
-  const updated = await prisma.account.update({
-    where: { id },
-    data: { status: "ARCHIVED" },
-  });
+  const [updated] = await db
+    .update(accounts)
+    .set({ status: "ARCHIVED" })
+    .where(eq(accounts.id, id))
+    .returning();
   await logAudit("ACCOUNT_ARCHIVE", {
     userId,
     meta: { accountId: id },

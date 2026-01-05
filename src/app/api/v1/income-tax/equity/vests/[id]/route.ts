@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { equityGrants, equityVests } from "@/server/db/schema";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * PATCH /api/v1/income-tax/equity/vests/:id
@@ -25,16 +27,23 @@ export async function PATCH(
   if (typeof fairValue !== "number" || !currency) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
-  const vest = await prisma.equityVest.findUnique({
-    where: { id },
-    include: { grant: true },
-  });
-  if (!vest || vest.grant.userId !== user.id)
+  const [vest] = await db
+    .select({
+      id: equityVests.id,
+      vestDate: equityVests.vestDate,
+      grantUserId: equityGrants.userId,
+    })
+    .from(equityVests)
+    .innerJoin(equityGrants, eq(equityGrants.id, equityVests.grantId))
+    .where(eq(equityVests.id, id))
+    .limit(1);
+  if (!vest || vest.grantUserId !== user.id)
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
-  const updated = await prisma.equityVest.update({
-    where: { id },
-    data: { fairValue, currency },
-  });
+  const [updated] = await db
+    .update(equityVests)
+    .set({ fairValue: String(fairValue), currency: currency.toUpperCase() })
+    .where(eq(equityVests.id, id))
+    .returning();
   const vestDate = new Date(vest.vestDate);
   if (!Number.isNaN(vestDate.getTime())) {
     await scheduleIncomeRecalcTask({

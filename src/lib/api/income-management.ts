@@ -3,7 +3,7 @@ import type {
   ForecastResult,
   OverviewStats,
 } from "@/lib/state/income";
-import type { IncomeRecord } from "@prisma/client";
+import type { IncomeRecord } from "@/server/db/types";
 
 // API 基础配置
 const API_BASE = "/api/v1";

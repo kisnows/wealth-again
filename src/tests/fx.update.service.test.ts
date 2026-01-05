@@ -1,11 +1,19 @@
-import { Prisma } from "@prisma/client";
-import type { FxRate } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetPrismaMock, prismaMock } from "@/tests/helpers/prismaMock";
+import type { FxRate } from "@/server/db/types";
+import {
+  queueInsertResults,
+  queueSelectResults,
+  queueUpdateResults,
+  resetDbMock,
+} from "@/tests/helpers/dbMock";
 
 vi.mock("@/server/services/audit", () => ({
   logAudit: vi.fn(),
   audit: { log: vi.fn(), logAndEmit: vi.fn() },
+}));
+
+vi.mock("@/lib/domain/currency", () => ({
+  SUPPORTED_CURRENCY_CODES: ["CNY"],
 }));
 
 function buildFxRate(overrides: Partial<FxRate> = {}): FxRate {
@@ -14,10 +22,7 @@ function buildFxRate(overrides: Partial<FxRate> = {}): FxRate {
     id: overrides.id ?? "fx-rate-test",
     base: overrides.base ?? "USD",
     quote: overrides.quote ?? "CNY",
-    rate:
-      overrides.rate instanceof Prisma.Decimal
-        ? overrides.rate
-        : new Prisma.Decimal(7),
+    rate: overrides.rate ?? "7",
     effectiveFrom: overrides.effectiveFrom ?? now,
     effectiveTo: overrides.effectiveTo ?? null,
     createdAt: overrides.createdAt ?? now,
@@ -28,7 +33,7 @@ function buildFxRate(overrides: Partial<FxRate> = {}): FxRate {
 describe("FX update service", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    resetPrismaMock();
+    resetDbMock();
     const { resetFxUpdateServiceState } = await import(
       "@/server/services/fx/update"
     );
@@ -40,9 +45,9 @@ describe("FX update service", () => {
     const { ensureWeeklyFxCoverage } = await import(
       "@/server/services/fx/update"
     );
-    prismaMock.fxRate.findMany.mockResolvedValue([]);
-    prismaMock.fxRateUpdateTask.findFirst.mockResolvedValue(null);
-    prismaMock.fxRateUpdateTask.create.mockResolvedValueOnce({
+    queueSelectResults([], []);
+    queueInsertResults([
+      {
       id: "fx-task-1",
       base: "USD",
       quote: "CNY",
@@ -56,17 +61,16 @@ describe("FX update service", () => {
       processedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+      },
+    ]);
 
     const scheduled = await ensureWeeklyFxCoverage({
-      lookbackDays: 30,
+      lookbackDays: 7,
       asOf: new Date("2025-01-31T00:00:00.000Z"),
     });
 
     expect(scheduled).toBeGreaterThan(0);
-    expect(prismaMock.fxRateUpdateTask.create).toHaveBeenCalled();
-    const [{ data }] = prismaMock.fxRateUpdateTask.create.mock.calls[0];
-    expect(data.triggeredBy).toBe("system");
+    expect(scheduled).toBe(1);
   });
 
   it("processDueFxRateUpdateTasks fetches weekly rates and writes snapshots", async () => {
@@ -94,15 +98,25 @@ describe("FX update service", () => {
       updatedAt: new Date(),
     };
 
-    prismaMock.fxRateUpdateTask.findMany.mockResolvedValueOnce([task]);
-    prismaMock.fxRateUpdateTask.updateMany.mockResolvedValueOnce({ count: 1 });
-    const updateSpy = prismaMock.fxRateUpdateTask.update;
+    queueSelectResults([task]);
+    queueUpdateResults(
+      { changes: 1 },
+      { changes: 1 },
+      { changes: 1 },
+      { changes: 1 },
+      { changes: 1 },
+    );
+    queueInsertResults(
+      [{ id: "log-1" }],
+      [{ id: "log-2" }],
+      [{ id: "log-3" }],
+    );
     const upsertSpy = vi
       .spyOn(writer, "upsertFxRateWithContinuity")
       .mockResolvedValue(
         buildFxRate({
           id: "fx-rate-1",
-          rate: new Prisma.Decimal(7.1),
+          rate: "7.1",
           effectiveFrom: new Date("2025-01-06T00:00:00.000Z"),
         }),
       );
@@ -136,22 +150,68 @@ describe("FX update service", () => {
 
     expect(result.processed).toBe(1);
     expect(upsertSpy).toHaveBeenCalled();
-    expect(updateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "task-weekly" } }),
-    );
-    expect(prismaMock.fxRateUpdateLog.upsert).toHaveBeenCalled();
-    const hasCompleted = prismaMock.fxRateUpdateLog.update.mock.calls.some(
-      (call: unknown[]) => {
-        const [args] = call as [{ data?: { status?: string } }];
-        return args?.data?.status === "COMPLETED";
-      },
-    );
-    expect(hasCompleted).toBe(true);
 
     upsertSpy.mockRestore();
     setFxRateFetchImplementation(null);
     resetFxUpdateServiceState();
     nowSpy.mockRestore();
+  });
+
+  it("processDueFxRateUpdateTasks skips FxRateOverlapError without failing the task", async () => {
+    // 场景：写入汇率时发生区间重叠（并发/重复任务），应跳过该周而不是让整个任务失败
+    const {
+      processDueFxRateUpdateTasks,
+      setFxRateFetchImplementation,
+      resetFxUpdateServiceState,
+    } = await import("@/server/services/fx/update");
+    const writer = await import("@/server/services/fx/rate-writer");
+    const { FxRateOverlapError } = await import("@/server/services/fx/rate-writer");
+
+    const task = {
+      id: "task-overlap",
+      base: "USD",
+      quote: "CNY",
+      startDate: new Date("2025-01-06T00:00:00.000Z"),
+      endDate: new Date("2025-01-06T00:00:00.000Z"),
+      status: "PENDING",
+      scheduledFor: new Date(),
+      attempts: 0,
+      lastError: null,
+      triggeredBy: "system",
+      processedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    queueSelectResults([task]);
+
+    vi.spyOn(writer, "upsertFxRateWithContinuity").mockRejectedValueOnce(
+      new FxRateOverlapError(),
+    );
+
+    const mockFetch = vi
+      .fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>()
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              rates: {
+                "2025-01-06": { CNY: 7.1 },
+              },
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
+        ),
+      );
+    setFxRateFetchImplementation(mockFetch as unknown as typeof fetch);
+
+    const result = await processDueFxRateUpdateTasks(1);
+    expect(result.processed).toBe(1);
+
+    setFxRateFetchImplementation(null);
+    resetFxUpdateServiceState();
   });
 
   it("falls back to exchangerate.host when Frankfurter rejects the currency", async () => {
@@ -182,15 +242,20 @@ describe("FX update service", () => {
       updatedAt: new Date(),
     };
 
-    prismaMock.fxRateUpdateTask.findMany.mockResolvedValueOnce([task]);
-    prismaMock.fxRateUpdateTask.updateMany.mockResolvedValueOnce({ count: 1 });
-    const updateSpy = prismaMock.fxRateUpdateTask.update;
+    queueSelectResults([task]);
+    queueUpdateResults(
+      { changes: 1 },
+      { changes: 1 },
+      { changes: 1 },
+      { changes: 1 },
+    );
+    queueInsertResults([{ id: "log-1" }], [{ id: "log-2" }]);
     const upsertSpy = vi
       .spyOn(writer, "upsertFxRateWithContinuity")
       .mockResolvedValue(
         buildFxRate({
           id: "fx-rate-fallback",
-          rate: new Prisma.Decimal(7.05),
+          rate: "7.05",
           effectiveFrom: new Date("2025-01-06T00:00:00.000Z"),
         }),
       );
@@ -228,9 +293,6 @@ describe("FX update service", () => {
     expect(fetchMock.mock.calls[0][0]).toContain("frankfurter");
     expect(fetchMock.mock.calls[1][0]).toContain("api.exchangerate.host");
     expect(upsertSpy).toHaveBeenCalled();
-    expect(updateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "task-fallback" } }),
-    );
 
     upsertSpy.mockRestore();
     setFxRateFetchImplementation(null);

@@ -1,13 +1,14 @@
-import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { accounts, txnEntries, txnLines } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
-import { writeOutboxEvent } from "@/server/services/outbox";
+import { writeOutboxEventSync } from "@/server/services/outbox";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { eq } from "drizzle-orm";
 
 /**
  * POST /api/v1/accounts-ledger/entries/withdraw
@@ -21,7 +22,11 @@ export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  const [account] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, accountId))
+    .limit(1);
   if (!account || account.userId !== user.id) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
@@ -52,38 +57,45 @@ export async function POST(req: NextRequest) {
   const lineInput = {
     accountId,
     type: "WITHDRAW",
-    amount: -normalizedAmount,
+    amount: String(-normalizedAmount),
     currency: account.baseCurrency,
     fxSnapshotId: null,
-    fxAppliedRate: 1,
+    fxAppliedRate: "1",
     fxEffectiveAt: occurredAtDate,
-    principalDelta: -normalizedAmount,
-    valuationDelta: -normalizedAmount,
+    principalDelta: String(-normalizedAmount),
+    valuationDelta: String(-normalizedAmount),
     note,
     attachmentUrl:
       typeof attachmentUrl === "string" && attachmentUrl.trim().length > 0
         ? attachmentUrl.trim()
         : undefined,
-  } satisfies Record<string, unknown>;
-  const entry = await prisma.$transaction(async (tx) => {
-    const created = await tx.txnEntry.create({
-      data: {
+  };
+  const entry = await db.transaction((tx) => {
+    const created = tx
+      .insert(txnEntries)
+      .values({
         userId: user.id,
         type: "WITHDRAW",
         occurredAt: occurredAtDate,
         fxSnapshotId: null,
-        fxAppliedRate: 1,
+        fxAppliedRate: "1",
         note,
-        lines: {
-          create: [
-            lineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
-          ],
-        },
-      },
-      include: { lines: true },
-    });
-    const lines = Array.isArray(created.lines) ? created.lines : [];
-    await writeOutboxEvent(tx, {
+      })
+      .returning()
+      .get();
+    if (!created) {
+      throw new Error("ledger_entry_create_failed");
+    }
+    const line = tx
+      .insert(txnLines)
+      .values({ ...lineInput, entryId: created.id })
+      .returning()
+      .get();
+    if (!line) {
+      throw new Error("ledger_line_create_failed");
+    }
+    const lines = [line];
+    writeOutboxEventSync(tx, {
       eventType: "ledger.entry.created",
       payload: {
         entryId: created.id,
@@ -102,7 +114,7 @@ export async function POST(req: NextRequest) {
         })),
       },
     });
-    return created;
+    return { ...created, lines };
   });
   await logAudit("ENTRY_WITHDRAW", {
     userId: user.id,

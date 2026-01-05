@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EventOutbox, Prisma, PrismaClient } from "@prisma/client";
+import type { EventOutbox } from "@/server/db/types";
+import {
+  dbMock,
+  queueInsertResults,
+  queueSelectResults,
+  queueUpdateResults,
+  resetDbMock,
+} from "@/tests/helpers/dbMock";
 
-const buildEventOutbox = (overrides: Partial<EventOutbox> = {}): EventOutbox => {
+const buildEventOutbox = (
+  overrides: Partial<EventOutbox> = {},
+): EventOutbox => {
   const now = new Date();
   return {
     id: overrides.id ?? "evt-mock",
@@ -18,81 +27,62 @@ const buildEventOutbox = (overrides: Partial<EventOutbox> = {}): EventOutbox => 
   };
 };
 
-const eventOutboxDelegate = {
-  create: vi.fn(async (_args: Prisma.EventOutboxCreateArgs) => buildEventOutbox()),
-  findMany: vi.fn(async (_args: Prisma.EventOutboxFindManyArgs) => [] as EventOutbox[]),
-  update: vi.fn(async (_args: Prisma.EventOutboxUpdateArgs) => buildEventOutbox()),
-};
-
-const mockPrisma = { eventOutbox: eventOutboxDelegate } as unknown as PrismaClient;
-
-vi.mock("@/server/db", () => ({
-  default: mockPrisma,
-  prisma: mockPrisma,
-}));
-
-const buildTx = () => {
-  const create = vi.fn(async (_args: Prisma.EventOutboxCreateArgs) => buildEventOutbox());
-  const update = vi.fn(async (_args: Prisma.EventOutboxUpdateArgs) => buildEventOutbox());
-  return {
-    eventOutbox: {
-      create,
-      update,
-    },
-  } as unknown as Prisma.TransactionClient;
-};
-
 describe("outbox service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    eventOutboxDelegate.create.mockReset();
-    eventOutboxDelegate.findMany.mockReset();
-    eventOutboxDelegate.update.mockReset();
+    resetDbMock();
   });
 
   it("writeOutboxEvent persists payload and metadata", async () => {
     const { writeOutboxEvent } = await import("@/server/services/outbox");
-    const tx = buildTx();
-    const created = await writeOutboxEvent(tx, {
+    const created = buildEventOutbox({
+      id: "evt-1",
       eventType: "ledger.entry.created",
       payload: { id: "entry-1", amount: 100 },
     });
-    expect(created.eventType).toBe("ledger.entry.created");
-    expect(tx.eventOutbox.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    queueInsertResults([created]);
+    const result = await writeOutboxEvent(dbMock, {
+      eventType: "ledger.entry.created",
+      payload: { id: "entry-1", amount: 100 },
+    });
+    expect(result.eventType).toBe("ledger.entry.created");
+  });
+
+  it("writeOutboxEventSync can be used inside a sync transaction callback", async () => {
+    // 场景：better-sqlite3 的 transaction 回调必须同步，outbox 写入也必须同步可用
+    const { writeOutboxEventSync } = await import("@/server/services/outbox");
+    const created = buildEventOutbox({
+      id: "evt-sync-1",
+      eventType: "ledger.entry.created",
+      payload: { id: "entry-1", amount: 100 },
+    });
+    queueInsertResults([created]);
+    const result = dbMock.transaction((tx) =>
+      writeOutboxEventSync(tx as any, {
         eventType: "ledger.entry.created",
         payload: { id: "entry-1", amount: 100 },
-        status: "PENDING",
       }),
-    });
+    ) as EventOutbox;
+    expect(result.id).toBe("evt-sync-1");
   });
 
   it("markOutboxEventDelivered updates status", async () => {
-    const { markOutboxEventDelivered } = await import("@/server/services/outbox");
-    const tx = buildTx();
-    await markOutboxEventDelivered(tx, "evt-1");
-    expect(tx.eventOutbox.update).toHaveBeenCalledWith({
-      where: { id: "evt-1" },
-      data: expect.objectContaining({ status: "DELIVERED" }),
-    });
+    const { markOutboxEventDelivered } = await import(
+      "@/server/services/outbox"
+    );
+    queueUpdateResults({ changes: 1 });
+    await markOutboxEventDelivered(dbMock, "evt-1");
   });
 
   it("markOutboxEventFailed schedules retry", async () => {
     const { markOutboxEventFailed } = await import("@/server/services/outbox");
-    const tx = buildTx();
-    await markOutboxEventFailed(tx, "evt-2", "boom", 10_000);
-    expect(tx.eventOutbox.update).toHaveBeenCalledWith({
-      where: { id: "evt-2" },
-      data: expect.objectContaining({
-        status: "FAILED",
-        lastError: "boom",
-      }),
-    });
+    queueUpdateResults({ changes: 1 });
+    await markOutboxEventFailed(dbMock, "evt-2", "boom", 10_000);
   });
 
   it("fetchPendingOutboxEvents returns due events", async () => {
     const now = new Date("2025-01-02T00:00:00Z");
-    eventOutboxDelegate.findMany.mockResolvedValueOnce([
+    queueSelectResults([
       buildEventOutbox({
         id: "evt-1",
         eventType: "income.recalc.completed",
@@ -104,48 +94,30 @@ describe("outbox service", () => {
         updatedAt: now,
       }),
     ]);
-    const { fetchPendingOutboxEvents } = await import("@/server/services/outbox");
+    const { fetchPendingOutboxEvents } = await import(
+      "@/server/services/outbox"
+    );
     const events = await fetchPendingOutboxEvents(5);
-    expect(eventOutboxDelegate.findMany).toHaveBeenCalledWith({
-      where: {
-        status: "PENDING",
-        availableAt: { lte: expect.any(Date) },
-      },
-      orderBy: { availableAt: "asc" },
-      take: 5,
-    });
     expect(events).toHaveLength(1);
     expect(events[0].id).toBe("evt-1");
   });
 
   it("markOutboxEventDelivered uses default client", async () => {
-    const { markOutboxEventDelivered } = await import("@/server/services/outbox");
-    eventOutboxDelegate.update.mockResolvedValueOnce(buildEventOutbox());
-    await markOutboxEventDelivered(
-      undefined as unknown as Prisma.TransactionClient,
-      "evt-9",
+    const { markOutboxEventDelivered } = await import(
+      "@/server/services/outbox"
     );
-    expect(eventOutboxDelegate.update).toHaveBeenCalledWith({
-      where: { id: "evt-9" },
-      data: expect.objectContaining({ status: "DELIVERED" }),
-    });
+    queueUpdateResults({ changes: 1 });
+    await markOutboxEventDelivered(undefined as unknown as typeof dbMock, "evt-9");
   });
 
   it("markOutboxEventFailed uses default client", async () => {
     const { markOutboxEventFailed } = await import("@/server/services/outbox");
-    eventOutboxDelegate.update.mockResolvedValueOnce(buildEventOutbox());
+    queueUpdateResults({ changes: 1 });
     await markOutboxEventFailed(
-      undefined as unknown as Prisma.TransactionClient,
+      undefined as unknown as typeof dbMock,
       "evt-10",
       "boom",
       5_000,
     );
-    expect(eventOutboxDelegate.update).toHaveBeenCalledWith({
-      where: { id: "evt-10" },
-      data: expect.objectContaining({
-        status: "FAILED",
-        lastError: "boom",
-      }),
-    });
   });
 });

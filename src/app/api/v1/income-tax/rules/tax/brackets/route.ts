@@ -1,10 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { taxBracket } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { and, asc, eq } from "drizzle-orm";
 
 export const runtime = "nodejs";
 
@@ -25,10 +27,13 @@ export async function GET(req: NextRequest) {
       { error: "country & taxYear required" },
       { status: 400 },
     );
-  const items = await prisma.taxBracket.findMany({
-    where: { country, taxYear },
-    orderBy: { position: "asc" },
-  });
+  const items = await db
+    .select()
+    .from(taxBracket)
+    .where(
+      and(eq(taxBracket.country, country), eq(taxBracket.taxYear, taxYear)),
+    )
+    .orderBy(asc(taxBracket.position));
   return NextResponse.json({ items });
 }
 
@@ -47,28 +52,24 @@ export async function PUT(req: Request) {
       { status: 409 },
     );
   for (const it of items) {
-    await prisma.taxBracket.upsert({
-      where: {
-        country_taxYear_position: {
-          country: it.country,
-          taxYear: it.taxYear,
-          position: it.position,
-        },
-      },
-      update: {
-        threshold: it.threshold,
-        taxRate: it.taxRate,
-        quickDeduction: it.quickDeduction,
-      },
-      create: {
+    await db
+      .insert(taxBracket)
+      .values({
         country: it.country,
         taxYear: it.taxYear,
         position: it.position,
-        threshold: it.threshold,
-        taxRate: it.taxRate,
-        quickDeduction: it.quickDeduction,
-      },
-    });
+        threshold: String(it.threshold),
+        taxRate: String(it.taxRate),
+        quickDeduction: String(it.quickDeduction),
+      })
+      .onConflictDoUpdate({
+        target: [taxBracket.country, taxBracket.taxYear, taxBracket.position],
+        set: {
+          threshold: String(it.threshold),
+          taxRate: String(it.taxRate),
+          quickDeduction: String(it.quickDeduction),
+        },
+      });
   }
   await logAudit("RULE_TAX_BRACKETS_UPSERT", { meta: { count: items.length } });
   await markIdempotencyUsed(key);

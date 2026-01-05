@@ -1,13 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { accounts, valuationSnapshots } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { ensureFxSnapshot } from "@/server/services/fx/provider";
-import { writeOutboxEvent } from "@/server/services/outbox";
+import { writeOutboxEventSync } from "@/server/services/outbox";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { eq } from "drizzle-orm";
 
 /**
  * POST /api/v1/accounts-ledger/valuations
@@ -26,7 +28,11 @@ export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  const [account] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, accountId))
+    .limit(1);
   if (!account || account.userId !== user.id)
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   if (account.accountType === "SAVINGS") {
@@ -77,20 +83,25 @@ export async function POST(req: NextRequest) {
       console.error("valuation fx snapshot ensure failed", error);
     }
   }
-  const created = await prisma.$transaction(async (tx) => {
-    const valuation = await tx.valuationSnapshot.create({
-      data: {
+  const created = await db.transaction((tx) => {
+    const valuation = tx
+      .insert(valuationSnapshots)
+      .values({
         accountId,
         asOf: asOfDate,
-        totalValue,
+        totalValue: String(totalValue),
         currency: normalizedCurrency,
-        fxRateId: fxRateId || undefined,
+        fxRateId: fxRateId || null,
         fxSnapshotId: snapshotId,
-        fxAppliedRate: appliedRate,
+        fxAppliedRate: String(appliedRate),
         note,
-      },
-    });
-    await writeOutboxEvent(tx, {
+      })
+      .returning()
+      .get();
+    if (!valuation) {
+      throw new Error("valuation_create_failed");
+    }
+    writeOutboxEventSync(tx, {
       eventType: "ledger.valuation.created",
       payload: {
         valuationId: valuation.id,

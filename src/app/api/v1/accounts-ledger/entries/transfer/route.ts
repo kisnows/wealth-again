@@ -1,14 +1,15 @@
-import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { accounts, txnEntries, txnLines } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { convert } from "@/server/services/fx/provider";
-import { writeOutboxEvent } from "@/server/services/outbox";
+import { writeOutboxEventSync } from "@/server/services/outbox";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { eq } from "drizzle-orm";
 
 type TransferFromInput = {
   accountId: string;
@@ -42,12 +43,16 @@ export async function POST(req: NextRequest) {
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
-  const fromAccount = await prisma.account.findUnique({
-    where: { id: from.accountId },
-  });
-  const toAccount = await prisma.account.findUnique({
-    where: { id: to.accountId },
-  });
+  const [fromAccount] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, from.accountId))
+    .limit(1);
+  const [toAccount] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, to.accountId))
+    .limit(1);
   if (!fromAccount || !toAccount) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
@@ -167,68 +172,79 @@ export async function POST(req: NextRequest) {
   const fromLineInput = {
     accountId: from.accountId,
     type: "TRANSFER",
-    amount: -absoluteFromAmount,
+    amount: String(-absoluteFromAmount),
     currency: fromAccount.baseCurrency,
     counterpartyAccountId: to.accountId,
     counterpartyName: toAccount.name,
-    exchangeRateAB: conversionResult.effectiveRate,
+    exchangeRateAB: String(conversionResult.effectiveRate),
     viaCurrency: conversionResult.viaCurrency,
-    rateAtoUSD: conversionResult.rateAtoUsd,
-    rateUSDtoB: conversionResult.rateUsdToB,
+    rateAtoUSD: String(conversionResult.rateAtoUsd),
+    rateUSDtoB: String(conversionResult.rateUsdToB),
     fxEffectiveAt: conversionResult.fxEffectiveAt ?? fxAsOfDate,
     fxSnapshotId: fromSnapshot?.id ?? null,
-    fxAppliedRate: fromSnapshot?.rate ?? 1,
-    principalDelta: -absoluteFromAmount,
-    valuationDelta: -absoluteFromAmount,
+    fxAppliedRate: String(fromSnapshot?.rate ?? 1),
+    principalDelta: String(-absoluteFromAmount),
+    valuationDelta: String(-absoluteFromAmount),
     note,
     attachmentUrl:
       typeof attachmentUrl === "string" && attachmentUrl.trim().length > 0
         ? attachmentUrl.trim()
         : undefined,
-  } satisfies Record<string, unknown>;
+  };
   const toLineInput = {
     accountId: to.accountId,
     type: "TRANSFER",
-    amount: Math.abs(toAmount),
+    amount: String(Math.abs(toAmount)),
     currency: toAccount.baseCurrency,
     counterpartyAccountId: from.accountId,
     counterpartyName: fromAccount.name,
-    exchangeRateAB: conversionResult.effectiveRate,
+    exchangeRateAB: String(conversionResult.effectiveRate),
     viaCurrency: conversionResult.viaCurrency,
-    rateAtoUSD: conversionResult.rateAtoUsd,
-    rateUSDtoB: conversionResult.rateUsdToB,
+    rateAtoUSD: String(conversionResult.rateAtoUsd),
+    rateUSDtoB: String(conversionResult.rateUsdToB),
     fxEffectiveAt: conversionResult.fxEffectiveAt ?? fxAsOfDate,
     fxSnapshotId: toSnapshot?.id ?? null,
-    fxAppliedRate: toSnapshot?.rate ?? 1,
-    principalDelta: Math.abs(toAmount),
-    valuationDelta: Math.abs(toAmount),
+    fxAppliedRate: String(toSnapshot?.rate ?? 1),
+    principalDelta: String(Math.abs(toAmount)),
+    valuationDelta: String(Math.abs(toAmount)),
     note,
     attachmentUrl:
       typeof attachmentUrl === "string" && attachmentUrl.trim().length > 0
         ? attachmentUrl.trim()
         : undefined,
-  } satisfies Record<string, unknown>;
-  const entry = await prisma.$transaction(async (tx) => {
-    const created = await tx.txnEntry.create({
-      data: {
+  };
+  const entry = await db.transaction((tx) => {
+    const created = tx
+      .insert(txnEntries)
+      .values({
         userId: userId,
         type: "TRANSFER",
         occurredAt: occurredAtDate,
         fxSnapshotId: fromSnapshot?.id ?? toSnapshot?.id ?? null,
-        fxAppliedRate: conversionResult.effectiveRate,
+        fxAppliedRate: String(conversionResult.effectiveRate),
         note,
         meta: JSON.stringify(metaPayload),
-        lines: {
-          create: [
-            fromLineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
-            toLineInput as unknown as Prisma.TxnLineCreateWithoutEntryInput,
-          ],
-        },
-      },
-      include: { lines: true },
-    });
-    const lines = Array.isArray(created.lines) ? created.lines : [];
-    await writeOutboxEvent(tx, {
+      })
+      .returning()
+      .get();
+    if (!created) {
+      throw new Error("ledger_entry_create_failed");
+    }
+    const fromLine = tx
+      .insert(txnLines)
+      .values({ ...fromLineInput, entryId: created.id })
+      .returning()
+      .get();
+    const toLine = tx
+      .insert(txnLines)
+      .values({ ...toLineInput, entryId: created.id })
+      .returning()
+      .get();
+    if (!fromLine || !toLine) {
+      throw new Error("ledger_line_create_failed");
+    }
+    const lines = [fromLine, toLine];
+    writeOutboxEventSync(tx, {
       eventType: "ledger.entry.created",
       payload: {
         entryId: created.id,
@@ -251,7 +267,7 @@ export async function POST(req: NextRequest) {
         })),
       },
     });
-    return created;
+    return { ...created, lines };
   });
   await logAudit("ENTRY_TRANSFER", {
     userId,

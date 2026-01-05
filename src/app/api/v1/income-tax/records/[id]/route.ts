@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { incomeRecords } from "@/server/db/schema";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * PATCH /api/v1/income-tax/records/:id
@@ -29,9 +31,11 @@ export async function PATCH(
     manualNote: string | null;
   }>;
   const body = (await req.json()) as IncomeRecordPatchPayload;
-  const rec = await prisma.incomeRecord.findUnique({
-    where: { id },
-  });
+  const [rec] = await db
+    .select()
+    .from(incomeRecords)
+    .where(eq(incomeRecords.id, id))
+    .limit(1);
   if (!rec || rec.userId !== user.id)
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const data: Record<string, unknown> = {};
@@ -49,8 +53,10 @@ export async function PATCH(
   for (const key of numericKeys) {
     if (key in body) {
       const value = body[key];
-      if (value === null || typeof value === "number") {
-        data[key] = value;
+      if (value === null) {
+        data[key] = null;
+      } else if (typeof value === "number") {
+        data[key] = String(value);
       }
     }
   }
@@ -75,9 +81,10 @@ export async function PATCH(
   );
   data.source = hasManualOverride ? "manual" : "system";
 
-  const updated = await prisma.incomeRecord.update({
-    where: { id },
-    data,
-  });
+  const [updated] = await db
+    .update(incomeRecords)
+    .set(data)
+    .where(eq(incomeRecords.id, id))
+    .returning();
   return NextResponse.json(updated);
 }

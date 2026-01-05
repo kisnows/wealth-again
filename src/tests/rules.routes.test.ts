@@ -1,19 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
+import { resetDbMock, setSelectFallback } from "@/tests/helpers/dbMock";
+import {
+  cities,
+  cityRuleHF,
+  cityRuleSS,
+  idempotencyKeys,
+  taxBracket,
+} from "@/server/db/schema";
 
-const mockPrisma = prismaMock;
+const logAuditMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/server/services/audit", () => ({
+  logAudit: logAuditMock,
+}));
+
+let fallbackCities: any[] = [];
+let cityRuleSSResponses: any[][] = [];
+let cityRuleHFResponses: any[][] = [];
+let fallbackIdempotencyKeys: any[] = [];
+let fallbackTaxBracket: any[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetPrismaMock();
+  resetDbMock();
+  fallbackCities = [];
+  cityRuleSSResponses = [];
+  cityRuleHFResponses = [];
+  fallbackIdempotencyKeys = [];
+  fallbackTaxBracket = [];
+  setSelectFallback(({ table, tableCallIndex }) => {
+    if (table === cities) return fallbackCities;
+    if (table === cityRuleSS) return cityRuleSSResponses[tableCallIndex] ?? [];
+    if (table === cityRuleHF) return cityRuleHFResponses[tableCallIndex] ?? [];
+    if (table === idempotencyKeys) return fallbackIdempotencyKeys;
+    if (table === taxBracket) return fallbackTaxBracket;
+    return [];
+  });
 });
 
 describe("Rules routes", () => {
   it("cities PUT with idempotency & audit", async () => {
     const m = await import("@/app/api/v1/income-tax/rules/cities/route");
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.city.upsert.mockResolvedValue({});
+    fallbackIdempotencyKeys = [];
     const res = await m.PUT(
       makeJsonRequest(
         "http://localhost/api/v1/income-tax/rules/cities",
@@ -23,16 +51,29 @@ describe("Rules routes", () => {
       ),
     );
     expect(res.status).toBe(200);
-    expect(mockPrisma.auditLog.create).toHaveBeenCalled();
+    expect(logAuditMock).toHaveBeenCalled();
   });
 
   it("ss GET returns rule and PUT overlaps 409", async () => {
     const ss = await import("@/app/api/v1/income-tax/rules/social-security/route");
-    mockPrisma.city.findUnique.mockResolvedValueOnce({
-      id: "c1",
-      name: "Hangzhou",
-    });
-    mockPrisma.cityRuleSS.findFirst.mockResolvedValueOnce({ id: "ss1" });
+    fallbackCities = [{ id: "c1", name: "Hangzhou" }];
+    cityRuleSSResponses = [
+      [
+        {
+          id: "ss1",
+          cityId: "c1",
+          effectiveFrom: new Date("2024-01-01"),
+          effectiveTo: new Date("2026-01-01"),
+        },
+      ],
+      [
+        {
+          cityId: "c1",
+          effectiveFrom: new Date("2025-01-01"),
+          effectiveTo: new Date("2026-01-01"),
+        },
+      ],
+    ];
     expect(
       (
         await ss.GET(
@@ -43,15 +84,7 @@ describe("Rules routes", () => {
       ).status,
     ).toBe(200);
 
-    mockPrisma.city.upsert.mockResolvedValueOnce({ id: "c1" });
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.cityRuleSS.findMany.mockResolvedValueOnce([
-      {
-        cityId: "c1",
-        effectiveFrom: new Date("2025-01-01"),
-        effectiveTo: new Date("2026-01-01"),
-      },
-    ]);
+    fallbackIdempotencyKeys = [];
     const res = await ss.PUT(
       makeJsonRequest(
         "http://localhost/api/v1/income-tax/rules/social-security",
@@ -76,11 +109,18 @@ describe("Rules routes", () => {
 
   it("hf GET ok and PUT ok", async () => {
     const hf = await import("@/app/api/v1/income-tax/rules/housing-fund/route");
-    mockPrisma.city.findUnique.mockResolvedValueOnce({
-      id: "c1",
-      name: "Hangzhou",
-    });
-    mockPrisma.cityRuleHF.findFirst.mockResolvedValueOnce({ id: "hf1" });
+    fallbackCities = [{ id: "c1", name: "Hangzhou" }];
+    cityRuleHFResponses = [
+      [
+        {
+          id: "hf1",
+          cityId: "c1",
+          effectiveFrom: new Date("2024-01-01"),
+          effectiveTo: new Date("2026-01-01"),
+        },
+      ],
+      [],
+    ];
     expect(
       (
         await hf.GET(
@@ -91,10 +131,7 @@ describe("Rules routes", () => {
       ).status,
     ).toBe(200);
 
-    mockPrisma.city.upsert.mockResolvedValueOnce({ id: "c1" });
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.cityRuleHF.findMany.mockResolvedValueOnce([]);
-    mockPrisma.cityRuleHF.upsert.mockResolvedValue({});
+    fallbackIdempotencyKeys = [];
     expect(
       (
         await hf.PUT(
@@ -119,10 +156,8 @@ describe("Rules routes", () => {
 
   it("ss PUT non-overlap returns 200", async () => {
     const ss = await import("@/app/api/v1/income-tax/rules/social-security/route");
-    mockPrisma.city.upsert.mockResolvedValueOnce({ id: "c1" });
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.cityRuleSS.findMany.mockResolvedValueOnce([]); // 无重叠
-    mockPrisma.cityRuleSS.upsert.mockResolvedValueOnce({});
+    fallbackIdempotencyKeys = [];
+    cityRuleSSResponses = [[]];
     const res = await ss.PUT(
       makeJsonRequest(
         "http://localhost/api/v1/income-tax/rules/social-security",
@@ -147,12 +182,7 @@ describe("Rules routes", () => {
 
   it("tax config/brackets PUT/GET", async () => {
     const cfg = await import("@/app/api/v1/income-tax/rules/tax/config/route");
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.taxConfig.upsert.mockResolvedValueOnce({
-      country: "CN",
-      taxYear: 2025,
-      standardDeduction: 5000,
-    });
+    fallbackIdempotencyKeys = [];
     expect(
       (
         await cfg.PUT(
@@ -167,7 +197,7 @@ describe("Rules routes", () => {
     ).toBe(200);
 
     const br = await import("@/app/api/v1/income-tax/rules/tax/brackets/route");
-    mockPrisma.taxBracket.findMany.mockResolvedValueOnce([]);
+    fallbackTaxBracket = [];
     expect(
       (
         await br.GET(
@@ -177,8 +207,7 @@ describe("Rules routes", () => {
         )
       ).status,
     ).toBe(200);
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.taxBracket.upsert.mockResolvedValue({});
+    fallbackIdempotencyKeys = [];
     expect(
       (
         await br.PUT(
@@ -204,9 +233,7 @@ describe("Rules routes", () => {
 
   it("cities PUT idempotency reuse returns 409", async () => {
     const m = await import("@/app/api/v1/income-tax/rules/cities/route");
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce({
-      key: "k-city",
-    });
+    fallbackIdempotencyKeys = [{ key: "k-city" }];
     const res = await m.PUT(
       makeJsonRequest(
         "http://localhost/api/v1/income-tax/rules/cities",

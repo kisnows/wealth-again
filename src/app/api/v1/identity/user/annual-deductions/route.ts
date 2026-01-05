@@ -1,6 +1,6 @@
-import { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { userAnnualDeductions } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -8,6 +8,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { desc, eq } from "drizzle-orm";
 
 const ALLOCATION_RULES = new Set(["AVERAGE", "ONCE"]);
 
@@ -26,10 +27,11 @@ export async function GET(req: NextRequest) {
   const requestedUserId = searchParams.get("userId");
   const userId = requestedUserId ?? viewer.id;
 
-  const items = await prisma.userAnnualDeduction.findMany({
-    where: { userId },
-    orderBy: { taxYear: "desc" },
-  });
+  const items = await db
+    .select()
+    .from(userAnnualDeductions)
+    .where(eq(userAnnualDeductions.userId, userId))
+    .orderBy(desc(userAnnualDeductions.taxYear));
 
   return NextResponse.json({
     items: items.map((item) => ({
@@ -99,21 +101,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const record = await prisma.userAnnualDeduction.upsert({
-    where: { userId_taxYear: { userId, taxYear } },
-    create: {
+  const [record] = await db
+    .insert(userAnnualDeductions)
+    .values({
       userId,
       taxYear,
-      annualAmount: new Prisma.Decimal(annualAmount),
+      annualAmount: String(annualAmount),
       allocationRule: allocationRule ?? "AVERAGE",
       note,
-    },
-    update: {
-      annualAmount: new Prisma.Decimal(annualAmount),
-      allocationRule: allocationRule ?? "AVERAGE",
-      note,
-    },
-  });
+    })
+    .onConflictDoUpdate({
+      target: [userAnnualDeductions.userId, userAnnualDeductions.taxYear],
+      set: {
+        annualAmount: String(annualAmount),
+        allocationRule: allocationRule ?? "AVERAGE",
+        note,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
 
   await logAudit("SETTINGS_ANNUAL_DEDUCTION_UPSERT", {
     userId,

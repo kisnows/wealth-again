@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { equityGrants, equityVests } from "@/server/db/schema";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * POST /api/v1/income-tax/equity/grants/:id/generate
@@ -17,9 +19,11 @@ export async function POST(
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const grant = await prisma.equityGrant.findUnique({
-    where: { id },
-  });
+  const [grant] = await db
+    .select()
+    .from(equityGrants)
+    .where(eq(equityGrants.id, id))
+    .limit(1);
   if (!grant || grant.userId !== user.id)
     return NextResponse.json({ error: "Grant not found" }, { status: 404 });
   const start = new Date(grant.startVestDate);
@@ -38,11 +42,21 @@ export async function POST(
     };
   });
   for (const v of data) {
-    await prisma.equityVest.upsert({
-      where: { grantId_vestDate: { grantId: v.grantId, vestDate: v.vestDate } },
-      update: { units: v.units, currency: v.currency },
-      create: v,
-    });
+    await db
+      .insert(equityVests)
+      .values({
+        grantId: v.grantId,
+        vestDate: v.vestDate,
+        units: String(v.units),
+        currency: v.currency,
+      })
+      .onConflictDoUpdate({
+        target: [equityVests.grantId, equityVests.vestDate],
+        set: {
+          units: String(v.units),
+          currency: v.currency,
+        },
+      });
   }
   const affectedYears = new Set<number>();
   data.forEach((item) => {

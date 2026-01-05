@@ -22,14 +22,28 @@ export async function register() {
   if (globalScope.__wealthWorkerStarted) {
     return;
   }
-  const { startLocalWorker } = await import(
-    "@/server/services/jobs/local-worker"
-  );
-  const stop = startLocalWorker({ logger: console });
-  globalScope.__wealthWorkerStarted = true;
-  globalScope.__wealthWorkerStopper = stop;
-  if (process.env.NODE_ENV !== "production") {
-    console.info("[worker] auto-started via instrumentation");
+  try {
+    const { startLocalWorker } = await import(
+      "@/server/services/jobs/local-worker"
+    );
+    const stop = startLocalWorker({ logger: console });
+    globalScope.__wealthWorkerStarted = true;
+    globalScope.__wealthWorkerStopper = stop;
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[worker] auto-started via instrumentation");
+    }
+  } catch (error) {
+    globalScope.__wealthWorkerStarted = true;
+    const message = error instanceof Error ? error.message : "unknown error";
+    console.error(
+      `[worker] failed to start via instrumentation: ${message}`
+    );
+    console.error(
+      "[worker] Tip: run `pnpm rebuild better-sqlite3` or set DISABLE_BACKGROUND_WORKER=1"
+    );
+    if (process.env.NODE_ENV === "production") {
+      throw error;
+    }
   }
 }
 

@@ -1,45 +1,82 @@
 /* eslint-disable no-console */
-const { PrismaClient } = require("@prisma/client");
+import db from "../src/server/db";
+import {
+  fxRates,
+  fxSnapshots,
+  incomeRecords,
+  txnEntries,
+  txnLines,
+  valuationSnapshots,
+} from "../src/server/db/schema";
+import { and, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 
-const prisma = new PrismaClient({ log: ["error", "warn"] });
 const SNAPSHOT_CREATED_BY = "backfill-script";
-const snapshotCache = new Map();
+const snapshotCache = new Map<string, Promise<any>>();
 
-function toNumber(value) {
+function toNumber(value: unknown): number | null {
   if (value == null) return null;
   if (typeof value === "number") return value;
   if (typeof value === "bigint") return Number(value);
   if (typeof value === "string") return Number(value);
-  if (typeof value.toNumber === "function") return value.toNumber();
+  if (typeof value === "object" && value !== null) {
+    if (typeof (value as { toString?: () => string }).toString === "function") {
+      return Number((value as { toString: () => string }).toString());
+    }
+  }
   return Number(value);
 }
 
-function buildSnapshotCacheKey(base, quote, asOf) {
+function buildSnapshotCacheKey(base: string, quote: string, asOf: Date) {
   return `${base.toUpperCase()}::${quote.toUpperCase()}::${asOf.toISOString()}`;
 }
 
-async function getFxRate({ base, quote, asOf }) {
-  const where = {
-    base: base.toUpperCase(),
-    quote: quote.toUpperCase(),
-  };
+async function getFxRate({
+  base,
+  quote,
+  asOf,
+}: {
+  base: string;
+  quote: string;
+  asOf?: Date;
+}) {
+  const normalizedBase = base.toUpperCase();
+  const normalizedQuote = quote.toUpperCase();
   if (asOf) {
-    return prisma.fxRate.findFirst({
-      where: {
-        ...where,
-        effectiveFrom: { lte: asOf },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gt: asOf } }],
-      },
-      orderBy: { effectiveFrom: "desc" },
-    });
+    const [record] = await db
+      .select()
+      .from(fxRates)
+      .where(
+        and(
+          eq(fxRates.base, normalizedBase),
+          eq(fxRates.quote, normalizedQuote),
+          lte(fxRates.effectiveFrom, asOf),
+          or(isNull(fxRates.effectiveTo), gt(fxRates.effectiveTo, asOf)),
+        ),
+      )
+      .orderBy(desc(fxRates.effectiveFrom))
+      .limit(1);
+    return record ?? null;
   }
-  return prisma.fxRate.findFirst({
-    where,
-    orderBy: { effectiveFrom: "desc" },
-  });
+  const [record] = await db
+    .select()
+    .from(fxRates)
+    .where(and(eq(fxRates.base, normalizedBase), eq(fxRates.quote, normalizedQuote)))
+    .orderBy(desc(fxRates.effectiveFrom))
+    .limit(1);
+  return record ?? null;
 }
 
-async function ensureSnapshot({ base, quote, asOf, allowMissing = false }) {
+async function ensureSnapshot({
+  base,
+  quote,
+  asOf,
+  allowMissing = false,
+}: {
+  base: string;
+  quote: string;
+  asOf: Date;
+  allowMissing?: boolean;
+}) {
   const normalizedBase = base.toUpperCase();
   const normalizedQuote = quote.toUpperCase();
   if (normalizedBase === normalizedQuote) return null;
@@ -61,54 +98,59 @@ async function ensureSnapshot({ base, quote, asOf, allowMissing = false }) {
           }
           return null;
         }
-        const existing = await prisma.fxSnapshot.findFirst({
-          where: {
+        const [existing] = await db
+          .select()
+          .from(fxSnapshots)
+          .where(
+            and(
+              eq(fxSnapshots.baseCurrency, normalizedBase),
+              eq(fxSnapshots.quoteCurrency, normalizedQuote),
+              eq(fxSnapshots.sourceRateId, rateRecord.id),
+              eq(fxSnapshots.capturedAt, asOf),
+            ),
+          )
+          .limit(1);
+        if (existing) return existing;
+        await db
+          .insert(fxSnapshots)
+          .values({
             baseCurrency: normalizedBase,
             quoteCurrency: normalizedQuote,
-            sourceRateId: rateRecord.id,
+            rate: String(toNumber(rateRecord.rate) ?? 0),
             capturedAt: asOf,
-          },
-        });
-        if (existing) return existing;
-        try {
-          return await prisma.fxSnapshot.create({
-            data: {
-              baseCurrency: normalizedBase,
-              quoteCurrency: normalizedQuote,
-              rate: toNumber(rateRecord.rate),
-              capturedAt: asOf,
-              sourceRateId: rateRecord.id,
-              effectiveFrom: rateRecord.effectiveFrom,
-              effectiveTo: rateRecord.effectiveTo,
-              createdBy: SNAPSHOT_CREATED_BY,
-            },
-          });
-        } catch (error) {
-          if (error && error.code === "P2002") {
-            return prisma.fxSnapshot.findFirst({
-              where: {
-                baseCurrency: normalizedBase,
-                quoteCurrency: normalizedQuote,
-                sourceRateId: rateRecord.id,
-                capturedAt: asOf,
-              },
-            });
-          }
-          console.error(
+            sourceRateId: rateRecord.id,
+            effectiveFrom: rateRecord.effectiveFrom,
+            effectiveTo: rateRecord.effectiveTo,
+            createdBy: SNAPSHOT_CREATED_BY,
+          })
+          .onConflictDoNothing();
+        const [created] = await db
+          .select()
+          .from(fxSnapshots)
+          .where(
+            and(
+              eq(fxSnapshots.baseCurrency, normalizedBase),
+              eq(fxSnapshots.quoteCurrency, normalizedQuote),
+              eq(fxSnapshots.sourceRateId, rateRecord.id),
+              eq(fxSnapshots.capturedAt, asOf),
+            ),
+          )
+          .limit(1);
+        if (!created && !allowMissing) {
+          console.warn(
             `[snapshot] create failed base=${normalizedBase} quote=${normalizedQuote} asOf=${asOf.toISOString()}`,
-            error,
           );
-          return null;
         }
+        return created ?? null;
       })(),
     );
   }
-  return snapshotCache.get(key);
+  return snapshotCache.get(key) ?? null;
 }
 
-function parseMetaSnapshots(meta) {
+function parseMetaSnapshots(meta: unknown) {
   if (!meta) return [];
-  let parsed = meta;
+  let parsed: any = meta;
   if (typeof meta === "string") {
     try {
       parsed = JSON.parse(meta);
@@ -145,7 +187,7 @@ function parseMetaSnapshots(meta) {
 }
 
 async function backfillFxRates() {
-  const rates = await prisma.fxRate.findMany();
+  const rates = await db.select().from(fxRates);
   let count = 0;
   for (const rate of rates) {
     const snapshot = await ensureSnapshot({
@@ -159,7 +201,7 @@ async function backfillFxRates() {
   console.log(`[fxRate] ensured snapshots=${count}`);
 }
 
-async function resolveIncomeSnapshot(record, attachedRate) {
+async function resolveIncomeSnapshot(record: any, attachedRate: any) {
   const sourceCurrency = (record.sourceCurrency || record.currency).toUpperCase();
   const displayCurrency = record.currency.toUpperCase();
   if (sourceCurrency === displayCurrency) return null;
@@ -181,26 +223,32 @@ async function resolveIncomeSnapshot(record, attachedRate) {
 }
 
 async function backfillIncomeRecords() {
-  const records = await prisma.incomeRecord.findMany({
-    include: { fxRate: true },
-  });
+  const records = await db
+    .select({
+      record: incomeRecords,
+      fxRate: fxRates,
+    })
+    .from(incomeRecords)
+    .leftJoin(fxRates, eq(fxRates.id, incomeRecords.fxRateId));
   let updated = 0;
-  const missing = [];
-  for (const record of records) {
+  const missing: string[] = [];
+  for (const row of records) {
+    const record = row.record;
+    const attachedRate = row.fxRate;
     if (record.fxSnapshotId) continue;
-    const snapshot = await resolveIncomeSnapshot(record, record.fxRate);
+    const snapshot = await resolveIncomeSnapshot(record, attachedRate);
     if (!snapshot) {
       missing.push(record.id);
       continue;
     }
-    await prisma.incomeRecord.update({
-      where: { id: record.id },
-      data: {
+    await db
+      .update(incomeRecords)
+      .set({
         fxSnapshotId: snapshot.id,
-        fxAppliedRate: toNumber(snapshot.rate) ?? 1,
+        fxAppliedRate: String(toNumber(snapshot.rate) ?? 1),
         sourceCurrency: record.sourceCurrency || record.currency,
-      },
-    });
+      })
+      .where(eq(incomeRecords.id, record.id));
     updated += 1;
   }
   console.log(
@@ -209,7 +257,7 @@ async function backfillIncomeRecords() {
   if (missing.length) console.warn("[income] missing snapshot ids:", missing);
 }
 
-async function resolveEntrySnapshot(entry) {
+async function resolveEntrySnapshot(entry: any) {
   if (entry.fxRate) {
     const snapshot = await ensureSnapshot({
       base: entry.fxRate.base,
@@ -222,9 +270,11 @@ async function resolveEntrySnapshot(entry) {
   const metaSnapshots = parseMetaSnapshots(entry.meta);
   for (const item of metaSnapshots) {
     if (item.snapshotId) {
-      const found = await prisma.fxSnapshot.findUnique({
-        where: { id: item.snapshotId },
-      });
+      const [found] = await db
+        .select()
+        .from(fxSnapshots)
+        .where(eq(fxSnapshots.id, item.snapshotId))
+        .limit(1);
       if (found) return found;
     }
     if (item.base && item.quote && item.capturedAt instanceof Date) {
@@ -238,7 +288,7 @@ async function resolveEntrySnapshot(entry) {
     }
   }
   const currencies = Array.from(
-    new Set(entry.lines.map((line) => line.currency.toUpperCase())),
+    new Set(entry.lines.map((line: any) => line.currency.toUpperCase())),
   );
   if (currencies.length === 2) {
     return ensureSnapshot({
@@ -251,7 +301,7 @@ async function resolveEntrySnapshot(entry) {
   return null;
 }
 
-async function updateLineSnapshot(line, snapshot) {
+async function updateLineSnapshot(line: any, snapshot: any) {
   if (!snapshot) return false;
   const currency = line.currency.toUpperCase();
   if (
@@ -260,39 +310,64 @@ async function updateLineSnapshot(line, snapshot) {
   ) {
     return false;
   }
-  await prisma.txnLine.update({
-    where: { id: line.id },
-    data: {
+  await db
+    .update(txnLines)
+    .set({
       fxSnapshotId: snapshot.id,
-      fxAppliedRate: toNumber(snapshot.rate) ?? 1,
-    },
-  });
+      fxAppliedRate: String(toNumber(snapshot.rate) ?? 1),
+    })
+    .where(eq(txnLines.id, line.id));
   return true;
 }
 
 async function backfillTxnEntries() {
-  const entries = await prisma.txnEntry.findMany({
-    include: { fxRate: true, lines: true },
-  });
+  const entries = await db.select().from(txnEntries);
+  const entryIds = entries.map((entry) => entry.id);
+  const lines = entryIds.length
+    ? await db
+        .select()
+        .from(txnLines)
+        .where(inArray(txnLines.entryId, entryIds))
+    : [];
+  const linesByEntry = new Map<string, any[]>();
+  for (const line of lines) {
+    if (!linesByEntry.has(line.entryId)) {
+      linesByEntry.set(line.entryId, []);
+    }
+    linesByEntry.get(line.entryId)?.push(line);
+  }
+  const fxRateIds = entries
+    .map((entry) => entry.fxRateId)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  const rates = fxRateIds.length
+    ? await db.select().from(fxRates).where(inArray(fxRates.id, fxRateIds))
+    : [];
+  const rateMap = new Map(rates.map((rate) => [rate.id, rate]));
+
   let updatedEntries = 0;
   let updatedLines = 0;
-  const missing = [];
+  const missing: string[] = [];
   for (const entry of entries) {
     if (entry.fxSnapshotId) continue;
-    const snapshot = await resolveEntrySnapshot(entry);
+    const enriched = {
+      ...entry,
+      fxRate: entry.fxRateId ? rateMap.get(entry.fxRateId) : null,
+      lines: linesByEntry.get(entry.id) ?? [],
+    };
+    const snapshot = await resolveEntrySnapshot(enriched);
     if (!snapshot) {
       missing.push(entry.id);
       continue;
     }
-    await prisma.txnEntry.update({
-      where: { id: entry.id },
-      data: {
+    await db
+      .update(txnEntries)
+      .set({
         fxSnapshotId: snapshot.id,
-        fxAppliedRate: toNumber(snapshot.rate) ?? 1,
-      },
-    });
+        fxAppliedRate: String(toNumber(snapshot.rate) ?? 1),
+      })
+      .where(eq(txnEntries.id, entry.id));
     updatedEntries += 1;
-    for (const line of entry.lines) {
+    for (const line of enriched.lines) {
       const updated = await updateLineSnapshot(line, snapshot);
       if (updated) updatedLines += 1;
     }
@@ -300,10 +375,11 @@ async function backfillTxnEntries() {
   console.log(
     `[txnEntry] total=${entries.length} updatedEntries=${updatedEntries} updatedLines=${updatedLines} missing=${missing.length}`,
   );
-  if (missing.length) console.warn("[txnEntry] missing snapshot entry ids:", missing);
+  if (missing.length)
+    console.warn("[txnEntry] missing snapshot entry ids:", missing);
 }
 
-async function resolveValuationSnapshot(valuation) {
+async function resolveValuationSnapshot(valuation: any) {
   if (valuation.fxRate) {
     return ensureSnapshot({
       base: valuation.fxRate.base,
@@ -316,25 +392,33 @@ async function resolveValuationSnapshot(valuation) {
 }
 
 async function backfillValuations() {
-  const valuations = await prisma.valuationSnapshot.findMany({
-    include: { fxRate: true },
-  });
+  const valuations = await db
+    .select({
+      valuation: valuationSnapshots,
+      fxRate: fxRates,
+    })
+    .from(valuationSnapshots)
+    .leftJoin(fxRates, eq(fxRates.id, valuationSnapshots.fxRateId));
   let updated = 0;
-  const missing = [];
-  for (const valuation of valuations) {
+  const missing: string[] = [];
+  for (const row of valuations) {
+    const valuation = row.valuation;
     if (valuation.fxSnapshotId) continue;
-    const snapshot = await resolveValuationSnapshot(valuation);
+    const snapshot = await resolveValuationSnapshot({
+      ...valuation,
+      fxRate: row.fxRate,
+    });
     if (!snapshot) {
       missing.push(valuation.id);
       continue;
     }
-    await prisma.valuationSnapshot.update({
-      where: { id: valuation.id },
-      data: {
+    await db
+      .update(valuationSnapshots)
+      .set({
         fxSnapshotId: snapshot.id,
-        fxAppliedRate: toNumber(snapshot.rate) ?? 1,
-      },
-    });
+        fxAppliedRate: String(toNumber(snapshot.rate) ?? 1),
+      })
+      .where(eq(valuationSnapshots.id, valuation.id));
     updated += 1;
   }
   console.log(
@@ -351,11 +435,7 @@ async function main() {
   await backfillValuations();
 }
 
-main()
-  .catch((error) => {
-    console.error("[backfill] failed:", error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main().catch((error) => {
+  console.error("[backfill] failed:", error);
+  process.exitCode = 1;
+});

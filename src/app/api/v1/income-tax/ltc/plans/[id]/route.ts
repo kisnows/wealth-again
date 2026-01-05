@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { longTermCashPlans, longTermCashPayouts } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * DELETE /api/v1/income-tax/ltc/plans/:id
@@ -20,29 +22,30 @@ export async function DELETE(
 
   try {
     // 检查记录是否存在且属于当前用户
-    const record = await prisma.longTermCashPlan.findUnique({
-      where: { id },
-      include: { payouts: true },
-    });
+    const [record] = await db
+      .select()
+      .from(longTermCashPlans)
+      .where(eq(longTermCashPlans.id, id))
+      .limit(1);
 
     if (!record || record.userId !== user.id) {
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
 
     // 先删除关联的支付记录
-    await prisma.longTermCashPayout.deleteMany({
-      where: { planId: id },
-    });
+    const payouts = await db
+      .select()
+      .from(longTermCashPayouts)
+      .where(eq(longTermCashPayouts.planId, id));
+    await db.delete(longTermCashPayouts).where(eq(longTermCashPayouts.planId, id));
 
     // 再删除计划记录
-    await prisma.longTermCashPlan.delete({
-      where: { id },
-    });
+    await db.delete(longTermCashPlans).where(eq(longTermCashPlans.id, id));
 
     // 记录审计日志
     await logAudit("INCOME_LTC_PLAN_DELETE", {
       userId: user.id,
-      meta: { id, deletedRecord: record },
+      meta: { id, deletedRecord: { ...record, payouts } },
     });
 
     return NextResponse.json({ success: true });

@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { accounts, txnEntries, txnLines } from "@/server/db/schema";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { desc, eq } from "drizzle-orm";
 
 /**
  * GET /api/v1/accounts-ledger/accounts/:id/transactions
@@ -16,85 +18,67 @@ export async function GET(
   if (!user || typeof user.id !== "string") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const account = await prisma.account.findUnique({ where: { id } });
+  const [account] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, id))
+    .limit(1);
   if (!account || account.userId !== user.id) {
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   }
-  const txnLineClient = prisma.txnLine as unknown as {
-    findMany: (args: unknown) => Promise<
-      Array<{
-        id: string;
-        entryId: string;
-        accountId: string;
-        amount: number | { toNumber: () => number };
-        currency: string;
-        note: string | null;
-        createdAt: Date;
-        counterpartyAccountId: string | null;
-        counterpartyName: string | null;
-        exchangeRateAB: number | { toNumber: () => number } | null;
-        viaCurrency: string | null;
-        rateAtoUSD: number | { toNumber: () => number } | null;
-        rateUSDtoB: number | { toNumber: () => number } | null;
-        fxEffectiveAt: Date | null;
-        principalDelta: number | { toNumber: () => number } | null;
-        valuationDelta: number | { toNumber: () => number } | null;
-        entry: {
-          id: string;
-          type: string;
-          occurredAt: Date;
-          note: string | null;
-          createdAt: Date;
-        };
-        counterpartyAccount?: {
-          id: string;
-          name: string;
-          baseCurrency: string;
-        } | null;
-        attachmentUrl?: string | null;
-      }>
-    >;
-  };
-  const lines = await txnLineClient.findMany({
-    where: { accountId: id },
-    include: {
-      entry: {
-        select: {
-          id: true,
-          type: true,
-          occurredAt: true,
-          note: true,
-          createdAt: true,
-        },
-      },
-      counterpartyAccount: {
-        select: { id: true, name: true, baseCurrency: true },
-      },
-    },
-    orderBy: [{ entry: { occurredAt: "desc" } }, { createdAt: "desc" }],
-  });
+  const lines = await db
+    .select({
+      id: txnLines.id,
+      entryId: txnLines.entryId,
+      accountId: txnLines.accountId,
+      amount: txnLines.amount,
+      currency: txnLines.currency,
+      note: txnLines.note,
+      createdAt: txnLines.createdAt,
+      counterpartyAccountId: txnLines.counterpartyAccountId,
+      counterpartyName: txnLines.counterpartyName,
+      exchangeRateAB: txnLines.exchangeRateAB,
+      viaCurrency: txnLines.viaCurrency,
+      rateAtoUSD: txnLines.rateAtoUSD,
+      rateUSDtoB: txnLines.rateUSDtoB,
+      fxEffectiveAt: txnLines.fxEffectiveAt,
+      principalDelta: txnLines.principalDelta,
+      valuationDelta: txnLines.valuationDelta,
+      attachmentUrl: txnLines.attachmentUrl,
+      entryType: txnEntries.type,
+      entryOccurredAt: txnEntries.occurredAt,
+      entryNote: txnEntries.note,
+      entryCreatedAt: txnEntries.createdAt,
+      counterpartyAccountName: accounts.name,
+      counterpartyAccountCurrency: accounts.baseCurrency,
+    })
+    .from(txnLines)
+    .innerJoin(txnEntries, eq(txnEntries.id, txnLines.entryId))
+    .leftJoin(accounts, eq(accounts.id, txnLines.counterpartyAccountId))
+    .where(eq(txnLines.accountId, id))
+    .orderBy(desc(txnEntries.occurredAt), desc(txnLines.createdAt));
   const toNumber = (
-    value: number | { toNumber: () => number } | null | undefined,
+    value: string | number | null | undefined,
   ) => {
     if (value == null) return null;
-    return typeof value === "number" ? value : value.toNumber();
+    return typeof value === "number" ? value : Number(value);
   };
   const items = lines.map((line) => ({
     id: line.id,
     entryId: line.entryId,
-    type: line.entry.type,
-    occurredAt: line.entry.occurredAt,
+    type: line.entryType,
+    occurredAt: line.entryOccurredAt,
     createdAt: line.createdAt,
     amount: toNumber(line.amount) ?? 0,
     currency: line.currency,
-    note: line.note ?? line.entry.note ?? null,
-    entryNote: line.entry.note ?? null,
+    note: line.note ?? line.entryNote ?? null,
+    entryNote: line.entryNote ?? null,
     lineNote: line.note ?? null,
     direction: (toNumber(line.amount) ?? 0) >= 0 ? "INFLOW" : "OUTFLOW",
     counterpartyAccountId: line.counterpartyAccountId,
     counterpartyName:
-      line.counterpartyName ?? line.counterpartyAccount?.name ?? null,
-    counterpartyCurrency: line.counterpartyAccount?.baseCurrency ?? null,
+      line.counterpartyName ?? line.counterpartyAccountName ?? null,
+    counterpartyCurrency: line.counterpartyAccountCurrency ?? null,
     exchangeRateAB: toNumber(line.exchangeRateAB),
     viaCurrency: line.viaCurrency ?? null,
     rateAtoUSD: toNumber(line.rateAtoUSD),

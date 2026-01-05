@@ -1,14 +1,16 @@
-import type { User } from "@prisma/client";
+import type { User } from "@/server/db/types";
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { users } from "@/server/db/schema";
 import { audit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { eq } from "drizzle-orm";
 
 /**
  * PATCH /api/v1/identity/user/profile
@@ -63,17 +65,17 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        currentCityId: true,
-        displayCurrency: true,
-      },
-    });
+    const [updatedUser] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.id, userId))
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        currentCityId: users.currentCityId,
+        displayCurrency: users.displayCurrency,
+      });
 
     // 记录审计日志
     await audit.logAndEmit("USER_PROFILE_UPDATE", {

@@ -1,7 +1,33 @@
-import type { City, CityChangeRecord, IncomeChange } from "@prisma/client";
+import type { CityChangeRecord, IncomeChange } from "@/server/db/types";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import {
+  bonusPlans as bonusPlansTable,
+  cities as citiesTable,
+  cityChangeRecords,
+  cityRuleHF,
+  cityRuleSS,
+  equityGrants,
+  equityVests,
+  incomeChanges,
+  longTermCashPayouts,
+  longTermCashPlans,
+  taxConfig,
+  users,
+} from "@/server/db/schema";
 import { getUserFromRequest } from "@/server/utils/auth";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+} from "drizzle-orm";
 
 type MonthlyResult = {
   month: string;
@@ -26,6 +52,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const cityId = searchParams.get("cityId");
   if (!startDate || !endDate) {
     return NextResponse.json(
       { error: "startDate and endDate are required" },
@@ -40,14 +67,32 @@ export async function GET(req: NextRequest) {
 
   try {
     const userId = user.id;
-    const userRecord = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { currentCity: true },
-    });
+    const [userRecord] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
     if (!userRecord) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+    const defaultCityId = cityId ?? userRecord.currentCityId;
+    if (!defaultCityId) {
+      return NextResponse.json(
+        { error: "User city is required" },
+        { status: 400 },
+      );
+    }
+
+    const currentCity = userRecord.currentCityId
+      ? (
+          await db
+            .select()
+            .from(citiesTable)
+            .where(eq(citiesTable.id, userRecord.currentCityId))
+            .limit(1)
+        )[0] ?? null
+      : null;
 
     // 使用指定城市或用户当前城市
     const currency = userRecord.displayCurrency ?? "CNY";
@@ -56,51 +101,72 @@ export async function GET(req: NextRequest) {
     const months = getMonthsBetween(startDate, endDate);
 
     // 获取用户的收入数据
-    const salaryChanges = await prisma.incomeChange.findMany({
-      where: { userId },
-      orderBy: { effectiveFrom: "asc" },
-    });
+    const salaryChanges = await db
+      .select()
+      .from(incomeChanges)
+      .where(eq(incomeChanges.userId, userId))
+      .orderBy(asc(incomeChanges.effectiveFrom));
 
     // 获取用户的城市变更记录
-    const cityChanges = await prisma.cityChangeRecord.findMany({
-      where: { userId },
-      include: { toCity: true },
-      orderBy: { effectiveMonth: "asc" },
-    });
+    const cityChanges = await db
+      .select()
+      .from(cityChangeRecords)
+      .where(eq(cityChangeRecords.userId, userId))
+      .orderBy(asc(cityChangeRecords.effectiveMonth));
 
     // 获取奖金计划
-    const bonusPlans = await prisma.bonusPlan.findMany({
-      where: {
-        userId,
-        effectiveDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      },
-    });
+    const bonusPlans = await db
+      .select()
+      .from(bonusPlansTable)
+      .where(
+        and(
+          eq(bonusPlansTable.userId, userId),
+          gte(bonusPlansTable.effectiveDate, new Date(startDate)),
+          lte(bonusPlansTable.effectiveDate, new Date(endDate)),
+        ),
+      );
 
     // 获取长期现金计划和支付记录
-    const ltcPayouts = await prisma.longTermCashPayout.findMany({
-      where: {
-        plan: { userId },
-        payDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      },
-    });
+    const ltcPayouts = await db
+      .select({
+        id: longTermCashPayouts.id,
+        planId: longTermCashPayouts.planId,
+        payDate: longTermCashPayouts.payDate,
+        amount: longTermCashPayouts.amount,
+        currency: longTermCashPayouts.currency,
+      })
+      .from(longTermCashPayouts)
+      .innerJoin(
+        longTermCashPlans,
+        eq(longTermCashPlans.id, longTermCashPayouts.planId),
+      )
+      .where(
+        and(
+          eq(longTermCashPlans.userId, userId),
+          gte(longTermCashPayouts.payDate, new Date(startDate)),
+          lte(longTermCashPayouts.payDate, new Date(endDate)),
+        ),
+      );
 
     // 获取股权归属记录
-    const equityVests = await prisma.equityVest.findMany({
-      where: {
-        grant: { userId },
-        vestDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-        fairValue: { not: null },
-      },
-    });
+    const equityVests = await db
+      .select({
+        id: equityVests.id,
+        grantId: equityVests.grantId,
+        vestDate: equityVests.vestDate,
+        fairValue: equityVests.fairValue,
+        currency: equityVests.currency,
+      })
+      .from(equityVests)
+      .innerJoin(equityGrants, eq(equityGrants.id, equityVests.grantId))
+      .where(
+        and(
+          eq(equityGrants.userId, userId),
+          gte(equityVests.vestDate, new Date(startDate)),
+          lte(equityVests.vestDate, new Date(endDate)),
+          isNotNull(equityVests.fairValue),
+        ),
+      );
 
     // 计算每月预测数据
     const monthlyResults: MonthlyResult[] = await Promise.all(
@@ -145,28 +211,47 @@ export async function GET(req: NextRequest) {
         const monthCityId = getCityForMonth(
           cityChanges,
           monthDate,
-          userRecord.currentCityId,
+          defaultCityId,
         );
+        const [monthCity] = await db
+          .select()
+          .from(citiesTable)
+          .where(eq(citiesTable.id, monthCityId))
+          .limit(1);
 
         // 获取社保规则
-        const ssRule = await prisma.cityRuleSS.findFirst({
-          where: {
-            cityId: monthCityId,
-            effectiveFrom: { lte: monthDate },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
-          },
-          orderBy: { effectiveFrom: "desc" },
-        });
+        const [ssRule] = await db
+          .select()
+          .from(cityRuleSS)
+          .where(
+            and(
+              eq(cityRuleSS.cityId, monthCityId),
+              lte(cityRuleSS.effectiveFrom, monthDate),
+              or(
+                isNull(cityRuleSS.effectiveTo),
+                gt(cityRuleSS.effectiveTo, monthDate),
+              ),
+            ),
+          )
+          .orderBy(desc(cityRuleSS.effectiveFrom))
+          .limit(1);
 
         // 获取公积金规则
-        const hfRule = await prisma.cityRuleHF.findFirst({
-          where: {
-            cityId: monthCityId,
-            effectiveFrom: { lte: monthDate },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
-          },
-          orderBy: { effectiveFrom: "desc" },
-        });
+        const [hfRule] = await db
+          .select()
+          .from(cityRuleHF)
+          .where(
+            and(
+              eq(cityRuleHF.cityId, monthCityId),
+              lte(cityRuleHF.effectiveFrom, monthDate),
+              or(
+                isNull(cityRuleHF.effectiveTo),
+                gt(cityRuleHF.effectiveTo, monthDate),
+              ),
+            ),
+          )
+          .orderBy(desc(cityRuleHF.effectiveFrom))
+          .limit(1);
 
         // 计算社保和公积金
         const clamp = (x: number, min: number, max: number) =>
@@ -192,19 +277,24 @@ export async function GET(req: NextRequest) {
 
         // 获取税制配置
         const taxYear = monthDate.getFullYear();
-        const taxConfig = await prisma.taxConfig.findUnique({
-          where: {
-            country_taxYear: {
-              country: userRecord.currentCity.country,
-              taxYear,
-            },
-          },
-        });
+        const [taxConfigRow] = await db
+          .select()
+          .from(taxConfig)
+          .where(
+            and(
+              eq(
+                taxConfig.country,
+                monthCity?.country ?? currentCity?.country ?? "CN",
+              ),
+              eq(taxConfig.taxYear, taxYear),
+            ),
+          )
+          .limit(1);
 
         const standardDeduction =
-          toNumber(taxConfig?.standardDeduction) || 5000;
+          toNumber(taxConfigRow?.standardDeduction) || 5000;
         const specialAdditionalDeduction = toNumber(
-          taxConfig?.specialAdditionalDeduction,
+          taxConfigRow?.specialAdditionalDeduction,
         );
 
         // 计算当月应税收入
@@ -254,39 +344,63 @@ export async function GET(req: NextRequest) {
         const priorMonthCityId = getCityForMonth(
           cityChanges,
           priorMonthDate,
-          userRecord.currentCityId,
+          defaultCityId,
         );
+        const [priorMonthCity] = await db
+          .select()
+          .from(citiesTable)
+          .where(eq(citiesTable.id, priorMonthCityId))
+          .limit(1);
 
         // 获取历史社保规则
-        const priorSsRule = await prisma.cityRuleSS.findFirst({
-          where: {
-            cityId: priorMonthCityId,
-            effectiveFrom: { lte: priorMonthDate },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: priorMonthDate } }],
-          },
-          orderBy: { effectiveFrom: "desc" },
-        });
+        const [priorSsRule] = await db
+          .select()
+          .from(cityRuleSS)
+          .where(
+            and(
+              eq(cityRuleSS.cityId, priorMonthCityId),
+              lte(cityRuleSS.effectiveFrom, priorMonthDate),
+              or(
+                isNull(cityRuleSS.effectiveTo),
+                gt(cityRuleSS.effectiveTo, priorMonthDate),
+              ),
+            ),
+          )
+          .orderBy(desc(cityRuleSS.effectiveFrom))
+          .limit(1);
 
         // 获取历史公积金规则
-        const priorHfRule = await prisma.cityRuleHF.findFirst({
-          where: {
-            cityId: priorMonthCityId,
-            effectiveFrom: { lte: priorMonthDate },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: priorMonthDate } }],
-          },
-          orderBy: { effectiveFrom: "desc" },
-        });
+        const [priorHfRule] = await db
+          .select()
+          .from(cityRuleHF)
+          .where(
+            and(
+              eq(cityRuleHF.cityId, priorMonthCityId),
+              lte(cityRuleHF.effectiveFrom, priorMonthDate),
+              or(
+                isNull(cityRuleHF.effectiveTo),
+                gt(cityRuleHF.effectiveTo, priorMonthDate),
+              ),
+            ),
+          )
+          .orderBy(desc(cityRuleHF.effectiveFrom))
+          .limit(1);
 
         // 获取历史税制配置
         const priorTaxYear = priorMonthDate.getFullYear();
-        const priorTaxConfig = await prisma.taxConfig.findUnique({
-          where: {
-            country_taxYear: {
-              country: userRecord.currentCity.country,
-              taxYear: priorTaxYear,
-            },
-          },
-        });
+        const [priorTaxConfig] = await db
+          .select()
+          .from(taxConfig)
+          .where(
+            and(
+              eq(
+                taxConfig.country,
+                priorMonthCity?.country ?? currentCity?.country ?? "CN",
+              ),
+              eq(taxConfig.taxYear, priorTaxYear),
+            ),
+          )
+          .limit(1);
 
         const priorStandardDeduction =
           toNumber(priorTaxConfig?.standardDeduction) || 5000;
@@ -508,7 +622,7 @@ function toNumber(value: unknown): number {
 }
 
 // 辅助函数：根据城市变更记录获取指定月份的城市ID
-type CityChangeRecordWithCity = CityChangeRecord & { toCity: City };
+type CityChangeRecordWithCity = CityChangeRecord;
 
 function getCityForMonth(
   cityChanges: CityChangeRecordWithCity[],

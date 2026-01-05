@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { bonusPlans } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * DELETE /api/v1/income-tax/bonus/:id
@@ -20,18 +22,18 @@ export async function DELETE(
 
   try {
     // 检查记录是否存在且属于当前用户
-    const record = await prisma.bonusPlan.findUnique({
-      where: { id },
-    });
+    const [record] = await db
+      .select()
+      .from(bonusPlans)
+      .where(eq(bonusPlans.id, id))
+      .limit(1);
 
     if (!record || record.userId !== user.id) {
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
 
     // 删除记录
-    await prisma.bonusPlan.delete({
-      where: { id },
-    });
+    await db.delete(bonusPlans).where(eq(bonusPlans.id, id));
 
     // 记录审计日志
     await logAudit("INCOME_BONUS_DELETE", {

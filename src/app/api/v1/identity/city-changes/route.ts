@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { cities, cityChangeRecords, users } from "@/server/db/schema";
 import { audit } from "@/server/services/audit";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -7,6 +8,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { desc, eq, inArray } from "drizzle-orm";
 
 function getNextUtcMonthStart(base = new Date()) {
   return new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1));
@@ -33,29 +35,43 @@ export async function GET(req: NextRequest) {
   const userId = user.id;
 
   try {
-    const me = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        currentCity: { select: { id: true, name: true, country: true } },
-      },
-    });
+    const [me] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-    const cityChanges = await prisma.cityChangeRecord.findMany({
-      where: { userId },
-      include: {
-        toCity: {
-          select: { id: true, name: true, country: true },
-        },
-        fromCity: {
-          select: { id: true, name: true, country: true },
-        },
-      },
-      orderBy: { effectiveMonth: "desc" },
-    });
+    const cityChanges = await db
+      .select()
+      .from(cityChangeRecords)
+      .where(eq(cityChangeRecords.userId, userId))
+      .orderBy(desc(cityChangeRecords.effectiveMonth));
+
+    const cityIds = Array.from(
+      new Set(
+        cityChanges
+          .flatMap((row) => [row.toCityId, row.fromCityId])
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const cityRows =
+      cityIds.length === 0
+        ? []
+        : await db
+            .select()
+            .from(cities)
+            .where(inArray(cities.id, cityIds));
+    const cityMap = new Map(cityRows.map((row) => [row.id, row]));
 
     return NextResponse.json({
-      currentCity: me?.currentCity ?? null,
-      items: cityChanges,
+      currentCity: me?.currentCityId
+        ? cityMap.get(me.currentCityId) ?? null
+        : null,
+      items: cityChanges.map((row) => ({
+        ...row,
+        toCity: row.toCityId ? cityMap.get(row.toCityId) ?? null : null,
+        fromCity: row.fromCityId ? cityMap.get(row.fromCityId) ?? null : null,
+      })),
     });
   } catch (error) {
     console.error("Get city changes error:", error);
@@ -90,30 +106,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const me = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        currentCity: { select: { id: true, name: true, country: true } },
-      },
-    });
+    const [me] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
     if (!me) {
       return NextResponse.json({ error: "user_not_found" }, { status: 404 });
     }
 
     // 验证城市是否存在
-    const city = await prisma.city.findUnique({
-      where: { id: toCityId },
-      select: { id: true, name: true, country: true },
-    });
+    const [city] = await db
+      .select({
+        id: cities.id,
+        name: cities.name,
+        country: cities.country,
+      })
+      .from(cities)
+      .where(eq(cities.id, toCityId))
+      .limit(1);
     if (!city) {
       return NextResponse.json({ error: "city_not_found" }, { status: 404 });
     }
 
-    if (me.currentCity && city.country !== me.currentCity.country) {
-      return NextResponse.json(
-        { error: "暂不支持跨国家城市变更，请联系管理员处理" },
-        { status: 400 },
-      );
+    if (me.currentCityId) {
+      const [currentCity] = await db
+        .select()
+        .from(cities)
+        .where(eq(cities.id, me.currentCityId))
+        .limit(1);
+      if (currentCity && city.country !== currentCity.country) {
+        return NextResponse.json(
+          { error: "暂不支持跨国家城市变更，请联系管理员处理" },
+          { status: 400 },
+        );
+      }
     }
 
     let effectiveMonth: Date;
@@ -138,10 +165,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const latestChange = await prisma.cityChangeRecord.findFirst({
-      where: { userId },
-      orderBy: { effectiveMonth: "desc" },
-    });
+    const [latestChange] = await db
+      .select()
+      .from(cityChangeRecords)
+      .where(eq(cityChangeRecords.userId, userId))
+      .orderBy(desc(cityChangeRecords.effectiveMonth))
+      .limit(1);
     if (latestChange && effectiveMonth <= latestChange.effectiveMonth) {
       return NextResponse.json(
         { error: "effectiveMonth must be later than existing records" },
@@ -161,29 +190,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const cityChange = await tx.cityChangeRecord.create({
-        data: {
+    const result = await db.transaction((tx) => {
+      const cityChange = tx
+        .insert(cityChangeRecords)
+        .values({
           userId,
           toCityId,
           fromCityId: me.currentCityId ?? null,
           effectiveMonth,
           reason: reason || null,
-        },
-        include: {
-          toCity: {
-            select: { id: true, name: true, country: true },
-          },
-          fromCity: {
-            select: { id: true, name: true, country: true },
-          },
-        },
-      });
+        })
+        .returning()
+        .get();
+      if (!cityChange) {
+        throw new Error("city_change_create_failed");
+      }
 
-      await tx.user.update({
-        where: { id: userId },
-        data: { currentCityId: toCityId },
-      });
+      tx
+        .update(users)
+        .set({ currentCityId: toCityId })
+        .where(eq(users.id, userId))
+        .run();
 
       return cityChange;
     });

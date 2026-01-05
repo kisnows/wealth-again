@@ -1,4 +1,4 @@
-import type { EventOutbox } from "@prisma/client";
+import type { EventOutbox } from "@/server/db/types";
 import {
   refreshAccountsSummaryDataset,
   refreshIncomeReportingDataset,

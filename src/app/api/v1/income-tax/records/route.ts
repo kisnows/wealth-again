@@ -1,11 +1,12 @@
-import type { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { incomeRecords } from "@/server/db/schema";
 import {
   ensureIncomeRecordsForUser,
   summarizeIncomeRecords,
 } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 
 /**
  * GET /api/v1/income-tax/records?from=YYYY-MM-01&to=YYYY-MM-01
@@ -22,16 +23,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
   await ensureIncomeRecordsForUser(userId);
-  const where: Prisma.IncomeRecordWhereInput = { userId };
-  if (from || to) {
-    where.monthDate = {};
-    if (from) where.monthDate.gte = new Date(from);
-    if (to) where.monthDate.lte = new Date(to);
-  }
-  const items = await prisma.incomeRecord.findMany({
-    where,
-    orderBy: { monthDate: "asc" },
-  });
+  const conditions = [eq(incomeRecords.userId, userId)];
+  if (from) conditions.push(gte(incomeRecords.monthDate, new Date(from)));
+  if (to) conditions.push(lte(incomeRecords.monthDate, new Date(to)));
+  const items = await db
+    .select()
+    .from(incomeRecords)
+    .where(and(...conditions))
+    .orderBy(asc(incomeRecords.monthDate));
   const summary = summarizeIncomeRecords(items);
   return NextResponse.json({ items, summary });
 }

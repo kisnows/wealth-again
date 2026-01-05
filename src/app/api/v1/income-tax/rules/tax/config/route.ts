@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { taxConfig } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import {
   ensureIdempotent,
@@ -30,25 +31,28 @@ export async function PUT(req: Request) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
-  const cfg = await prisma.taxConfig.upsert({
-    where: { country_taxYear: { country, taxYear } },
-    update: {
-      standardDeduction,
-      specialAdditionalDeduction:
-        typeof specialAdditionalDeduction === "number"
-          ? specialAdditionalDeduction
-          : undefined,
-    },
-    create: {
+  const special =
+    typeof specialAdditionalDeduction === "number"
+      ? String(specialAdditionalDeduction)
+      : undefined;
+  const [cfg] = await db
+    .insert(taxConfig)
+    .values({
       country,
       taxYear,
-      standardDeduction,
-      specialAdditionalDeduction:
-        typeof specialAdditionalDeduction === "number"
-          ? specialAdditionalDeduction
-          : 0,
-    },
-  });
+      standardDeduction: String(standardDeduction),
+      specialAdditionalDeduction: special ?? "0",
+    })
+    .onConflictDoUpdate({
+      target: [taxConfig.country, taxConfig.taxYear],
+      set: {
+        standardDeduction: String(standardDeduction),
+        ...(special !== undefined
+          ? { specialAdditionalDeduction: special }
+          : {}),
+      },
+    })
+    .returning();
   await logAudit("RULE_TAX_CONFIG_UPSERT", { meta: { country, taxYear } });
   await markIdempotencyUsed(key);
   return NextResponse.json(cfg);

@@ -1,17 +1,37 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
-import prisma from "@/server/db";
-import { processDueIncomeRecalcTasks } from "@/server/services/income-tax/income";
-import {
-  fetchPendingOutboxEvents,
-  markOutboxEventDelivered,
-  markOutboxEventFailed,
-} from "@/server/services/outbox";
-import { consumeReportingEvent } from "@/server/services/reporting/outbox-consumer";
-import {
-  ensureWeeklyFxCoverage,
-  processDueFxRateUpdateTasks,
-} from "@/server/services/fx/update";
+type WorkerDeps = {
+  db: typeof import("@/server/db").default;
+  processDueIncomeRecalcTasks: typeof import("@/server/services/income-tax/income").processDueIncomeRecalcTasks;
+  fetchPendingOutboxEvents: typeof import("@/server/services/outbox").fetchPendingOutboxEvents;
+  markOutboxEventDelivered: typeof import("@/server/services/outbox").markOutboxEventDelivered;
+  markOutboxEventFailed: typeof import("@/server/services/outbox").markOutboxEventFailed;
+  consumeReportingEvent: typeof import("@/server/services/reporting/outbox-consumer").consumeReportingEvent;
+  ensureWeeklyFxCoverage: typeof import("@/server/services/fx/update").ensureWeeklyFxCoverage;
+  processDueFxRateUpdateTasks: typeof import("@/server/services/fx/update").processDueFxRateUpdateTasks;
+};
+
+async function loadWorkerDeps(): Promise<WorkerDeps> {
+  const [dbMod, incomeMod, outboxMod, reportingMod, fxUpdateMod] =
+    await Promise.all([
+      import("@/server/db"),
+      import("@/server/services/income-tax/income"),
+      import("@/server/services/outbox"),
+      import("@/server/services/reporting/outbox-consumer"),
+      import("@/server/services/fx/update"),
+    ]);
+
+  return {
+    db: dbMod.default,
+    processDueIncomeRecalcTasks: incomeMod.processDueIncomeRecalcTasks,
+    fetchPendingOutboxEvents: outboxMod.fetchPendingOutboxEvents,
+    markOutboxEventDelivered: outboxMod.markOutboxEventDelivered,
+    markOutboxEventFailed: outboxMod.markOutboxEventFailed,
+    consumeReportingEvent: reportingMod.consumeReportingEvent,
+    ensureWeeklyFxCoverage: fxUpdateMod.ensureWeeklyFxCoverage,
+    processDueFxRateUpdateTasks: fxUpdateMod.processDueFxRateUpdateTasks,
+  };
+}
 
 export type WorkerOptions = {
   intervalMs?: number;
@@ -25,6 +45,16 @@ const DEFAULT_BATCH_SIZE = 20;
 export async function runWorkerIteration(
   options: WorkerOptions = {},
 ): Promise<void> {
+  const {
+    db,
+    consumeReportingEvent,
+    ensureWeeklyFxCoverage,
+    fetchPendingOutboxEvents,
+    markOutboxEventDelivered,
+    markOutboxEventFailed,
+    processDueFxRateUpdateTasks,
+    processDueIncomeRecalcTasks,
+  } = await loadWorkerDeps();
   const { batchSize = DEFAULT_BATCH_SIZE, logger = console } = options;
   const scheduled = await ensureWeeklyFxCoverage();
   if (scheduled > 0) {
@@ -69,12 +99,12 @@ export async function runWorkerIteration(
           }),
         );
       }
-      await markOutboxEventDelivered(prisma, event.id);
+      await markOutboxEventDelivered(db, event.id);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "unexpected error";
       logger.error?.(`[outbox] failed ${event.eventType}: ${message}`);
-      await markOutboxEventFailed(prisma, event.id, message);
+      await markOutboxEventFailed(db, event.id, message);
     }
   }
 }

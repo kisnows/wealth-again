@@ -1,7 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import {
+  cityRuleHF,
+  cityRuleSS,
+  cities as citiesTable,
+  taxBracket,
+  taxConfig,
+} from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { and, asc, eq } from "drizzle-orm";
 
 type SocialSecurityRulePayload = {
   startDate?: string;
@@ -50,9 +58,10 @@ type TaxConfigTemplate = {
  */
 export async function GET(_req: NextRequest) {
   try {
-    const cities = await prisma.city.findMany({
-      orderBy: [{ country: "asc" }, { name: "asc" }],
-    });
+    const cities = await db
+      .select()
+      .from(citiesTable)
+      .orderBy(asc(citiesTable.country), asc(citiesTable.name));
 
     return NextResponse.json(cities);
   } catch (error) {
@@ -89,9 +98,11 @@ export async function POST(req: NextRequest) {
     }
 
     // 检查城市是否已存在
-    const existingCity = await prisma.city.findUnique({
-      where: { name },
-    });
+    const [existingCity] = await db
+      .select()
+      .from(citiesTable)
+      .where(eq(citiesTable.name, name))
+      .limit(1);
 
     if (existingCity) {
       return NextResponse.json(
@@ -101,12 +112,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 创建城市
-    const city = await prisma.city.create({
-      data: {
+    const [city] = await db
+      .insert(citiesTable)
+      .values({
         name,
         country,
-      },
-    });
+      })
+      .returning();
 
     // 自动配置税制（如果国家不存在）
     await ensureTaxConfig(country);
@@ -141,35 +153,43 @@ export async function POST(req: NextRequest) {
 async function ensureTaxConfig(country: string) {
   const currentYear = new Date().getFullYear();
 
-  const existingConfig = await prisma.taxConfig.findUnique({
-    where: {
-      country_taxYear: { country, taxYear: currentYear },
-    },
-  });
+  const [existingConfig] = await db
+    .select()
+    .from(taxConfig)
+    .where(
+      and(eq(taxConfig.country, country), eq(taxConfig.taxYear, currentYear)),
+    )
+    .limit(1);
 
   if (!existingConfig) {
     // 根据国家创建默认税制配置
     const defaultConfigs = getDefaultTaxConfig(country, currentYear);
 
     if (defaultConfigs) {
-      await prisma.taxConfig.create({
-        data: defaultConfigs.config,
+      await db.insert(taxConfig).values({
+        country: defaultConfigs.config.country,
+        taxYear: defaultConfigs.config.taxYear,
+        currency: defaultConfigs.config.currency,
+        effectiveFrom: defaultConfigs.config.effectiveFrom,
+        effectiveTo: defaultConfigs.config.effectiveTo,
+        standardDeduction: String(defaultConfigs.config.standardDeduction),
+        specialAdditionalDeduction: String(
+          defaultConfigs.config.specialAdditionalDeduction,
+        ),
       });
 
       // 创建税率档次
       for (const bracket of defaultConfigs.brackets) {
-        await prisma.taxBracket.create({
-          data: {
-            country,
-            taxYear: currentYear,
-            currency: defaultConfigs.config.currency,
-            effectiveFrom: defaultConfigs.config.effectiveFrom,
-            effectiveTo: defaultConfigs.config.effectiveTo,
-            position: bracket.position,
-            threshold: bracket.threshold,
-            taxRate: bracket.taxRate,
-            quickDeduction: bracket.quickDeduction,
-          },
+        await db.insert(taxBracket).values({
+          country,
+          taxYear: currentYear,
+          currency: defaultConfigs.config.currency,
+          effectiveFrom: defaultConfigs.config.effectiveFrom,
+          effectiveTo: defaultConfigs.config.effectiveTo,
+          position: bracket.position,
+          threshold: String(bracket.threshold),
+          taxRate: String(bracket.taxRate),
+          quickDeduction: String(bracket.quickDeduction),
         });
       }
     }
@@ -184,19 +204,20 @@ async function createSocialSecurityRule(
   const { effectiveFrom, effectiveTo } = resolveEffectiveRange(rules);
   const currency = resolveCurrency(rules.currency);
 
-  await prisma.cityRuleSS.create({
-    data: {
-      cityId,
-      currency,
-      effectiveFrom,
-      effectiveTo,
-      baseMin: rules.baseMin || 0,
-      baseMax: rules.baseMax || 999999,
-      ratePension: rules.ratePension || 0.08,
-      rateMedical: rules.rateMedical || 0.02,
-      rateUnemployment: rules.rateUnemployment || 0.005,
-      fixedMedicalPersonal: rules.fixedMedicalPersonal || null,
-    },
+  await db.insert(cityRuleSS).values({
+    cityId,
+    currency,
+    effectiveFrom,
+    effectiveTo,
+    baseMin: String(rules.baseMin || 0),
+    baseMax: String(rules.baseMax || 999999),
+    ratePension: String(rules.ratePension || 0.08),
+    rateMedical: String(rules.rateMedical || 0.02),
+    rateUnemployment: String(rules.rateUnemployment || 0.005),
+    fixedMedicalPersonal:
+      rules.fixedMedicalPersonal != null
+        ? String(rules.fixedMedicalPersonal)
+        : null,
   });
 }
 
@@ -208,16 +229,14 @@ async function createHousingFundRule(
   const { effectiveFrom, effectiveTo } = resolveEffectiveRange(rules);
   const currency = resolveCurrency(rules.currency);
 
-  await prisma.cityRuleHF.create({
-    data: {
-      cityId,
-      currency,
-      effectiveFrom,
-      effectiveTo,
-      baseMin: rules.baseMin || 0,
-      baseMax: rules.baseMax || 999999,
-      rateEmployee: rules.rateEmployee || 0.12,
-    },
+  await db.insert(cityRuleHF).values({
+    cityId,
+    currency,
+    effectiveFrom,
+    effectiveTo,
+    baseMin: String(rules.baseMin || 0),
+    baseMax: String(rules.baseMax || 999999),
+    rateEmployee: String(rules.rateEmployee || 0.12),
   });
 }
 

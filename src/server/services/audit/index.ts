@@ -1,11 +1,12 @@
-import type { AuditLog, Prisma } from "@prisma/client";
-import prisma from "@/server/db";
+import type { AuditLog } from "@/server/db/types";
+import db from "@/server/db";
+import { auditLogs } from "@/server/db/schema";
 import { writeOutboxEvent } from "@/server/services/outbox";
 
 export type AuditLogOptions = {
   userId?: string | null;
   meta?: unknown;
-  client?: Prisma.TransactionClient | typeof prisma;
+  client?: typeof db;
   emitEvent?: boolean;
   eventType?: string;
 };
@@ -27,7 +28,7 @@ export async function logAudit(
   const {
     userId = null,
     meta = null,
-    client = prisma,
+    client = db,
     emitEvent = false,
     eventType,
   } = options;
@@ -37,27 +38,28 @@ export async function logAudit(
       : typeof meta === "string"
         ? meta
         : safeStringify(meta);
-  const record = await client.auditLog.create({
-    data: {
+  const [created] = await client
+    .insert(auditLogs)
+    .values({
       action,
       userId,
       meta: normalizedMeta,
-    },
-  });
+    })
+    .returning();
   if (emitEvent) {
     await writeOutboxEvent(client, {
       eventType: eventType ?? "audit.event.logged",
       payload: {
-        auditId: record.id,
-        action: record.action,
-        userId: record.userId,
+        auditId: created.id,
+        action: created.action,
+        userId: created.userId,
         meta,
-        createdAt: record.createdAt.toISOString(),
+        createdAt: created.createdAt.toISOString(),
       },
-      occurredAt: record.createdAt,
+      occurredAt: created.createdAt,
     });
   }
-  return record;
+  return created;
 }
 
 export const audit: AuditService = {

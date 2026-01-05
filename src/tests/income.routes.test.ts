@@ -1,8 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
+import { dbAdapterMock, resetDbAdapterMock } from "@/tests/helpers/dbAdapterMock";
+import {
+  insertCalls,
+  resetDbMock,
+  setSelectFallback,
+} from "@/tests/helpers/dbMock";
+import {
+  bonusPlans,
+  cityRuleHF,
+  cityRuleSS,
+  equityVests,
+  incomeChanges,
+  incomeRecords,
+  longTermCashPayouts,
+  taxBracket,
+  taxConfig,
+  users,
+} from "@/server/db/schema";
 
-const mockPrisma = prismaMock;
+const mockDb = dbAdapterMock;
 // Mock 认证函数，返回测试用户
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
@@ -38,9 +55,9 @@ function buildPendingTask(overrides: Partial<any> = {}) {
 async function runIncomeWorkerOnce(taskOverrides: Partial<any> = {}) {
   const { processDueIncomeRecalcTasks } = await import("@/server/services/income-tax/income");
   const pendingTask = buildPendingTask(taskOverrides);
-  mockPrisma.incomeRecalcTask.findMany.mockResolvedValueOnce([pendingTask]);
-  mockPrisma.incomeRecalcTask.updateMany.mockResolvedValueOnce({ count: 1 });
-  mockPrisma.incomeRecalcTask.update.mockResolvedValueOnce({
+  mockDb.incomeRecalcTask.findMany.mockResolvedValueOnce([pendingTask]);
+  mockDb.incomeRecalcTask.updateMany.mockResolvedValueOnce({ count: 1 });
+  mockDb.incomeRecalcTask.update.mockResolvedValueOnce({
     ...pendingTask,
     status: "COMPLETED",
     processedAt: new Date(),
@@ -51,16 +68,9 @@ async function runIncomeWorkerOnce(taskOverrides: Partial<any> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetPrismaMock();
+  resetDbAdapterMock();
+  setSelectFallback(null);
   writeOutboxEventMock.mockReset();
-  mockPrisma.cityChangeRecord.findMany.mockResolvedValue([]);
-  mockPrisma.cityChangeRecord.findFirst.mockResolvedValue(null);
-  mockPrisma.city.findMany.mockResolvedValue([]);
-  mockPrisma.incomeRecord.findMany.mockResolvedValue([]);
-  mockPrisma.incomeRecord.findFirst.mockResolvedValue(null);
-  mockPrisma.incomeRecalcTask.findFirst.mockResolvedValue(null);
-  mockPrisma.incomeRecalcTask.findMany.mockResolvedValue([]);
-  mockPrisma.incomeRecalcTask.updateMany.mockResolvedValue({ count: 0 });
 });
 
 // 本文件覆盖收入域路由：工资/奖金/长期现金/股权、月度快照与回算。
@@ -70,7 +80,7 @@ describe("Income basic endpoints", () => {
   it("salary-changes GET/POST", async () => {
     // 场景：查询与新增工资变更。期望：GET 返回 200；POST 在提供幂等键时成功 201。
     const sc = await import("@/app/api/v1/income-tax/salary-changes/route");
-    mockPrisma.incomeChange.findMany.mockResolvedValueOnce([]);
+    mockDb.incomeChange.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await sc.GET(
@@ -78,8 +88,8 @@ describe("Income basic endpoints", () => {
         )
       ).status,
     ).toBe(200);
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.incomeChange.create.mockResolvedValueOnce({ id: "i1" });
+    mockDb.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockDb.incomeChange.create.mockResolvedValueOnce({ id: "i1" });
     expect(
       (
         await sc.POST(
@@ -97,7 +107,7 @@ describe("Income basic endpoints", () => {
   it("salary-changes POST idempotency reuse returns 409", async () => {
     const sc = await import("@/app/api/v1/income-tax/salary-changes/route");
     // 重复幂等键
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce({ key: "k-sc" });
+    mockDb.idempotencyKey.findUnique.mockResolvedValueOnce({ key: "k-sc" });
     const res = await sc.POST(
       makeJsonRequest(
         "http://localhost/api/v1/income-tax/salary-changes",
@@ -112,7 +122,7 @@ describe("Income basic endpoints", () => {
   it("bonus GET/POST", async () => {
     // 场景：查询与新增一次性奖金。期望：GET 200；POST 201。
     const bonus = await import("@/app/api/v1/income-tax/bonus/route");
-    mockPrisma.bonusPlan.findMany.mockResolvedValueOnce([]);
+    mockDb.bonusPlan.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await bonus.GET(
@@ -120,8 +130,8 @@ describe("Income basic endpoints", () => {
         )
       ).status,
     ).toBe(200);
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.bonusPlan.create.mockResolvedValueOnce({ id: "b1" });
+    mockDb.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockDb.bonusPlan.create.mockResolvedValueOnce({ id: "b1" });
     expect(
       (
         await bonus.POST(
@@ -139,7 +149,7 @@ describe("Income basic endpoints", () => {
   it("ltc plan GET/POST and generate", async () => {
     // 场景：创建长期现金计划并生成发放日程。期望：创建 201；生成 200。
     const ltc = await import("@/app/api/v1/income-tax/ltc/plans/route");
-    mockPrisma.longTermCashPlan.findMany.mockResolvedValueOnce([]);
+    mockDb.longTermCashPlan.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await ltc.GET(
@@ -147,8 +157,8 @@ describe("Income basic endpoints", () => {
         )
       ).status,
     ).toBe(200);
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.longTermCashPlan.create.mockResolvedValueOnce({
+    mockDb.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockDb.longTermCashPlan.create.mockResolvedValueOnce({
       id: "p1",
       userId: "u1",
       totalAmount: 12000,
@@ -178,7 +188,7 @@ describe("Income basic endpoints", () => {
     const gen = await import(
       "@/app/api/v1/income-tax/ltc/plans/[id]/generate/route"
     );
-    mockPrisma.longTermCashPlan.findUnique.mockResolvedValueOnce({
+    mockDb.longTermCashPlan.findUnique.mockResolvedValueOnce({
       id: "p1",
       userId: "u1",
       totalAmount: 12000,
@@ -187,7 +197,7 @@ describe("Income basic endpoints", () => {
       periods: 4,
       recurrence: "QUARTERLY",
     });
-    mockPrisma.longTermCashPayout.upsert.mockResolvedValue({});
+    mockDb.longTermCashPayout.upsert.mockResolvedValue({});
     expect(
       (
         await gen.POST(
@@ -201,7 +211,7 @@ describe("Income basic endpoints", () => {
   it("equity grants GET/POST, generate, vest patch", async () => {
     // 场景：创建股权授予、生成归属日程、回填归属市值。期望：均成功。
     const grants = await import("@/app/api/v1/income-tax/equity/grants/route");
-    mockPrisma.equityGrant.findMany.mockResolvedValueOnce([]);
+    mockDb.equityGrant.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await grants.GET(
@@ -209,8 +219,8 @@ describe("Income basic endpoints", () => {
         )
       ).status,
     ).toBe(200);
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.equityGrant.create.mockResolvedValueOnce({ id: "g1" });
+    mockDb.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockDb.equityGrant.create.mockResolvedValueOnce({ id: "g1" });
     expect(
       (
         await grants.POST(
@@ -232,7 +242,7 @@ describe("Income basic endpoints", () => {
     const gen = await import(
       "@/app/api/v1/income-tax/equity/grants/[id]/generate/route"
     );
-    mockPrisma.equityGrant.findUnique.mockResolvedValueOnce({
+    mockDb.equityGrant.findUnique.mockResolvedValueOnce({
       id: "g1",
       userId: "u1",
       totalUnits: 400,
@@ -241,7 +251,7 @@ describe("Income basic endpoints", () => {
       vestPeriods: 4,
       vestInterval: "YEARLY",
     });
-    mockPrisma.equityVest.upsert.mockResolvedValue({});
+    mockDb.equityVest.upsert.mockResolvedValue({});
     expect(
       (
         await gen.POST(
@@ -251,13 +261,18 @@ describe("Income basic endpoints", () => {
       ).status,
     ).toBe(200);
     const vest = await import("@/app/api/v1/income-tax/equity/vests/[id]/route");
-    mockPrisma.equityVest.findUnique.mockResolvedValueOnce({
-      id: "v1",
-      grant: { id: "g1", userId: "u1" },
-    });
-    mockPrisma.equityVest.update.mockResolvedValueOnce({
-      id: "v1",
-      fairValue: 123,
+    resetDbMock();
+    setSelectFallback(({ table }) => {
+      if (table === equityVests) {
+        return [
+          {
+            id: "v1",
+            vestDate: new Date("2025-07-01"),
+            grantUserId: "u1",
+          },
+        ];
+      }
+      return [];
     });
     expect(
       (
@@ -276,7 +291,7 @@ describe("Income basic endpoints", () => {
   it("income records GET & PATCH, recalc paths", async () => {
     // 场景A：查询月度快照 + 覆盖基数
     const recs = await import("@/app/api/v1/income-tax/records/route");
-    mockPrisma.incomeRecord.findMany.mockResolvedValueOnce([]);
+    mockDb.incomeRecord.findMany.mockResolvedValueOnce([]);
     expect(
       (
         await recs.GET(
@@ -287,11 +302,11 @@ describe("Income basic endpoints", () => {
       ).status,
     ).toBe(200);
     const rec = await import("@/app/api/v1/income-tax/records/[id]/route");
-    mockPrisma.incomeRecord.findUnique.mockResolvedValueOnce({
+    mockDb.incomeRecord.findUnique.mockResolvedValueOnce({
       id: "r1",
       userId: "u1",
     });
-    mockPrisma.incomeRecord.update.mockResolvedValueOnce({ id: "r1" });
+    mockDb.incomeRecord.update.mockResolvedValueOnce({ id: "r1" });
     expect(
       (
         await rec.PATCH(
@@ -316,7 +331,7 @@ describe("Income basic endpoints", () => {
     ).toBe(400);
 
     // 场景C：回算改为入队任务，返回 202
-    mockPrisma.incomeRecalcTask.create.mockResolvedValueOnce({
+    mockDb.incomeRecalcTask.create.mockResolvedValueOnce({
       id: "task-42",
       userId: "u1",
       taxYear: 2025,
@@ -357,7 +372,7 @@ describe("Income basic endpoints", () => {
   it("income recalc idempotency reuse returns 409", async () => {
     const recalc = await import("@/app/api/v1/income-tax/recalc/route");
     // idempotency key 已存在
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce({
+    mockDb.idempotencyKey.findUnique.mockResolvedValueOnce({
       key: "k-recalc",
     });
     const res = await recalc.POST(
@@ -373,43 +388,47 @@ describe("Income basic endpoints", () => {
 
   it("income recalc amount assertions with simplified rules", async () => {
     const recalc = await import("@/app/api/v1/income-tax/recalc/route");
-    // 用户
-    mockPrisma.user.findMany.mockResolvedValueOnce([
-      {
-        id: "u1",
-        baseCurrency: "CNY",
-        currentCityId: "c1",
-        currentCity: { country: "CN" },
-      },
-    ]);
-    // 工资：每月税前 10000；SS/HF/standard 均为 0，便于直观计算
-    mockPrisma.incomeChange.findFirst.mockResolvedValue({
-      grossMonthly: 10000,
+    setSelectFallback(({ table }) => {
+      if (table === users) {
+        return [
+          {
+            id: "u1",
+            baseCurrency: "CNY",
+            currentCityId: "c1",
+          },
+        ];
+      }
+      if (table === incomeChanges) {
+        return [{ grossMonthly: "10000", currency: "CNY" }];
+      }
+      if (table === bonusPlans || table === longTermCashPayouts) {
+        return [];
+      }
+      if (table === cityRuleSS || table === cityRuleHF) {
+        return [];
+      }
+      if (table === taxConfig) {
+        return [
+          {
+            country: "CN",
+            taxYear: 2025,
+            standardDeduction: "0",
+          },
+        ];
+      }
+      if (table === taxBracket) {
+        return [
+          { position: 1, threshold: "36000", taxRate: "0.03", quickDeduction: "0" },
+          {
+            position: 7,
+            threshold: "1000000000",
+            taxRate: "0.45",
+            quickDeduction: "181920",
+          },
+        ];
+      }
+      return [];
     });
-    mockPrisma.bonusPlan.findMany.mockResolvedValue([]);
-    mockPrisma.longTermCashPayout.findMany.mockResolvedValue([]);
-    mockPrisma.equityVest.findMany.mockResolvedValue([]);
-    mockPrisma.cityRuleSS.findFirst.mockResolvedValue(null);
-    mockPrisma.cityRuleHF.findFirst.mockResolvedValue(null);
-    const taxConfigSimplified = {
-      country: "CN",
-      taxYear: 2025,
-      standardDeduction: 0,
-      brackets: undefined,
-    };
-    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfigSimplified);
-    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfigSimplified);
-    // 税表：36000 @3%，+∞ @45%（简化）
-    mockPrisma.taxBracket.findMany.mockImplementation(async () => [
-      { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
-      {
-        position: 7,
-        threshold: 1000000000,
-        taxRate: 0.45,
-        quickDeduction: 181920,
-      },
-    ]);
-    mockPrisma.incomeRecord.upsert.mockResolvedValue({});
     const scheduleResp = await recalc.POST(
       makeJsonRequest("http://localhost/api/v1/income-tax/recalc", "POST", {
         taxYear: 2025,
@@ -418,10 +437,12 @@ describe("Income basic endpoints", () => {
     );
     expect(scheduleResp.status).toBe(202);
     await runIncomeWorkerOnce({ taxYear: 2025, startMonth: 1, endMonth: 2 });
-    const calls = (mockPrisma.incomeRecord.upsert as any).mock.calls as any[];
-    const [firstArg, secondArg] = [calls[0][0], calls[1][0]];
-    const firstTax = (firstArg.update?.incomeTax ?? firstArg.create?.incomeTax) as number;
-    const secondTax = (secondArg.update?.incomeTax ?? secondArg.create?.incomeTax) as number;
+    const records = insertCalls
+      .filter((call) => call.table === incomeRecords)
+      .map((call) => call.values as Record<string, string>);
+    const [firstValues, secondValues] = records;
+    const firstTax = Number(firstValues.incomeTax ?? 0);
+    const secondTax = Number(secondValues.incomeTax ?? 0);
     expect(firstTax).toBeCloseTo(300);
     expect(secondTax).toBeCloseTo(300);
     expect(writeOutboxEventMock).toHaveBeenCalledWith(

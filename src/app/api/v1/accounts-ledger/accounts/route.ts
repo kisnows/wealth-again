@@ -1,11 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { accounts } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { eq } from "drizzle-orm";
 
 /**
  * GET /api/v1/accounts-ledger/accounts
@@ -21,9 +23,10 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const list = await prisma.account.findMany({
-    where: { userId: user.id },
-  });
+  const list = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.userId, user.id));
   return NextResponse.json(list);
 }
 
@@ -70,24 +73,25 @@ export async function POST(req: NextRequest) {
       { status: 409 },
     );
   try {
-    const account = await prisma.account.create({
-      data: {
+    const [account] = await db
+      .insert(accounts)
+      .values({
         userId,
         name,
         accountType,
         baseCurrency,
-        initialBalance,
+        initialBalance: String(initialBalance),
         subType:
           typeof data.subType === "string" && data.subType.trim().length > 0
             ? data.subType.trim()
-            : undefined,
+            : null,
         description:
           typeof data.description === "string" &&
           data.description.trim().length > 0
             ? data.description.trim()
-            : undefined,
-      },
-    });
+            : null,
+      })
+      .returning();
     await logAudit("ACCOUNT_CREATE", {
       userId,
       meta: { accountId: account.id },
@@ -95,17 +99,7 @@ export async function POST(req: NextRequest) {
     await markIdempotencyUsed(key);
     return NextResponse.json(account, { status: 201 });
   } catch (error: unknown) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: string }).code === "P2003"
-    ) {
-      return NextResponse.json(
-        { error: "invalid userId (foreign key)" },
-        { status: 400 },
-      );
-    }
-    throw error;
+    console.error("ACCOUNT_CREATE_FAILED", error);
+    return NextResponse.json({ error: "create_failed" }, { status: 500 });
   }
 }

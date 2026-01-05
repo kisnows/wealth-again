@@ -1,4 +1,6 @@
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { taxBracket, taxConfig } from "@/server/db/schema";
+import { and, asc, desc, eq, gt, isNull, lte, or } from "drizzle-orm";
 
 export type TaxInputs = {
   country: string;
@@ -59,44 +61,25 @@ async function fetchTaxConfig(
   at: Date,
   taxYear: number,
 ) {
-  const delegate = (prisma as any)?.taxConfig;
-  if (!delegate) return null;
-  const windowWhere = {
-    country,
-    effectiveFrom: { lte: at },
-    OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }],
-  };
-  if (typeof delegate.findFirst === "function") {
-    const record = await delegate.findFirst({
-      where: windowWhere,
-      include: {
-        brackets: {
-          where: {
-            effectiveFrom: { lte: at },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }],
-          },
-          orderBy: { position: "asc" },
-        },
-      },
-      orderBy: { effectiveFrom: "desc" },
-    });
-    if (record) return record;
-  }
-  if (typeof delegate.findUnique === "function") {
-    return delegate.findUnique({
-      where: { country_taxYear: { country, taxYear } },
-      include: {
-        brackets: {
-          where: {
-            effectiveFrom: { lte: at },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }],
-          },
-          orderBy: { position: "asc" },
-        },
-      },
-    });
-  }
-  return null;
+  const [record] = await db
+    .select()
+    .from(taxConfig)
+    .where(
+      and(
+        eq(taxConfig.country, country),
+        lte(taxConfig.effectiveFrom, at),
+        or(isNull(taxConfig.effectiveTo), gt(taxConfig.effectiveTo, at)),
+      ),
+    )
+    .orderBy(desc(taxConfig.effectiveFrom))
+    .limit(1);
+  if (record) return record;
+  const [fallback] = await db
+    .select()
+    .from(taxConfig)
+    .where(and(eq(taxConfig.country, country), eq(taxConfig.taxYear, taxYear)))
+    .limit(1);
+  return fallback ?? null;
 }
 
 async function fetchFallbackBrackets(
@@ -104,22 +87,24 @@ async function fetchFallbackBrackets(
   taxYear: number,
   at: Date,
 ) {
-  const delegate = (prisma as any)?.taxBracket;
-  if (!delegate || typeof delegate.findMany !== "function") return [];
-  const rows = await delegate.findMany({
-    where: {
-      country,
-      taxYear,
-      effectiveFrom: { lte: at },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }],
-    },
-    orderBy: { position: "asc" },
-  });
+  const rows = await db
+    .select()
+    .from(taxBracket)
+    .where(
+      and(
+        eq(taxBracket.country, country),
+        eq(taxBracket.taxYear, taxYear),
+        lte(taxBracket.effectiveFrom, at),
+        or(isNull(taxBracket.effectiveTo), gt(taxBracket.effectiveTo, at)),
+      ),
+    )
+    .orderBy(asc(taxBracket.position));
   if (Array.isArray(rows) && rows.length > 0) return rows;
-  const fallback = await delegate.findMany({
-    where: { country, taxYear },
-    orderBy: { position: "asc" },
-  });
+  const fallback = await db
+    .select()
+    .from(taxBracket)
+    .where(and(eq(taxBracket.country, country), eq(taxBracket.taxYear, taxYear)))
+    .orderBy(asc(taxBracket.position));
   return Array.isArray(fallback) ? fallback : [];
 }
 
@@ -139,13 +124,11 @@ export async function getTaxContext(
     );
   }
   const bracketsRaw =
-    Array.isArray(configRecord.brackets) && configRecord.brackets.length > 0
-      ? configRecord.brackets
-      : await fetchFallbackBrackets(
-          normalizedCountry,
-          configRecord.taxYear ?? taxYear,
-          at,
-        );
+    await fetchFallbackBrackets(
+      normalizedCountry,
+      configRecord.taxYear ?? taxYear,
+      at,
+    );
   if (!Array.isArray(bracketsRaw) || bracketsRaw.length === 0) {
     throw new Error(
       `tax_brackets_missing:${normalizedCountry}:${taxYear}:${at.toISOString()}`,

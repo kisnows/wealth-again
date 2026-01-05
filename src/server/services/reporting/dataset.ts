@@ -1,12 +1,14 @@
-import type { Prisma, ReportDataset } from "@prisma/client";
-import prisma from "@/server/db";
+import type { ReportDataset } from "@/server/db/types";
+import db from "@/server/db";
+import { reportDatasets } from "@/server/db/schema";
+import { and, desc, eq } from "drizzle-orm";
 
 export type ReportDatasetScope =
   | "accounts.summary"
   | "dashboard.overview"
   | "income.monthly";
 
-type PrismaClientLike = Prisma.TransactionClient | typeof prisma;
+type DbClientLike = typeof db;
 
 export type UpsertReportDatasetParams = {
   userId: string;
@@ -14,18 +16,8 @@ export type UpsertReportDatasetParams = {
   bucket?: string;
   payload: unknown;
   occurredAt?: Date | null;
-  client?: PrismaClientLike;
+  client?: DbClientLike;
 };
-
-function getReportDelegate(client: PrismaClientLike) {
-  const delegate = (client as unknown as Record<string, unknown>).reportDataset;
-  if (!delegate || typeof delegate !== "object") return null;
-  return delegate as {
-    upsert?: typeof prisma.reportDataset.upsert;
-    findUnique?: typeof prisma.reportDataset.findUnique;
-    findMany?: typeof prisma.reportDataset.findMany;
-  };
-}
 
 export async function upsertReportDataset(
   params: UpsertReportDatasetParams,
@@ -36,43 +28,28 @@ export async function upsertReportDataset(
     bucket = "default",
     payload,
     occurredAt,
-    client = prisma,
+    client = db,
   } = params;
   const normalizedPayload = normalizePayload(payload);
-  const delegate = getReportDelegate(client);
-  if (!delegate?.upsert) {
-    const now = new Date();
-    return {
-      id: "report-dataset-disabled",
+  const [record] = await client
+    .insert(reportDatasets)
+    .values({
       userId,
       scope,
       bucket,
-      payload: normalizedPayload as Prisma.InputJsonValue,
+      payload: normalizedPayload,
       occurredAt: occurredAt ?? null,
-      createdAt: now,
-      updatedAt: now,
-    } as ReportDataset;
-  }
-  return delegate.upsert({
-    where: {
-      userId_scope_bucket: {
-        userId,
-        scope,
-        bucket,
+    })
+    .onConflictDoUpdate({
+      target: [reportDatasets.userId, reportDatasets.scope, reportDatasets.bucket],
+      set: {
+        payload: normalizedPayload,
+        occurredAt: occurredAt ?? null,
+        updatedAt: new Date(),
       },
-    },
-    update: {
-      payload: normalizedPayload,
-      occurredAt: occurredAt ?? null,
-    },
-    create: {
-      userId,
-      scope,
-      bucket,
-      payload: normalizedPayload,
-      occurredAt: occurredAt ?? null,
-    },
-  });
+    })
+    .returning();
+  return record;
 }
 
 export async function getReportDataset(
@@ -80,26 +57,26 @@ export async function getReportDataset(
   scope: ReportDatasetScope | (string & {}),
   bucket = "default",
 ): Promise<ReportDataset | null> {
-  const delegate = getReportDelegate(prisma);
-  if (!delegate?.findUnique) return null;
-  return delegate.findUnique({
-    where: {
-      userId_scope_bucket: {
-        userId,
-        scope,
-        bucket,
-      },
-    },
-  });
+  const [record] = await db
+    .select()
+    .from(reportDatasets)
+    .where(
+      and(
+        eq(reportDatasets.userId, userId),
+        eq(reportDatasets.scope, scope),
+        eq(reportDatasets.bucket, bucket),
+      ),
+    )
+    .limit(1);
+  return record ?? null;
 }
 
 export async function listReportDatasets(userId: string) {
-  const delegate = getReportDelegate(prisma);
-  if (!delegate?.findMany) return [] as ReportDataset[];
-  return delegate.findMany({
-    where: { userId },
-    orderBy: { updatedAt: "desc" },
-  });
+  return db
+    .select()
+    .from(reportDatasets)
+    .where(eq(reportDatasets.userId, userId))
+    .orderBy(desc(reportDatasets.updatedAt));
 }
 
 function normalizePayload(payload: unknown): unknown {

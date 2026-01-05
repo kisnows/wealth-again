@@ -1,12 +1,29 @@
-import type { FxRateUpdateTask, Prisma } from "@prisma/client";
-import prisma from "@/server/db";
+import type { FxRateUpdateTask } from "@/server/db/types";
+import db from "@/server/db";
+import { fxRateUpdateLogs, fxRateUpdateTasks, fxRates } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { clearFxCache } from "@/server/services/fx";
-import { upsertFxRateWithContinuity } from "@/server/services/fx/rate-writer";
+import {
+  FxRateOverlapError,
+  upsertFxRateWithContinuity,
+} from "@/server/services/fx/rate-writer";
 import {
   SUPPORTED_CURRENCY_CODES,
   type SupportedCurrencyCode,
 } from "@/lib/domain/currency";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 
 type FxRateUpdateStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 
@@ -36,29 +53,28 @@ type LogStatus = (typeof LOG_STATUS)[keyof typeof LOG_STATUS];
 
 async function startLogEntry(taskId: string, weekStart: Date, weekEnd: Date) {
   const now = new Date();
-  return prisma.fxRateUpdateLog.upsert({
-    where: {
-      taskId_weekStart: {
-        taskId,
-        weekStart,
-      },
-    },
-    update: {
-      status: LOG_STATUS.RUNNING,
-      attempts: { increment: 1 },
-      weekEnd,
-      startedAt: now,
-      updatedAt: now,
-    },
-    create: {
+  const [created] = await db
+    .insert(fxRateUpdateLogs)
+    .values({
       taskId,
       weekStart,
       weekEnd,
       status: LOG_STATUS.RUNNING,
       attempts: 1,
       startedAt: now,
-    },
-  });
+    })
+    .onConflictDoUpdate({
+      target: [fxRateUpdateLogs.taskId, fxRateUpdateLogs.weekStart],
+      set: {
+        status: LOG_STATUS.RUNNING,
+        attempts: sql`${fxRateUpdateLogs.attempts} + 1`,
+        weekEnd,
+        startedAt: now,
+        updatedAt: now,
+      },
+    })
+    .returning();
+  return created;
 }
 
 async function updateLogEntry(
@@ -70,21 +86,21 @@ async function updateLogEntry(
   }>,
 ) {
   const now = new Date();
-  await prisma.fxRateUpdateLog.update({
-    where: { id: logId },
-    data: {
+  await db
+    .update(fxRateUpdateLogs)
+    .set({
       status,
-      rate: data.rate ?? null,
+      rate: data.rate != null ? String(data.rate) : null,
       lastError: data.lastError ?? null,
       completedAt:
         status === LOG_STATUS.COMPLETED ||
         status === LOG_STATUS.FAILED ||
         status === LOG_STATUS.SKIPPED
           ? now
-          : undefined,
+          : null,
       updatedAt: now,
-    },
-  });
+    })
+    .where(eq(fxRateUpdateLogs.id, logId));
 }
 
 function normalizeDate(input: Date): Date {
@@ -286,7 +302,7 @@ type EnqueueFxRateUpdateOptions = {
   endDate: Date;
   triggeredBy?: string | null;
   delayMs?: number;
-  tx?: Prisma.TransactionClient;
+  tx?: typeof db;
 };
 
 export async function enqueueFxRateUpdateTask(
@@ -309,24 +325,28 @@ export async function enqueueFxRateUpdateTask(
     throw new Error("fx_update_range_invalid");
   }
   const scheduledFor = new Date(Date.now() + Math.max(delayMs, 0));
-  const runner = tx ?? prisma;
+  const runner = tx ?? db;
 
-  return runner.$transaction(async (trx) => {
-    const scoped = trx.fxRateUpdateTask;
-    const existing = await scoped.findFirst({
-      where: {
-        base: normalizedBase,
-        quote: normalizedQuote,
-        status: "PENDING",
-        startDate: { lte: normalizedEnd },
-        endDate: { gte: normalizedStart },
-      },
-      orderBy: { scheduledFor: "asc" },
-    });
+  return runner.transaction((trx) => {
+    const existing = trx
+      .select()
+      .from(fxRateUpdateTasks)
+      .where(
+        and(
+          eq(fxRateUpdateTasks.base, normalizedBase),
+          eq(fxRateUpdateTasks.quote, normalizedQuote),
+          eq(fxRateUpdateTasks.status, "PENDING"),
+          lte(fxRateUpdateTasks.startDate, normalizedEnd),
+          gte(fxRateUpdateTasks.endDate, normalizedStart),
+        ),
+      )
+      .orderBy(asc(fxRateUpdateTasks.scheduledFor))
+      .limit(1)
+      .get();
     if (existing) {
-      return scoped.update({
-        where: { id: existing.id },
-        data: {
+      const updated = trx
+        .update(fxRateUpdateTasks)
+        .set({
           startDate:
             normalizedStart < existing.startDate
               ? normalizedStart
@@ -335,62 +355,76 @@ export async function enqueueFxRateUpdateTask(
             normalizedEnd > existing.endDate ? normalizedEnd : existing.endDate,
           scheduledFor,
           triggeredBy: triggeredBy ?? existing.triggeredBy,
-        },
-      });
+        })
+        .where(eq(fxRateUpdateTasks.id, existing.id))
+        .returning()
+        .get();
+      return updated;
     }
-    return scoped.create({
-      data: {
+    const created = trx
+      .insert(fxRateUpdateTasks)
+      .values({
         base: normalizedBase,
         quote: normalizedQuote,
         startDate: normalizedStart,
         endDate: normalizedEnd,
         scheduledFor,
         triggeredBy,
-      },
-    });
+      })
+      .returning()
+      .get();
+    return created;
   });
 }
 
 export async function fetchPendingFxRateUpdateTasks(
   limit = 5,
 ): Promise<FxRateUpdateTask[]> {
-  return prisma.fxRateUpdateTask.findMany({
-    where: {
-      status: "PENDING",
-      scheduledFor: { lte: new Date() },
-    },
-    orderBy: { scheduledFor: "asc" },
-    take: limit,
-  });
+  return db
+    .select()
+    .from(fxRateUpdateTasks)
+    .where(
+      and(
+        eq(fxRateUpdateTasks.status, "PENDING"),
+        lte(fxRateUpdateTasks.scheduledFor, new Date()),
+      ),
+    )
+    .orderBy(asc(fxRateUpdateTasks.scheduledFor))
+    .limit(limit);
 }
 
 export async function markFxRateUpdateRunning(
   task: FxRateUpdateTask,
 ): Promise<boolean> {
-  const result = await prisma.fxRateUpdateTask.updateMany({
-    where: { id: task.id, status: "PENDING" },
-    data: {
+  const result = await db
+    .update(fxRateUpdateTasks)
+    .set({
       status: "RUNNING",
       attempts: task.attempts + 1,
       updatedAt: new Date(),
-    },
-  });
-  return result.count > 0;
+    })
+    .where(
+      and(
+        eq(fxRateUpdateTasks.id, task.id),
+        eq(fxRateUpdateTasks.status, "PENDING"),
+      ),
+    );
+  return result.changes > 0;
 }
 
 export async function markFxRateUpdateCompleted(
   taskId: string,
   inserted: number,
 ): Promise<void> {
-  await prisma.fxRateUpdateTask.update({
-    where: { id: taskId },
-    data: {
+  await db
+    .update(fxRateUpdateTasks)
+    .set({
       status: "COMPLETED",
       processedAt: new Date(),
       lastError: null,
       updatedAt: new Date(),
-    },
-  });
+    })
+    .where(eq(fxRateUpdateTasks.id, taskId));
   await logAudit("FX_RATE_UPDATE_COMPLETED", {
     userId: null,
     meta: { taskId, inserted },
@@ -402,17 +436,17 @@ export async function markFxRateUpdateFailed(
   message: string,
   retryDelayMs = 30 * 60 * 1000,
 ): Promise<void> {
-  await prisma.fxRateUpdateTask.update({
-    where: { id: task.id },
-    data: {
+  await db
+    .update(fxRateUpdateTasks)
+    .set({
       status:
         task.attempts + 1 >= 5 ? ("FAILED" as FxRateUpdateStatus) : "PENDING",
       lastError: message,
       scheduledFor: new Date(Date.now() + retryDelayMs),
       attempts: task.attempts + 1,
       updatedAt: new Date(),
-    },
-  });
+    })
+    .where(eq(fxRateUpdateTasks.id, task.id));
   await logAudit("FX_RATE_UPDATE_FAILED", {
     userId: null,
     meta: { taskId: task.id, error: message },
@@ -614,6 +648,13 @@ async function runFxRateUpdateTask(task: FxRateUpdateTask): Promise<number> {
         lastError: null,
       });
     } catch (error) {
+      if (error instanceof FxRateOverlapError) {
+        await updateLogEntry(log.id, LOG_STATUS.SKIPPED, {
+          rate: null,
+          lastError: "overlapping_interval",
+        });
+        continue;
+      }
       const message =
         error instanceof Error ? error.message : "fx_rate_write_failed";
       await updateLogEntry(log.id, LOG_STATUS.FAILED, {
@@ -746,15 +787,17 @@ export async function ensureWeeklyFxCoverage(
   let scheduled = 0;
 
   for (const quote of quotes) {
-    const records = await prisma.fxRate.findMany({
-      where: {
-        base: normalizedBase,
-        quote: quote.toUpperCase(),
-        effectiveFrom: { gte: startDate },
-      },
-      select: { effectiveFrom: true },
-      orderBy: { effectiveFrom: "asc" },
-    });
+    const records = await db
+      .select({ effectiveFrom: fxRates.effectiveFrom })
+      .from(fxRates)
+      .where(
+        and(
+          eq(fxRates.base, normalizedBase),
+          eq(fxRates.quote, quote.toUpperCase()),
+          gte(fxRates.effectiveFrom, startDate),
+        ),
+      )
+      .orderBy(asc(fxRates.effectiveFrom));
     const missingRanges = buildMissingWeekRanges(records, startDate, endDate);
     for (const range of missingRanges) {
       await enqueueFxRateUpdateTask({
@@ -801,9 +844,11 @@ export async function executeFxRateUpdateTaskNow(
   taskId: string,
   options: { triggeredBy?: string | null } = {},
 ): Promise<ManualFxTaskExecutionResult> {
-  const task = await prisma.fxRateUpdateTask.findUnique({
-    where: { id: taskId },
-  });
+  const [task] = await db
+    .select()
+    .from(fxRateUpdateTasks)
+    .where(eq(fxRateUpdateTasks.id, taskId))
+    .limit(1);
   if (!task) {
     return { status: "not_found" };
   }
@@ -818,23 +863,27 @@ export async function executeFxRateUpdateTaskNow(
   }
 
   const now = new Date();
-  const resetResult = await prisma.fxRateUpdateTask.updateMany({
-    where: {
-      id: taskId,
-      status: { in: ["PENDING", "FAILED"] },
-    },
-    data: {
+  const resetResult = await db
+    .update(fxRateUpdateTasks)
+    .set({
       status: "PENDING",
       scheduledFor: now,
       triggeredBy: options.triggeredBy ?? task.triggeredBy,
       lastError: null,
       updatedAt: now,
-    },
-  });
-  if (!resetResult.count) {
-    const current = await prisma.fxRateUpdateTask.findUnique({
-      where: { id: taskId },
-    });
+    })
+    .where(
+      and(
+        eq(fxRateUpdateTasks.id, taskId),
+        inArray(fxRateUpdateTasks.status, ["PENDING", "FAILED"]),
+      ),
+    );
+  if (!resetResult.changes) {
+    const [current] = await db
+      .select()
+      .from(fxRateUpdateTasks)
+      .where(eq(fxRateUpdateTasks.id, taskId))
+      .limit(1);
     if (!current) {
       return { status: "not_found" };
     }
@@ -850,9 +899,11 @@ export async function executeFxRateUpdateTaskNow(
     return { status: "conflict" };
   }
 
-  const refreshed = await prisma.fxRateUpdateTask.findUnique({
-    where: { id: taskId },
-  });
+  const [refreshed] = await db
+    .select()
+    .from(fxRateUpdateTasks)
+    .where(eq(fxRateUpdateTasks.id, taskId))
+    .limit(1);
   if (!refreshed) {
     return { status: "not_found" };
   }

@@ -1,5 +1,7 @@
-import type { Prisma } from "@prisma/client";
-import prisma from "@/server/db";
+import type { IncomeRecord } from "@/server/db/types";
+import db from "@/server/db";
+import { incomeRecords } from "@/server/db/schema";
+import { asc, eq } from "drizzle-orm";
 import {
   computeAccountsSummary,
   type AccountsSummaryResult,
@@ -7,7 +9,7 @@ import {
 import { upsertReportDataset } from "@/server/services/reporting/dataset";
 import { buildNetWorthTrend } from "@/server/services/reporting/netWorth";
 
-type DecimalLike = Prisma.Decimal | number | null | undefined;
+type DecimalLike = string | number | null | undefined;
 
 function toNumber(value: DecimalLike): number {
   if (value == null) return 0;
@@ -105,31 +107,30 @@ export async function refreshAccountsSummaryDataset(
   return { summary, generatedAt, payload, dashboardPayload };
 }
 
-type IncomeRecordRow = Prisma.IncomeRecordGetPayload<{
-  select: {
-    monthDate: true;
-    currency: true;
-    gross: true;
-    bonus: true;
-    ltcIncome: true;
-    equityIncome: true;
-    socialInsurance: true;
-    housingFund: true;
-    specialDeductions: true;
-    otherDeductions: true;
-    incomeTax: true;
-    netIncome: true;
-    taxableCurrent: true;
-    taxPaidCumulative: true;
-    taxableCumulative: true;
-    taxCumulative: true;
-    isForecast: true;
-    socialInsuranceBase: true;
-    housingFundBase: true;
-    manualIncomeTax: true;
-    manualNet: true;
-  };
-}>;
+type IncomeRecordRow = Pick<
+  IncomeRecord,
+  | "monthDate"
+  | "currency"
+  | "gross"
+  | "bonus"
+  | "ltcIncome"
+  | "equityIncome"
+  | "socialInsurance"
+  | "housingFund"
+  | "specialDeductions"
+  | "otherDeductions"
+  | "incomeTax"
+  | "netIncome"
+  | "taxableCurrent"
+  | "taxPaidCumulative"
+  | "taxableCumulative"
+  | "taxCumulative"
+  | "isForecast"
+  | "socialInsuranceBase"
+  | "housingFundBase"
+  | "manualIncomeTax"
+  | "manualNet"
+>;
 
 export type IncomeDatasetItem = {
   monthDate: string;
@@ -193,33 +194,33 @@ export async function refreshIncomeReportingDataset(
   userId: string,
   occurredAt?: Date | null,
 ): Promise<IncomeReportingRefreshResult> {
-  const records = await prisma.incomeRecord.findMany({
-    where: { userId },
-    orderBy: { monthDate: "asc" },
-    select: {
-      monthDate: true,
-      currency: true,
-      gross: true,
-      bonus: true,
-      ltcIncome: true,
-      equityIncome: true,
-      socialInsurance: true,
-      housingFund: true,
-      specialDeductions: true,
-      otherDeductions: true,
-      incomeTax: true,
-      netIncome: true,
-      taxableCurrent: true,
-      taxPaidCumulative: true,
-      taxableCumulative: true,
-      taxCumulative: true,
-      isForecast: true,
-      socialInsuranceBase: true,
-      housingFundBase: true,
-      manualIncomeTax: true,
-      manualNet: true,
-    },
-  });
+  const records: IncomeRecordRow[] = await db
+    .select({
+      monthDate: incomeRecords.monthDate,
+      currency: incomeRecords.currency,
+      gross: incomeRecords.gross,
+      bonus: incomeRecords.bonus,
+      ltcIncome: incomeRecords.ltcIncome,
+      equityIncome: incomeRecords.equityIncome,
+      socialInsurance: incomeRecords.socialInsurance,
+      housingFund: incomeRecords.housingFund,
+      specialDeductions: incomeRecords.specialDeductions,
+      otherDeductions: incomeRecords.otherDeductions,
+      incomeTax: incomeRecords.incomeTax,
+      netIncome: incomeRecords.netIncome,
+      taxableCurrent: incomeRecords.taxableCurrent,
+      taxPaidCumulative: incomeRecords.taxPaidCumulative,
+      taxableCumulative: incomeRecords.taxableCumulative,
+      taxCumulative: incomeRecords.taxCumulative,
+      isForecast: incomeRecords.isForecast,
+      socialInsuranceBase: incomeRecords.socialInsuranceBase,
+      housingFundBase: incomeRecords.housingFundBase,
+      manualIncomeTax: incomeRecords.manualIncomeTax,
+      manualNet: incomeRecords.manualNet,
+    })
+    .from(incomeRecords)
+    .where(eq(incomeRecords.userId, userId))
+    .orderBy(asc(incomeRecords.monthDate));
   const items = records.map((row) => normalizeIncomeRecord(row));
   const actualItems = items.filter((item) => !item.isForecast);
   const totals = actualItems.reduce(

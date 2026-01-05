@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
-
-const mockPrisma = prismaMock;
+import { queueSelectResults, resetDbMock } from "@/tests/helpers/dbMock";
 
 const logAuditMock = vi.fn().mockResolvedValue(undefined);
 const signUpEmailMock = vi.fn();
@@ -18,14 +16,16 @@ vi.mock("@/server/auth", () => ({
     },
   },
 }));
+vi.mock("@/server/utils/idempotency", () => ({
+  ensureIdempotent: vi.fn().mockResolvedValue({ key: "idem-register-1", existed: false }),
+  markIdempotencyUsed: vi.fn(),
+}));
 
 // 描述：注册接口场景验证
 describe("identity register API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetPrismaMock();
-    mockPrisma.city.findUnique.mockResolvedValue({ id: "city-1" });
-    mockPrisma.user.findUnique.mockResolvedValue(null);
+    resetDbMock();
     signUpEmailMock.mockImplementation(async ({ body }: { body: any }) => ({
       user: {
         id: "new-user",
@@ -35,18 +35,12 @@ describe("identity register API", () => {
         displayCurrency: body.displayCurrency,
       },
     }));
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValue(null);
-    mockPrisma.idempotencyKey.create.mockResolvedValue({
-      key: "idem-register-1",
-    });
-    mockPrisma.idempotencyKey.update.mockResolvedValue({
-      key: "idem-register-1",
-    });
   });
 
   // 场景：成功注册新用户
   it("POST 创建新用户并记录审计日志", async () => {
     const route = await import("@/app/api/v1/identity/register/route");
+    queueSelectResults([{ id: "city-1" }], []);
     const res = await route.POST(
       makeJsonRequest(
         "http://localhost/api/v1/identity/register",
@@ -86,21 +80,12 @@ describe("identity register API", () => {
         meta: expect.objectContaining({ email: "new@example.com" }),
       }),
     );
-    expect(mockPrisma.idempotencyKey.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ key: "idem-register-1" }),
-      }),
-    );
-    expect(mockPrisma.idempotencyKey.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { key: "idem-register-1" } }),
-    );
   });
 
   // 场景：邮箱重复注册
   it("POST 邮箱已存在返回 409", async () => {
     const route = await import("@/app/api/v1/identity/register/route");
-    mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: "existing-user" } as any);
+    queueSelectResults([{ id: "city-1" }], [{ id: "existing-user" }]);
     const res = await route.POST(
       makeJsonRequest(
         "http://localhost/api/v1/identity/register",

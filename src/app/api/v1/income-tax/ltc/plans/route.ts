@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { longTermCashPlans } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -7,6 +8,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { asc, eq } from "drizzle-orm";
 
 /**
  * GET /api/v1/income-tax/ltc/plans
@@ -21,10 +23,11 @@ export async function GET(req: NextRequest) {
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
-  const items = await prisma.longTermCashPlan.findMany({
-    where: { userId },
-    orderBy: { startDate: "asc" },
-  });
+  const items = await db
+    .select()
+    .from(longTermCashPlans)
+    .where(eq(longTermCashPlans.userId, userId))
+    .orderBy(asc(longTermCashPlans.startDate));
   return NextResponse.json({ items });
 }
 
@@ -64,16 +67,17 @@ export async function POST(req: Request) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
-  const created = await prisma.longTermCashPlan.create({
-    data: {
+  const [created] = await db
+    .insert(longTermCashPlans)
+    .values({
       userId,
-      totalAmount,
+      totalAmount: String(totalAmount),
       currency: currency.toUpperCase(),
       startDate: new Date(startDate),
       periods,
       recurrence,
-    },
-  });
+    })
+    .returning();
   const planStart = new Date(startDate);
   if (!Number.isNaN(planStart.getTime())) {
     await scheduleIncomeRecalcTask({

@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { fxRates } from "@/server/db/schema";
+import { and, asc, eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -9,13 +11,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "quote is required" }, { status: 400 });
   }
   const normalizedQuote = quoteParam.toUpperCase();
-  const items = await prisma.fxRate.findMany({
-    where: {
-      base: baseParam,
-      quote: normalizedQuote,
-    },
-    orderBy: { effectiveFrom: "asc" },
-  });
+  const items = await db
+    .select()
+    .from(fxRates)
+    .where(and(eq(fxRates.base, baseParam), eq(fxRates.quote, normalizedQuote)))
+    .orderBy(asc(fxRates.effectiveFrom));
   return NextResponse.json({
     base: baseParam,
     quote: normalizedQuote,

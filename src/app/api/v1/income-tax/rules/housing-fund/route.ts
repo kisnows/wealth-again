@@ -1,11 +1,13 @@
-import type { City, CityRuleHF } from "@prisma/client";
+import type { City, CityRuleHF } from "@/server/db/types";
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { cities, cityRuleHF } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { and, desc, eq, gt, isNull, lte, or } from "drizzle-orm";
 
 /**
  * GET /api/v1/income-tax/rules/housing-fund?city=Hangzhou&on=2025-01-01
@@ -21,18 +23,26 @@ export async function GET(req: NextRequest) {
   const on = searchParams.get("on");
   if (!cityName || !on)
     return NextResponse.json({ error: "city & on required" }, { status: 400 });
-  const city = await prisma.city.findUnique({ where: { name: cityName } });
+  const [city] = await db
+    .select()
+    .from(cities)
+    .where(eq(cities.name, cityName))
+    .limit(1);
   if (!city)
     return NextResponse.json({ error: "city not found" }, { status: 404 });
   const onDate = new Date(on);
-  const rule = await prisma.cityRuleHF.findFirst({
-    where: {
-      cityId: city.id,
-      effectiveFrom: { lte: onDate },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gt: onDate } }],
-    },
-    orderBy: { effectiveFrom: "desc" },
-  });
+  const [rule] = await db
+    .select()
+    .from(cityRuleHF)
+    .where(
+      and(
+        eq(cityRuleHF.cityId, city.id),
+        lte(cityRuleHF.effectiveFrom, onDate),
+        or(isNull(cityRuleHF.effectiveTo), gt(cityRuleHF.effectiveTo, onDate)),
+      ),
+    )
+    .orderBy(desc(cityRuleHF.effectiveFrom))
+    .limit(1);
   if (!rule) return NextResponse.json({ error: "No rule" }, { status: 404 });
   return NextResponse.json(rule);
 }
@@ -66,9 +76,10 @@ export async function PUT(req: Request) {
         { status: 404 },
       );
 
-    const existing = await prisma.cityRuleHF.findMany({
-      where: { cityId: city.id },
-    });
+    const existing = await db
+      .select()
+      .from(cityRuleHF)
+      .where(eq(cityRuleHF.cityId, city.id));
     let effectiveFrom: Date;
     let effectiveTo: Date | null;
     try {
@@ -90,30 +101,30 @@ export async function PUT(req: Request) {
         { status: 409 },
       );
     const currency = resolveCurrency(it.currency);
-    await prisma.cityRuleHF.upsert({
-      where: {
-        cityId_effectiveFrom: {
-          cityId: city.id,
-          effectiveFrom: ns,
-        },
-      },
-      update: {
-        currency,
-        effectiveTo: ne,
-        baseMin: it.baseMin,
-        baseMax: it.baseMax,
-        rateEmployee: it.rateEmployee,
-      },
-      create: {
+    const baseMin = Number(it.baseMin ?? 0);
+    const baseMax = Number(it.baseMax ?? 0);
+    const rateEmployee = Number(it.rateEmployee ?? 0);
+    await db
+      .insert(cityRuleHF)
+      .values({
         cityId: city.id,
         currency,
         effectiveFrom: ns,
         effectiveTo: ne,
-        baseMin: it.baseMin,
-        baseMax: it.baseMax,
-        rateEmployee: it.rateEmployee,
-      },
-    });
+        baseMin: String(baseMin),
+        baseMax: String(baseMax),
+        rateEmployee: String(rateEmployee),
+      })
+      .onConflictDoUpdate({
+        target: [cityRuleHF.cityId, cityRuleHF.effectiveFrom],
+        set: {
+          currency,
+          effectiveTo: ne,
+          baseMin: String(baseMin),
+          baseMax: String(baseMax),
+          rateEmployee: String(rateEmployee),
+        },
+      });
   }
   await logAudit("RULE_HF_UPSERT", { meta: { count: items.length } });
   await markIdempotencyUsed(key);
@@ -139,13 +150,22 @@ async function resolveCity(
 ): Promise<City | null> {
   const normalizedCountry = country ?? "CN";
   if (cityInput.length === 36) {
-    return prisma.city.findUnique({ where: { id: cityInput } });
+    const [found] = await db
+      .select()
+      .from(cities)
+      .where(eq(cities.id, cityInput))
+      .limit(1);
+    return found ?? null;
   }
-  return prisma.city.upsert({
-    where: { name: cityInput },
-    update: {},
-    create: { name: cityInput, country: normalizedCountry },
-  });
+  const [city] = await db
+    .insert(cities)
+    .values({ name: cityInput, country: normalizedCountry })
+    .onConflictDoUpdate({
+      target: cities.name,
+      set: { country: normalizedCountry },
+    })
+    .returning();
+  return city ?? null;
 }
 
 type RuleInput = {

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { longTermCashPlans, longTermCashPayouts } from "@/server/db/schema";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * POST /api/v1/income-tax/ltc/plans/:id/generate
@@ -18,9 +20,11 @@ export async function POST(
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const plan = await prisma.longTermCashPlan.findUnique({
-    where: { id },
-  });
+  const [plan] = await db
+    .select()
+    .from(longTermCashPlans)
+    .where(eq(longTermCashPlans.id, id))
+    .limit(1);
   if (!plan || plan.userId !== user.id)
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });
   const start = new Date(plan.startDate);
@@ -39,11 +43,18 @@ export async function POST(
     };
   });
   for (const p of data) {
-    await prisma.longTermCashPayout.upsert({
-      where: { planId_payDate: { planId: p.planId, payDate: p.payDate } },
-      update: { amount: p.amount, currency: p.currency },
-      create: p,
-    });
+    await db
+      .insert(longTermCashPayouts)
+      .values({
+        planId: p.planId,
+        payDate: p.payDate,
+        amount: String(p.amount),
+        currency: p.currency,
+      })
+      .onConflictDoUpdate({
+        target: [longTermCashPayouts.planId, longTermCashPayouts.payDate],
+        set: { amount: String(p.amount), currency: p.currency },
+      });
   }
   const affectedYears = new Set<number>();
   data.forEach((item) => {

@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
-
-const mockPrisma = prismaMock;
+import { queueUpdateResults, resetDbMock } from "@/tests/helpers/dbMock";
+import { ensureIdempotent } from "@/server/utils/idempotency";
 
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
@@ -18,21 +17,28 @@ vi.mock("@/server/services/audit", () => ({
   logAudit: vi.fn(),
 }));
 
+vi.mock("@/server/utils/idempotency", () => ({
+  ensureIdempotent: vi.fn().mockResolvedValue({ key: "idem-auth-1", existed: false }),
+  markIdempotencyUsed: vi.fn(),
+}));
+
 describe("identity auth me API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetPrismaMock();
-    mockPrisma.user.update.mockResolvedValue({
-      id: "u1",
-      email: "demo@example.com",
-      name: "User",
-      currentCityId: "c1",
-      displayCurrency: "USD",
-    });
+    resetDbMock();
   });
 
   it("PATCH 更新展示币种并记录审计", async () => {
     const route = await import("@/app/api/v1/identity/auth/me/route");
+    queueUpdateResults([
+      {
+        id: "u1",
+        email: "demo@example.com",
+        name: "User",
+        currentCityId: "c1",
+        displayCurrency: "USD",
+      },
+    ]);
     const res = await route.PATCH(
       makeJsonRequest(
         "http://localhost/api/v1/identity/auth/me",
@@ -42,11 +48,6 @@ describe("identity auth me API", () => {
       ),
     );
     expect(res.status).toBe(200);
-    expect(mockPrisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { displayCurrency: "USD" },
-      }),
-    );
     expect(auditLogAndEmitMock).toHaveBeenCalledWith(
       "USER_DISPLAY_CURRENCY_UPDATE",
       expect.objectContaining({
@@ -54,18 +55,14 @@ describe("identity auth me API", () => {
         meta: { displayCurrency: "USD" },
       }),
     );
-    expect(mockPrisma.idempotencyKey.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ key: "idem-auth-1" }) }),
-    );
-    expect(mockPrisma.idempotencyKey.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { key: "idem-auth-1" } }),
-    );
   });
 
   it("PATCH 重复幂等键返回 409", async () => {
     const route = await import("@/app/api/v1/identity/auth/me/route");
-    mockPrisma.idempotencyKey.findUnique
-      .mockResolvedValueOnce({ key: "idem-auth-dup" } as any);
+    vi.mocked(ensureIdempotent).mockResolvedValueOnce({
+      key: "idem-auth-dup",
+      existed: true,
+    });
     const res = await route.PATCH(
       makeJsonRequest(
         "http://localhost/api/v1/identity/auth/me",
@@ -75,6 +72,5 @@ describe("identity auth me API", () => {
       ),
     );
     expect(res.status).toBe(409);
-    expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EventOutbox } from "@prisma/client";
+import type { EventOutbox } from "@/server/db/types";
 
 const refreshAccountsSummaryDataset = vi.fn().mockResolvedValue({
   summary: { items: [], totals: { assets: 0, liabilities: 0, netWorth: 0, archived: 0 }, displayCurrency: null },

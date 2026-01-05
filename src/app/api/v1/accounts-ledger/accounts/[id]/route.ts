@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { accounts, txnLines, valuationSnapshots } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { eq } from "drizzle-orm";
 
 /**
  * PATCH /api/v1/accounts-ledger/accounts/:id
@@ -22,7 +24,11 @@ export async function PATCH(
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id: userId } = user;
-  const account = await prisma.account.findUnique({ where: { id } });
+  const [account] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, id))
+    .limit(1);
   if (!account || account.userId !== userId)
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   const allowed: Record<string, unknown> = {};
@@ -35,10 +41,11 @@ export async function PATCH(
       { status: 400 },
     );
   }
-  const updated = await prisma.account.update({
-    where: { id },
-    data: allowed,
-  });
+  const [updated] = await db
+    .update(accounts)
+    .set(allowed)
+    .where(eq(accounts.id, id))
+    .returning();
   return NextResponse.json(updated);
 }
 
@@ -51,22 +58,30 @@ export async function DELETE(
   if (!user || typeof user.id !== "string")
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id: userId } = user;
-  const account = await prisma.account.findUnique({
-    where: { id },
-    include: {
-      txnLines: { select: { id: true }, take: 1 },
-      valuations: { select: { id: true }, take: 1 },
-    },
-  });
+  const [account] = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.id, id))
+    .limit(1);
   if (!account || account.userId !== userId)
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
-  if (account.txnLines.length > 0 || account.valuations.length > 0) {
+  const [lineHit] = await db
+    .select({ id: txnLines.id })
+    .from(txnLines)
+    .where(eq(txnLines.accountId, id))
+    .limit(1);
+  const [valuationHit] = await db
+    .select({ id: valuationSnapshots.id })
+    .from(valuationSnapshots)
+    .where(eq(valuationSnapshots.accountId, id))
+    .limit(1);
+  if (lineHit || valuationHit) {
     return NextResponse.json(
       { error: "account_has_related_records" },
       { status: 409 },
     );
   }
-  await prisma.account.delete({ where: { id } });
+  await db.delete(accounts).where(eq(accounts.id, id));
   await logAudit("ACCOUNT_DELETE", {
     userId,
     meta: { accountId: id },

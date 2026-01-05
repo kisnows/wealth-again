@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { bonusPlans } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -7,6 +8,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { asc, eq } from "drizzle-orm";
 
 /**
  * GET /api/v1/income-tax/bonus
@@ -20,10 +22,11 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const items = await prisma.bonusPlan.findMany({
-    where: { userId: user.id },
-    orderBy: { effectiveDate: "asc" },
-  });
+  const items = await db
+    .select()
+    .from(bonusPlans)
+    .where(eq(bonusPlans.userId, user.id))
+    .orderBy(asc(bonusPlans.effectiveDate));
   return NextResponse.json({ items });
 }
 
@@ -59,15 +62,16 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   const normalizedCurrency = currency.toUpperCase();
-  const created = await prisma.bonusPlan.create({
-    data: {
+  const [created] = await db
+    .insert(bonusPlans)
+    .values({
       userId,
-      amount,
+      amount: String(amount),
       currency: normalizedCurrency,
       taxMethod,
       effectiveDate: new Date(effectiveDate),
-    },
-  });
+    })
+    .returning();
   const payDate = new Date(effectiveDate);
   if (!Number.isNaN(payDate.getTime())) {
     await scheduleIncomeRecalcTask({

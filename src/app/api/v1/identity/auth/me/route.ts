@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { users } from "@/server/db/schema";
 import { audit } from "@/server/services/audit";
 import { DISPLAY_CURRENCY_SET } from "@/server/services/identity/constants";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -7,6 +8,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { eq } from "drizzle-orm";
 
 /**
  * GET /api/v1/identity/auth/me
@@ -22,16 +24,17 @@ export async function GET(req: NextRequest) {
 
   try {
     // 从数据库获取完整的用户信息
-    const userRecord = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        currentCityId: true,
-        displayCurrency: true,
-      },
-    });
+    const [userRecord] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        currentCityId: users.currentCityId,
+        displayCurrency: users.displayCurrency,
+      })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1);
 
     if (!userRecord) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -95,17 +98,17 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const updated = await prisma.user.update({
-      where: { id: user.id },
-      data: { displayCurrency: normalized },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        currentCityId: true,
-        displayCurrency: true,
-      },
-    });
+    const [updated] = await db
+      .update(users)
+      .set({ displayCurrency: normalized })
+      .where(eq(users.id, user.id))
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        currentCityId: users.currentCityId,
+        displayCurrency: users.displayCurrency,
+      });
 
     await audit.logAndEmit("USER_DISPLAY_CURRENCY_UPDATE", {
       userId: user.id,

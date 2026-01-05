@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { fxRates } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { getUserFromRequest } from "@/server/utils/auth";
 import {
@@ -11,29 +12,9 @@ import {
   FxRateOverlapError,
   upsertFxRateWithContinuity,
 } from "@/server/services/fx/rate-writer";
+import { and, desc, eq, gt, isNull, lte, or } from "drizzle-orm";
 
 const END_OF_TIME = new Date("9999-12-31T23:59:59.999Z");
-
-type FxRateRecord = {
-  id: string;
-  base: string;
-  quote: string;
-  rate: number | { toNumber: () => number };
-  effectiveFrom: Date;
-  effectiveTo: Date | null;
-  createdAt: Date;
-};
-
-type FxRateClient = {
-  findFirst: (args: unknown) => Promise<FxRateRecord | null>;
-  findMany: (args: unknown) => Promise<FxRateRecord[]>;
-  create: (args: unknown) => Promise<FxRateRecord>;
-  update: (args: unknown) => Promise<FxRateRecord>;
-  updateMany: (args: unknown) => Promise<unknown>;
-  delete: (args: unknown) => Promise<unknown>;
-};
-
-const fxRateClient = prisma.fxRate as unknown as FxRateClient;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -48,30 +29,38 @@ export async function GET(req: NextRequest) {
     if (Number.isNaN(onDate.getTime())) {
       return NextResponse.json({ error: "invalid on" }, { status: 400 });
     }
-    const rec = await fxRateClient.findFirst({
-      where: {
-        base,
-        quote,
-        effectiveFrom: { lte: onDate },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gt: onDate } }],
-      },
-      orderBy: { effectiveFrom: "desc" },
-    });
+    const [rec] = await db
+      .select()
+      .from(fxRates)
+      .where(
+        and(
+          eq(fxRates.base, base),
+          eq(fxRates.quote, quote),
+          lte(fxRates.effectiveFrom, onDate),
+          or(isNull(fxRates.effectiveTo), gt(fxRates.effectiveTo, onDate)),
+        ),
+      )
+      .orderBy(desc(fxRates.effectiveFrom))
+      .limit(1);
     if (!rec) {
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
     return NextResponse.json(rec);
   }
   const now = new Date();
-  const rate = await fxRateClient.findFirst({
-    where: {
-      base,
-      quote,
-      effectiveFrom: { lte: now },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
-    },
-    orderBy: { effectiveFrom: "desc" },
-  });
+  const [rate] = await db
+    .select()
+    .from(fxRates)
+    .where(
+      and(
+        eq(fxRates.base, base),
+        eq(fxRates.quote, quote),
+        lte(fxRates.effectiveFrom, now),
+        or(isNull(fxRates.effectiveTo), gt(fxRates.effectiveTo, now)),
+      ),
+    )
+    .orderBy(desc(fxRates.effectiveFrom))
+    .limit(1);
   if (!rate) {
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   }
@@ -86,8 +75,8 @@ type CreateFxRatePayload = {
   effectiveTo?: string | null;
 };
 
-const toNumber = (value: number | { toNumber: () => number }) =>
-  typeof value === "number" ? value : value.toNumber();
+const toNumber = (value: number | string) =>
+  typeof value === "number" ? value : Number(value);
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);

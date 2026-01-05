@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { incomeChanges } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -7,6 +8,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { asc, eq } from "drizzle-orm";
 
 /**
  * GET /api/v1/income-tax/salary-changes
@@ -21,10 +23,11 @@ export async function GET(req: NextRequest) {
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
-  const items = await prisma.incomeChange.findMany({
-    where: { userId },
-    orderBy: { effectiveFrom: "asc" },
-  });
+  const items = await db
+    .select()
+    .from(incomeChanges)
+    .where(eq(incomeChanges.userId, userId))
+    .orderBy(asc(incomeChanges.effectiveFrom));
   return NextResponse.json({ items });
 }
 
@@ -56,14 +59,15 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   const normalizedCurrency = currency.toUpperCase();
-  const created = await prisma.incomeChange.create({
-    data: {
+  const [created] = await db
+    .insert(incomeChanges)
+    .values({
       userId,
-      grossMonthly,
+      grossMonthly: String(grossMonthly),
       currency: normalizedCurrency,
       effectiveFrom: new Date(effectiveFrom),
-    },
-  });
+    })
+    .returning();
   const effectiveDate = new Date(effectiveFrom);
   if (!Number.isNaN(effectiveDate.getTime())) {
     await scheduleIncomeRecalcTask({

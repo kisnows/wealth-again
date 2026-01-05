@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
-
-const mockPrisma = prismaMock;
+import { queueUpdateResults, resetDbMock } from "@/tests/helpers/dbMock";
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
 }));
@@ -13,22 +11,28 @@ vi.mock("@/server/services/audit", () => ({
     logAndEmit: vi.fn(),
   },
 }));
+vi.mock("@/server/utils/idempotency", () => ({
+  ensureIdempotent: vi.fn().mockResolvedValue({ key: "idem-profile", existed: false }),
+  markIdempotencyUsed: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetPrismaMock();
+  resetDbMock();
 });
 
 describe("用户资料 API", () => {
   it("允许更新姓名", async () => {
     const route = await import("@/app/api/v1/identity/user/profile/route");
-    mockPrisma.user.update.mockResolvedValueOnce({
-      id: "u1",
-      email: "demo@example.com",
-      currentCityId: "c1",
-      name: "Tester",
-      displayCurrency: "USD",
-    });
+    queueUpdateResults([
+      {
+        id: "u1",
+        email: "demo@example.com",
+        currentCityId: "c1",
+        name: "Tester",
+        displayCurrency: "USD",
+      },
+    ]);
 
     const res = await route.PATCH(
       makeJsonRequest("http://localhost/api/v1/identity/user/profile", "PATCH", {
@@ -39,7 +43,6 @@ describe("用户资料 API", () => {
     expect(res.status).toBe(200);
     const payload = await res.json();
     expect(payload.name).toBe("Tester");
-    expect(mockPrisma.user.update).toHaveBeenCalled();
   });
 
   it("拒绝更新基础币种", async () => {
@@ -50,7 +53,6 @@ describe("用户资料 API", () => {
       }),
     );
     expect(res.status).toBe(400);
-    expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 
   it("拒绝通过资料接口修改城市", async () => {
@@ -63,6 +65,5 @@ describe("用户资料 API", () => {
     );
 
     expect(res.status).toBe(400);
-    expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 });

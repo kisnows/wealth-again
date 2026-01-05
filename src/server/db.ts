@@ -1,14 +1,42 @@
-import { PrismaClient } from "@prisma/client";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+import * as schema from "@/server/db/schema";
 
-type GlobalWithPrisma = typeof globalThis & { prisma?: PrismaClient };
+type GlobalWithDb = typeof globalThis & {
+  sqlite?: Database.Database;
+  db?: ReturnType<typeof drizzle<typeof schema>>;
+};
 
-const globalForPrisma = globalThis as GlobalWithPrisma;
+const globalForDb = globalThis as GlobalWithDb;
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    log: ["error", "warn"],
-  });
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+function resolveSqlitePath(url?: string) {
+  if (!url) return "sqlite.db";
+  if (url.startsWith("file:")) return url.replace("file:", "");
+  return url;
+}
 
-export default prisma;
+function ensureSqliteDirExists(filePath: string) {
+  if (!filePath) return;
+  if (filePath === ":memory:") return;
+
+  const dir = path.dirname(filePath);
+  if (!dir || dir === ".") return;
+
+  mkdirSync(dir, { recursive: true });
+}
+
+const sqlitePath = resolveSqlitePath(process.env.DATABASE_URL);
+ensureSqliteDirExists(sqlitePath);
+
+const sqlite = globalForDb.sqlite || new Database(sqlitePath);
+const db = globalForDb.db || drizzle(sqlite, { schema });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.sqlite = sqlite;
+  globalForDb.db = db;
+}
+
+export { db, schema };
+export default db;

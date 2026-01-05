@@ -1,7 +1,23 @@
-import type { IncomeRecord } from "@prisma/client";
-import prisma from "@/server/db";
+import type { IncomeRecord } from "@/server/db/types";
+import db from "@/server/db";
+import {
+  bonusPlans,
+  cities,
+  cityChangeRecords,
+  cityRuleHF,
+  cityRuleSS,
+  equityGrants,
+  equityVests,
+  incomeChanges,
+  incomeRecords as incomeRecordsTable,
+  incomeRecalcTasks,
+  longTermCashPayouts,
+  longTermCashPlans,
+  users,
+  userAnnualDeductions,
+} from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
-import { writeOutboxEvent } from "@/server/services/outbox";
+import { writeOutboxEventSync } from "@/server/services/outbox";
 import {
   enqueueIncomeRecalcTask as enqueueIncomeRecalcJob,
   fetchPendingIncomeRecalcTasks,
@@ -20,6 +36,20 @@ import {
   convert,
   type FxSnapshotInfo,
 } from "@/server/services/fx/provider";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+} from "drizzle-orm";
 
 type RecalcParams = {
   taxYear: number;
@@ -210,11 +240,12 @@ export async function scheduleIncomeRecalcTask({
 }
 
 export async function listIncomeRecalcTasks(userId: string) {
-  return prisma.incomeRecalcTask.findMany({
-    where: { userId },
-    orderBy: [{ createdAt: "desc" }],
-    take: 50,
-  });
+  return db
+    .select()
+    .from(incomeRecalcTasks)
+    .where(eq(incomeRecalcTasks.userId, userId))
+    .orderBy(desc(incomeRecalcTasks.createdAt))
+    .limit(50);
 }
 
 export async function processDueIncomeRecalcTasks(limit = 5) {
@@ -271,7 +302,7 @@ export async function settleIncomeRecalcTasks({
   taxYear: number;
 }) {
   if (!userId) return;
-  await releaseIncomeRecalcTasks(prisma, userId, taxYear);
+  await releaseIncomeRecalcTasks(db, userId, taxYear);
 }
 
 export async function recalcIncome({
@@ -283,29 +314,32 @@ export async function recalcIncome({
 }: RecalcParams) {
   if (endMonth < startMonth) return { updated: 0 as const };
 
-  const users = await prisma.user.findMany({
-    where: userId ? { id: userId } : undefined,
-    include: { currentCity: true },
-  });
+  const userRows = await db
+    .select()
+    .from(users)
+    .where(userId ? eq(users.id, userId) : undefined);
   let updated = 0;
 
-  for (const user of users) {
+  for (const user of userRows) {
     const conversionCache = new Map<string, ConversionCacheValue>();
     const cityOverride = cityId ?? null;
+    const currentCity = user.currentCityId
+      ? (
+          await db
+            .select({ id: cities.id, country: cities.country })
+            .from(cities)
+            .where(eq(cities.id, user.currentCityId))
+            .limit(1)
+        )[0] ?? null
+      : null;
 
-    const cityChangeRepo = (prisma as any).cityChangeRecord;
-    const cityChangesRaw =
-      cityOverride ||
-      !cityChangeRepo ||
-      typeof cityChangeRepo.findMany !== "function"
-        ? []
-        : await cityChangeRepo.findMany({
-            where: { userId: user.id },
-            orderBy: { effectiveMonth: "asc" },
-          });
-    const cityChanges: CityChangeSnapshot[] = Array.isArray(cityChangesRaw)
-      ? cityChangesRaw
-      : [];
+    const cityChanges: CityChangeSnapshot[] = cityOverride
+      ? []
+      : await db
+          .select()
+          .from(cityChangeRecords)
+          .where(eq(cityChangeRecords.userId, user.id))
+          .orderBy(asc(cityChangeRecords.effectiveMonth));
 
     const fallbackCityId =
       cityChanges[0]?.fromCityId ??
@@ -323,25 +357,21 @@ export async function recalcIncome({
       if (change.fromCityId) relevantCityIds.add(change.fromCityId);
     });
 
-    const cityRepo = (prisma as any).city;
     const cityRecords =
-      relevantCityIds.size > 0 &&
-      cityRepo &&
-      typeof cityRepo.findMany === "function"
-        ? await cityRepo.findMany({
-            where: { id: { in: Array.from(relevantCityIds) } },
-            select: { id: true, country: true },
-          })
+      relevantCityIds.size > 0
+        ? await db
+            .select({ id: cities.id, country: cities.country })
+            .from(cities)
+            .where(inArray(cities.id, Array.from(relevantCityIds)))
         : [];
     const cityMap = new Map<string, CityMeta>(
       cityRecords.map((record) => [record.id, record]),
     );
 
     const fallbackCountry =
-      user.currentCity?.country ??
+      currentCity?.country ??
       cityRecords.find((record) => record.id === user.currentCityId)?.country ??
       cityRecords[0]?.country ??
-      (user.currentCity ? user.currentCity.country : undefined) ??
       "CN";
     const userCurrentCityMeta: CityMeta | null = user.currentCityId
       ? { id: user.currentCityId, country: fallbackCountry }
@@ -366,16 +396,17 @@ export async function recalcIncome({
     if (!representativeCity) continue;
 
     let userAnnualDeduction: { annualAmount?: any } | null = null;
-    const userAnnualRepo = (prisma as any).userAnnualDeduction;
-    if (userAnnualRepo && typeof userAnnualRepo.findUnique === "function") {
-      try {
-        userAnnualDeduction = await userAnnualRepo.findUnique({
-          where: { userId_taxYear: { userId: user.id, taxYear } },
-        });
-      } catch (_error) {
-        userAnnualDeduction = null;
-      }
-    }
+    const [annualRow] = await db
+      .select()
+      .from(userAnnualDeductions)
+      .where(
+        and(
+          eq(userAnnualDeductions.userId, user.id),
+          eq(userAnnualDeductions.taxYear, taxYear),
+        ),
+      )
+      .limit(1);
+    userAnnualDeduction = annualRow ?? null;
     const userSpecialMonthly = userAnnualDeduction
       ? Number(userAnnualDeduction.annualAmount || 0) / 12
       : 0;
@@ -388,16 +419,23 @@ export async function recalcIncome({
     );
 
     if (startMonth > 1) {
-      const previousRecords = await prisma.incomeRecord.findMany({
-        where: {
-          userId: user.id,
-          monthDate: {
-            gte: new Date(Date.UTC(taxYear, 0, 1, 0, 0, 0)),
-            lt: new Date(Date.UTC(taxYear, startMonth - 1, 1, 0, 0, 0)),
-          },
-        },
-        orderBy: { monthDate: "asc" },
-      });
+      const previousRecords = await db
+        .select()
+        .from(incomeRecordsTable)
+        .where(
+          and(
+            eq(incomeRecordsTable.userId, user.id),
+            gte(
+              incomeRecordsTable.monthDate,
+              new Date(Date.UTC(taxYear, 0, 1, 0, 0, 0)),
+            ),
+            lt(
+              incomeRecordsTable.monthDate,
+              new Date(Date.UTC(taxYear, startMonth - 1, 1, 0, 0, 0)),
+            ),
+          ),
+        )
+        .orderBy(asc(incomeRecordsTable.monthDate));
       const recordsMap = new Map<number, IncomeRecord>();
       previousRecords.forEach((record) => {
         recordsMap.set(record.monthDate.getUTCMonth(), record);
@@ -435,10 +473,17 @@ export async function recalcIncome({
       const taxContext = await getTaxContext(cityMeta.country, monthDate);
       const targetCurrency = taxContext.currency;
 
-      const incomeChange = await prisma.incomeChange.findFirst({
-        where: { userId: user.id, effectiveFrom: { lt: nextMonthStart } },
-        orderBy: { effectiveFrom: "desc" },
-      });
+      const [incomeChange] = await db
+        .select()
+        .from(incomeChanges)
+        .where(
+          and(
+            eq(incomeChanges.userId, user.id),
+            lt(incomeChanges.effectiveFrom, nextMonthStart),
+          ),
+        )
+        .orderBy(desc(incomeChanges.effectiveFrom))
+        .limit(1);
       const grossOriginal = Number(incomeChange?.grossMonthly || 0);
       const grossCurrency = normalizeCurrency(incomeChange?.currency);
       const monthRecord: MonthComputation = {
@@ -494,12 +539,16 @@ export async function recalcIncome({
         }
       }
 
-      const bonusRows = await prisma.bonusPlan.findMany({
-        where: {
-          userId: user.id,
-          effectiveDate: { gte: monthDate, lt: nextMonthStart },
-        },
-      });
+      const bonusRows = await db
+        .select()
+        .from(bonusPlans)
+        .where(
+          and(
+            eq(bonusPlans.userId, user.id),
+            gte(bonusPlans.effectiveDate, monthDate),
+            lt(bonusPlans.effectiveDate, nextMonthStart),
+          ),
+        );
       let bonusTotal = 0;
       for (const item of bonusRows) {
         const amount = Number(item.amount || 0);
@@ -520,12 +569,26 @@ export async function recalcIncome({
       }
       monthRecord.bonus = bonusTotal;
 
-      const ltcRows = await prisma.longTermCashPayout.findMany({
-        where: {
-          plan: { userId: user.id },
-          payDate: { gte: monthDate, lt: nextMonthStart },
-        },
-      });
+      const ltcRows = await db
+        .select({
+          id: longTermCashPayouts.id,
+          planId: longTermCashPayouts.planId,
+          payDate: longTermCashPayouts.payDate,
+          amount: longTermCashPayouts.amount,
+          currency: longTermCashPayouts.currency,
+        })
+        .from(longTermCashPayouts)
+        .innerJoin(
+          longTermCashPlans,
+          eq(longTermCashPlans.id, longTermCashPayouts.planId),
+        )
+        .where(
+          and(
+            eq(longTermCashPlans.userId, user.id),
+            gte(longTermCashPayouts.payDate, monthDate),
+            lt(longTermCashPayouts.payDate, nextMonthStart),
+          ),
+        );
       let ltcIncome = 0;
       for (const payout of ltcRows) {
         const amount = Number(payout.amount || 0);
@@ -546,13 +609,26 @@ export async function recalcIncome({
       }
       monthRecord.ltcIncome = ltcIncome;
 
-      const equityRows = await prisma.equityVest.findMany({
-        where: {
-          grant: { userId: user.id },
-          vestDate: { gte: monthDate, lt: nextMonthStart },
-          fairValue: { not: null },
-        },
-      });
+      const equityRows = await db
+        .select({
+          id: equityVests.id,
+          grantId: equityVests.grantId,
+          vestDate: equityVests.vestDate,
+          units: equityVests.units,
+          fairValue: equityVests.fairValue,
+          currency: equityVests.currency,
+          createdAt: equityVests.createdAt,
+        })
+        .from(equityVests)
+        .innerJoin(equityGrants, eq(equityGrants.id, equityVests.grantId))
+        .where(
+          and(
+            eq(equityGrants.userId, user.id),
+            gte(equityVests.vestDate, monthDate),
+            lt(equityVests.vestDate, nextMonthStart),
+            isNotNull(equityVests.fairValue),
+          ),
+        );
       let equityIncome = 0;
       for (const vest of equityRows) {
         const amount = Number(vest.fairValue || 0);
@@ -573,14 +649,18 @@ export async function recalcIncome({
       }
       monthRecord.equityIncome = equityIncome;
 
-      const ssRule = await prisma.cityRuleSS.findFirst({
-        where: {
-          cityId: monthCityId,
-          effectiveFrom: { lte: monthDate },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
-        },
-        orderBy: { effectiveFrom: "desc" },
-      });
+      const [ssRule] = await db
+        .select()
+        .from(cityRuleSS)
+        .where(
+          and(
+            eq(cityRuleSS.cityId, monthCityId),
+            lte(cityRuleSS.effectiveFrom, monthDate),
+            or(isNull(cityRuleSS.effectiveTo), gt(cityRuleSS.effectiveTo, monthDate)),
+          ),
+        )
+        .orderBy(desc(cityRuleSS.effectiveFrom))
+        .limit(1);
       if (ssRule) {
         const ssCurrency = normalizeCurrency(ssRule.currency);
         const grossForSS =
@@ -644,14 +724,18 @@ export async function recalcIncome({
         monthRecord.socialInsuranceBase = socialBaseTarget;
       }
 
-      const hfRule = await prisma.cityRuleHF.findFirst({
-        where: {
-          cityId: monthCityId,
-          effectiveFrom: { lte: monthDate },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gt: monthDate } }],
-        },
-        orderBy: { effectiveFrom: "desc" },
-      });
+      const [hfRule] = await db
+        .select()
+        .from(cityRuleHF)
+        .where(
+          and(
+            eq(cityRuleHF.cityId, monthCityId),
+            lte(cityRuleHF.effectiveFrom, monthDate),
+            or(isNull(cityRuleHF.effectiveTo), gt(cityRuleHF.effectiveTo, monthDate)),
+          ),
+        )
+        .orderBy(desc(cityRuleHF.effectiveFrom))
+        .limit(1);
       if (hfRule) {
         const hfCurrency = normalizeCurrency(hfRule.currency);
         const grossForHF =
@@ -782,68 +866,71 @@ export async function recalcIncome({
         record.housingFund -
         monthTax;
 
-      await prisma.$transaction(async (tx) => {
-        const saved = await tx.incomeRecord.upsert({
-          where: {
-            userId_monthDate: {
-              userId: user.id,
-              monthDate: record.monthDate,
+      db.transaction((tx) => {
+        const values = {
+          userId: user.id,
+          monthDate: record.monthDate,
+          cityId: record.cityId,
+          currency: record.currency,
+          sourceCurrency: record.sourceCurrency,
+          fxRateId: null,
+          fxSnapshotId: record.fxSnapshotId,
+          fxAppliedRate: String(record.fxAppliedRate),
+          gross: String(record.gross),
+          bonus: String(record.bonus),
+          ltcIncome: String(record.ltcIncome),
+          equityIncome: String(record.equityIncome),
+          socialInsurance: String(record.socialInsurance),
+          socialInsuranceBase: String(record.socialInsuranceBase ?? 0),
+          housingFund: String(record.housingFund),
+          housingFundBase: String(record.housingFundBase ?? 0),
+          specialDeductions: String(record.special),
+          taxableCurrent: String(record.taxableCurrent),
+          incomeTax: String(monthTax),
+          taxPaidCumulative: String(cumulativePaid),
+          taxableCumulative: String(cumulativeTaxable),
+          taxCumulative: String(cumulativeTax),
+          netIncome: String(record.netIncome),
+          source: "system",
+          isForecast: false,
+        };
+        const saved = tx
+          .insert(incomeRecordsTable)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [incomeRecordsTable.userId, incomeRecordsTable.monthDate],
+            set: {
+              cityId: record.cityId,
+              currency: record.currency,
+              sourceCurrency: record.sourceCurrency,
+              fxRateId: null,
+              fxSnapshotId: record.fxSnapshotId,
+              fxAppliedRate: String(record.fxAppliedRate),
+              gross: String(record.gross),
+              bonus: String(record.bonus),
+              ltcIncome: String(record.ltcIncome),
+              equityIncome: String(record.equityIncome),
+              socialInsurance: String(record.socialInsurance),
+              socialInsuranceBase: String(record.socialInsuranceBase ?? 0),
+              housingFund: String(record.housingFund),
+              housingFundBase: String(record.housingFundBase ?? 0),
+              specialDeductions: String(record.special),
+              taxableCurrent: String(record.taxableCurrent),
+              incomeTax: String(monthTax),
+              taxPaidCumulative: String(cumulativePaid),
+              taxableCumulative: String(cumulativeTaxable),
+              taxCumulative: String(cumulativeTax),
+              netIncome: String(record.netIncome),
+              source: "system",
+              isForecast: false,
             },
-          },
-          update: {
-            cityId: record.cityId,
-            currency: record.currency,
-            sourceCurrency: record.sourceCurrency,
-            fxRateId: null,
-            fxSnapshotId: record.fxSnapshotId,
-            fxAppliedRate: record.fxAppliedRate,
-            gross: record.gross,
-            bonus: record.bonus,
-            ltcIncome: record.ltcIncome,
-            equityIncome: record.equityIncome,
-            socialInsurance: record.socialInsurance,
-            socialInsuranceBase: record.socialInsuranceBase ?? 0,
-            housingFund: record.housingFund,
-            housingFundBase: record.housingFundBase ?? 0,
-            specialDeductions: record.special,
-            taxableCurrent: record.taxableCurrent,
-            incomeTax: monthTax,
-            taxPaidCumulative: cumulativePaid,
-            taxableCumulative: cumulativeTaxable,
-            taxCumulative: cumulativeTax,
-            netIncome: record.netIncome,
-            source: "system",
-            isForecast: false,
-          },
-          create: {
-            userId: user.id,
-            monthDate: record.monthDate,
-            cityId: record.cityId,
-            currency: record.currency,
-            sourceCurrency: record.sourceCurrency,
-            fxRateId: null,
-            fxSnapshotId: record.fxSnapshotId,
-            fxAppliedRate: record.fxAppliedRate,
-            gross: record.gross,
-            bonus: record.bonus,
-            ltcIncome: record.ltcIncome,
-            equityIncome: record.equityIncome,
-            socialInsurance: record.socialInsurance,
-            socialInsuranceBase: record.socialInsuranceBase ?? 0,
-            housingFund: record.housingFund,
-            housingFundBase: record.housingFundBase ?? 0,
-            specialDeductions: record.special,
-            taxableCurrent: record.taxableCurrent,
-            incomeTax: monthTax,
-            taxPaidCumulative: cumulativePaid,
-            taxableCumulative: cumulativeTaxable,
-            taxCumulative: cumulativeTax,
-            netIncome: record.netIncome,
-            source: "system",
-            isForecast: false,
-          },
-        });
-        await writeOutboxEvent(tx, {
+          })
+          .returning()
+          .get();
+        if (!saved) {
+          throw new Error("income_record_upsert_failed");
+        }
+        writeOutboxEventSync(tx, {
           eventType: "income.record.updated",
           payload: {
             recordId: saved.id,
@@ -878,69 +965,64 @@ export async function recalcIncome({
 const toUtcMonth = (date: Date) => date.getUTCMonth() + 1;
 
 export async function ensureIncomeRecordsForUser(userId: string) {
-  const incomeChangeRepo = (prisma as any).incomeChange;
-  const bonusRepo = (prisma as any).bonusPlan;
-  const ltcRepo = (prisma as any).longTermCashPayout;
-  const vestRepo = (prisma as any).equityVest;
-  const recordRepo = (prisma as any).incomeRecord;
-
-  if (
-    !recordRepo ||
-    typeof recordRepo.findFirst !== "function" ||
-    !incomeChangeRepo ||
-    typeof incomeChangeRepo.findFirst !== "function"
-  ) {
-    return;
-  }
-
   const [
-    firstIncomeChangeRaw,
-    bonusEarliestRaw,
-    ltcEarliestRaw,
-    vestEarliestRaw,
+    firstIncomeChange,
+    bonusEarliest,
+    ltcEarliest,
+    vestEarliest,
     firstRecord,
   ] = await Promise.all([
-    incomeChangeRepo.findFirst({
-      where: { userId },
-      orderBy: { effectiveFrom: "asc" },
-    }),
-    bonusRepo && typeof bonusRepo.findMany === "function"
-      ? bonusRepo.findMany({
-          where: { userId },
-          orderBy: { effectiveDate: "asc" },
-          take: 1,
-        })
-      : [],
-    ltcRepo && typeof ltcRepo.findMany === "function"
-      ? ltcRepo.findMany({
-          where: { plan: { userId } },
-          orderBy: { payDate: "asc" },
-          take: 1,
-        })
-      : [],
-    vestRepo && typeof vestRepo.findMany === "function"
-      ? vestRepo.findMany({
-          where: { grant: { userId } },
-          orderBy: { vestDate: "asc" },
-          take: 1,
-        })
-      : [],
-    recordRepo.findFirst({
-      where: { userId },
-      orderBy: { monthDate: "asc" },
-    }),
+    db
+      .select()
+      .from(incomeChanges)
+      .where(eq(incomeChanges.userId, userId))
+      .orderBy(asc(incomeChanges.effectiveFrom))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+    db
+      .select()
+      .from(bonusPlans)
+      .where(eq(bonusPlans.userId, userId))
+      .orderBy(asc(bonusPlans.effectiveDate))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+    db
+      .select({
+        payDate: longTermCashPayouts.payDate,
+      })
+      .from(longTermCashPayouts)
+      .innerJoin(
+        longTermCashPlans,
+        eq(longTermCashPlans.id, longTermCashPayouts.planId),
+      )
+      .where(eq(longTermCashPlans.userId, userId))
+      .orderBy(asc(longTermCashPayouts.payDate))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+    db
+      .select({
+        vestDate: equityVests.vestDate,
+      })
+      .from(equityVests)
+      .innerJoin(equityGrants, eq(equityGrants.id, equityVests.grantId))
+      .where(eq(equityGrants.userId, userId))
+      .orderBy(asc(equityVests.vestDate))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+    db
+      .select({ monthDate: incomeRecordsTable.monthDate })
+      .from(incomeRecordsTable)
+      .where(eq(incomeRecordsTable.userId, userId))
+      .orderBy(asc(incomeRecordsTable.monthDate))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
   ]);
-
-  const firstIncomeChange = firstIncomeChangeRaw ?? null;
-  const bonusEarliest = Array.isArray(bonusEarliestRaw) ? bonusEarliestRaw : [];
-  const ltcEarliest = Array.isArray(ltcEarliestRaw) ? ltcEarliestRaw : [];
-  const vestEarliest = Array.isArray(vestEarliestRaw) ? vestEarliestRaw : [];
 
   const candidates = [
     firstIncomeChange?.effectiveFrom,
-    bonusEarliest?.[0]?.effectiveDate,
-    ltcEarliest?.[0]?.payDate,
-    vestEarliest?.[0]?.vestDate,
+    bonusEarliest?.effectiveDate,
+    ltcEarliest?.payDate,
+    vestEarliest?.vestDate,
     firstRecord?.monthDate,
   ].filter((d): d is Date => !!d);
 
@@ -961,16 +1043,16 @@ export async function ensureIncomeRecordsForUser(userId: string) {
     const endMonth = year === currentYear ? currentMonth : 12;
     if (endMonth < startMonth) continue;
 
-    const records = await recordRepo.findMany({
-      where: {
-        userId,
-        monthDate: {
-          gte: new Date(Date.UTC(year, 0, 1, 0, 0, 0)),
-          lt: new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0)),
-        },
-      },
-      select: { monthDate: true },
-    });
+    const records = await db
+      .select({ monthDate: incomeRecordsTable.monthDate })
+      .from(incomeRecordsTable)
+      .where(
+        and(
+          eq(incomeRecordsTable.userId, userId),
+          gte(incomeRecordsTable.monthDate, new Date(Date.UTC(year, 0, 1, 0, 0, 0))),
+          lt(incomeRecordsTable.monthDate, new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0))),
+        ),
+      );
     const existingMonths = new Set(records.map((r) => toUtcMonth(r.monthDate)));
 
     let missing = false;

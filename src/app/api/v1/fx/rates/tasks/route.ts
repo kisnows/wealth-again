@@ -1,8 +1,8 @@
-import type { Prisma } from "@prisma/client";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { SUPPORTED_CURRENCY_CODES } from "@/lib/domain/currency";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { fxRateUpdateTasks } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { createManualFxRateUpdateTask } from "@/server/services/fx/update";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -10,6 +10,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { and, desc, eq } from "drizzle-orm";
 
 type CreateFxTaskPayload = {
   quote: string;
@@ -43,14 +44,13 @@ export async function GET(req: NextRequest) {
     200,
   );
 
-  const where: Prisma.FxRateUpdateTaskWhereInput | undefined = status
-    ? { status: status.toUpperCase() }
-    : undefined;
-  const tasks = await prisma.fxRateUpdateTask.findMany({
-    where: where as Record<string, unknown> | undefined,
-    orderBy: [{ scheduledFor: "desc" }, { createdAt: "desc" }],
-    take: limit,
-  });
+  const filters = status ? [eq(fxRateUpdateTasks.status, status.toUpperCase())] : [];
+  const tasks = await db
+    .select()
+    .from(fxRateUpdateTasks)
+    .where(filters.length ? and(...filters) : undefined)
+    .orderBy(desc(fxRateUpdateTasks.scheduledFor), desc(fxRateUpdateTasks.createdAt))
+    .limit(limit);
 
   return NextResponse.json({
     items: tasks.map((task) => ({

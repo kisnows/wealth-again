@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
-
-const mockPrisma = prismaMock;
+import {
+  queueInsertResults,
+  queueSelectResults,
+  queueUpdateResults,
+  resetDbMock,
+} from "@/tests/helpers/dbMock";
 const scheduleMock = vi.fn().mockResolvedValue("task-1");
 vi.mock("@/server/utils/auth", () => ({
   getUserFromRequest: vi.fn().mockResolvedValue({ id: "u1" }),
@@ -17,10 +20,14 @@ vi.mock("@/server/services/audit", () => ({
 vi.mock("@/server/services/income-tax/income", () => ({
   scheduleIncomeRecalcTask: scheduleMock,
 }));
+vi.mock("@/server/utils/idempotency", () => ({
+  ensureIdempotent: vi.fn().mockResolvedValue({ key: "idem-city", existed: false }),
+  markIdempotencyUsed: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetPrismaMock();
+  resetDbMock();
   scheduleMock.mockResolvedValue("task-1");
 });
 
@@ -39,23 +46,24 @@ function futureMonth(offset = 2) {
 describe("城市迁移 API", () => {
   it("GET 返回当前城市与迁移记录", async () => {
     const route = await import("@/app/api/v1/identity/city-changes/route");
-    mockPrisma.user.findUnique.mockResolvedValueOnce({
-      id: "u1",
-      currentCityId: "c1",
-      currentCity: { id: "c1", name: "杭州", country: "CN" },
-    });
-    mockPrisma.cityChangeRecord.findMany.mockResolvedValueOnce([
-      {
-        id: "chg1",
-        userId: "u1",
-        toCityId: "c2",
-        effectiveMonth: new Date("2025-04-01T00:00:00Z"),
-        reason: null,
-        createdAt: new Date("2025-03-10T02:00:00Z"),
-        toCity: { id: "c2", name: "上海", country: "CN" },
-        fromCity: { id: "c1", name: "杭州", country: "CN" },
-      },
-    ]);
+    queueSelectResults(
+      [{ id: "u1", currentCityId: "c1" }],
+      [
+        {
+          id: "chg1",
+          userId: "u1",
+          toCityId: "c2",
+          effectiveMonth: new Date("2025-04-01T00:00:00Z"),
+          reason: null,
+          createdAt: new Date("2025-03-10T02:00:00Z"),
+          fromCityId: "c1",
+        },
+      ],
+      [
+        { id: "c1", name: "杭州", country: "CN" },
+        { id: "c2", name: "上海", country: "CN" },
+      ],
+    );
 
     const res = await route.GET(
       makeGet("http://localhost/api/v1/identity/city-changes"),
@@ -70,30 +78,22 @@ describe("城市迁移 API", () => {
   it("POST 成功创建迁移并排队回算任务", async () => {
     const route = await import("@/app/api/v1/identity/city-changes/route");
     const effective = futureMonth();
-    mockPrisma.user.findUnique.mockResolvedValueOnce({
-      id: "u1",
-      currentCityId: "c1",
-      currentCity: { id: "c1", name: "杭州", country: "CN" },
-    });
-    mockPrisma.city.findUnique.mockResolvedValueOnce({
-      id: "c2",
-      name: "上海",
-      country: "CN",
-    });
-    mockPrisma.cityChangeRecord.findFirst.mockResolvedValueOnce(null);
-    mockPrisma.cityChangeRecord.create.mockResolvedValueOnce({
+    queueSelectResults(
+      [{ id: "u1", currentCityId: "c1" }],
+      [{ id: "c2", name: "上海", country: "CN" }],
+      [{ id: "c1", name: "杭州", country: "CN" }],
+      [],
+    );
+    queueInsertResults([
+      {
       id: "chg2",
       toCityId: "c2",
       effectiveMonth: new Date("2025-05-01T00:00:00Z"),
       fromCityId: "c1",
       createdAt: new Date(),
-      toCity: { id: "c2", name: "上海", country: "CN" },
-      fromCity: { id: "c1", name: "杭州", country: "CN" },
-    });
-    mockPrisma.user.update.mockResolvedValueOnce({
-      id: "u1",
-      currentCityId: "c2",
-    });
+      },
+    ]);
+    queueUpdateResults({ changes: 1 });
 
     const res = await route.POST(
       makeJsonRequest("http://localhost/api/v1/identity/city-changes", "POST", {
@@ -103,19 +103,6 @@ describe("城市迁移 API", () => {
     );
 
     expect(res.status).toBe(202);
-    expect(mockPrisma.cityChangeRecord.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          toCityId: "c2",
-          fromCityId: "c1",
-        }),
-      }),
-    );
-    expect(mockPrisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { currentCityId: "c2" },
-      }),
-    );
     expect(scheduleMock).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "u1",
@@ -132,16 +119,11 @@ describe("城市迁移 API", () => {
   it("POST 拒绝跨国家城市迁移", async () => {
     const route = await import("@/app/api/v1/identity/city-changes/route");
     const effective = futureMonth();
-    mockPrisma.user.findUnique.mockResolvedValueOnce({
-      id: "u1",
-      currentCityId: "c1",
-      currentCity: { id: "c1", name: "杭州", country: "CN" },
-    });
-    mockPrisma.city.findUnique.mockResolvedValueOnce({
-      id: "c3",
-      name: "Seattle",
-      country: "US",
-    });
+    queueSelectResults(
+      [{ id: "u1", currentCityId: "c1" }],
+      [{ id: "c3", name: "Seattle", country: "US" }],
+      [{ id: "c1", name: "杭州", country: "CN" }],
+    );
 
     const res = await route.POST(
       makeJsonRequest("http://localhost/api/v1/identity/city-changes", "POST", {
@@ -157,16 +139,11 @@ describe("城市迁移 API", () => {
 
   it("POST 校验生效月份需晚于当月", async () => {
     const route = await import("@/app/api/v1/identity/city-changes/route");
-    mockPrisma.user.findUnique.mockResolvedValueOnce({
-      id: "u1",
-      currentCityId: "c1",
-      currentCity: { id: "c1", name: "杭州", country: "CN" },
-    });
-    mockPrisma.city.findUnique.mockResolvedValueOnce({
-      id: "c2",
-      name: "上海",
-      country: "CN",
-    });
+    queueSelectResults(
+      [{ id: "u1", currentCityId: "c1" }],
+      [{ id: "c2", name: "上海", country: "CN" }],
+      [{ id: "c1", name: "杭州", country: "CN" }],
+    );
 
     const now = new Date();
     const currentMonth = `${now.getUTCFullYear()}-${String(

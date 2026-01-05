@@ -2,7 +2,12 @@
 
 import useSWR from "swr";
 import { getJson, putJson } from "@/lib/utils/fetcher";
-import type { City, CityRuleHF, CityRuleSS, TaxBracket } from "@prisma/client";
+import type {
+  City,
+  CityRuleHF,
+  CityRuleSS,
+  TaxBracket,
+} from "@/server/db/types";
 
 export function useCities() {
   return useSWR<City[]>("/api/v1/income-tax/rules/cities", getJson);

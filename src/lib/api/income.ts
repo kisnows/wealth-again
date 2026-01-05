@@ -1,6 +1,6 @@
 "use client";
 
-import type { IncomeRecord } from "@prisma/client";
+import type { IncomeRecord } from "@/server/db/types";
 import useSWR, { mutate as globalMutate } from "swr";
 import { getJson, patchJson, postJson } from "@/lib/utils/fetcher";
 

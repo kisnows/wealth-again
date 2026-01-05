@@ -1,59 +1,31 @@
-import type { Prisma } from "@prisma/client";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import {
+  accounts,
+  fxRates,
+  fxSnapshots,
+  txnEntries,
+  txnLines,
+  valuationSnapshots,
+} from "@/server/db/schema";
 import {
   convert,
   ensureFxSnapshotBatch,
   type FxSnapshotInfo,
 } from "@/server/services/fx/provider";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 
 const BASE_CURRENCY = "USD";
 
-function buildAccountInclude(asOf?: Date | null): Prisma.AccountInclude {
-  const appliedAsOf = asOf ? new Date(asOf) : null;
-  return {
-    txnLines: {
-      select: {
-        amount: true,
-        principalDelta: true,
-      },
-      ...(appliedAsOf
-        ? {
-            where: {
-              entry: {
-                occurredAt: {
-                  lte: appliedAsOf,
-                },
-              },
-            },
-          }
-        : {}),
-    },
-    valuations: {
-      select: {
-        asOf: true,
-        totalValue: true,
-        currency: true,
-        fxSnapshotId: true,
-        fxAppliedRate: true,
-      },
-      orderBy: { asOf: "desc" },
-      take: 1,
-      ...(appliedAsOf
-        ? {
-            where: {
-              asOf: {
-                lte: appliedAsOf,
-              },
-            },
-          }
-        : {}),
-    },
-  } satisfies Prisma.AccountInclude;
-}
-
-type AccountWithRelations = Prisma.AccountGetPayload<{
-  include: ReturnType<typeof buildAccountInclude>;
-}>;
+type AccountWithRelations = (typeof accounts)["$inferSelect"] & {
+  txnLines: Array<{ amount: string; principalDelta: string }>;
+  valuations: Array<{
+    asOf: Date;
+    totalValue: string;
+    currency: string;
+    fxSnapshotId: string | null;
+    fxAppliedRate: string;
+  }>;
+};
 
 type LatestFxRate = {
   rate: number;
@@ -64,7 +36,7 @@ type LatestFxRate = {
 function buildFxRateMap(
   rows: Array<{
     quote: string;
-    rate: Prisma.Decimal;
+    rate: string;
     effectiveFrom: Date;
     effectiveTo: Date | null;
   }>,
@@ -103,8 +75,7 @@ function convertAmount(
 function computeAccountMetrics(account: AccountWithRelations) {
   const initialBalance = Number(account.initialBalance ?? 0);
   const principal = account.txnLines.reduce((sum, line) => {
-    const candidate = (line as { principalDelta?: Prisma.Decimal | number })
-      .principalDelta;
+    const candidate = line.principalDelta;
     const delta =
       candidate != null && Number(candidate) !== 0
         ? Number(candidate)
@@ -192,21 +163,21 @@ type SummaryQueryOptions = {
 };
 
 export async function computeAccountsSummary(options: SummaryQueryOptions) {
-  const where: Prisma.AccountWhereInput = {};
-  if (options.userId) where.userId = options.userId;
-  if (options.accountIds?.length) {
-    where.id =
-      options.accountIds.length === 1
-        ? options.accountIds[0]
-        : { in: options.accountIds };
-  }
   const asOfDate = options.asOf ? new Date(options.asOf) : null;
-  const accounts = await prisma.account.findMany({
-    where,
-    include: buildAccountInclude(asOfDate),
-    orderBy: { createdAt: "asc" },
-  });
-  if (accounts.length === 0) {
+  const whereClauses = [];
+  if (options.userId) {
+    whereClauses.push(eq(accounts.userId, options.userId));
+  }
+  if (options.accountIds?.length) {
+    whereClauses.push(inArray(accounts.id, options.accountIds));
+  }
+  const accountRows = await db
+    .select()
+    .from(accounts)
+    .where(whereClauses.length ? and(...whereClauses) : undefined)
+    .orderBy(asc(accounts.createdAt));
+
+  if (accountRows.length === 0) {
     return {
       items: [],
       displayCurrency: options.displayCurrency ?? null,
@@ -214,50 +185,121 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
     };
   }
 
+  const accountIds = accountRows.map((row) => row.id);
+  const txnLineRows = await db
+    .select({
+      accountId: txnLines.accountId,
+      amount: txnLines.amount,
+      principalDelta: txnLines.principalDelta,
+      occurredAt: txnEntries.occurredAt,
+    })
+    .from(txnLines)
+    .innerJoin(txnEntries, eq(txnEntries.id, txnLines.entryId))
+    .where(
+      and(
+        inArray(txnLines.accountId, accountIds),
+        ...(asOfDate ? [lte(txnEntries.occurredAt, asOfDate)] : []),
+      ),
+    );
+  const txnLinesMap = new Map<string, AccountWithRelations["txnLines"]>();
+  txnLineRows.forEach((row) => {
+    const list = txnLinesMap.get(row.accountId) ?? [];
+    list.push({ amount: row.amount, principalDelta: row.principalDelta });
+    txnLinesMap.set(row.accountId, list);
+  });
+
+  const valuationRows = await db
+    .select({
+      accountId: valuationSnapshots.accountId,
+      asOf: valuationSnapshots.asOf,
+      totalValue: valuationSnapshots.totalValue,
+      currency: valuationSnapshots.currency,
+      fxSnapshotId: valuationSnapshots.fxSnapshotId,
+      fxAppliedRate: valuationSnapshots.fxAppliedRate,
+    })
+    .from(valuationSnapshots)
+    .where(
+      and(
+        inArray(valuationSnapshots.accountId, accountIds),
+        ...(asOfDate ? [lte(valuationSnapshots.asOf, asOfDate)] : []),
+      ),
+    )
+    .orderBy(asc(valuationSnapshots.accountId), desc(valuationSnapshots.asOf));
+  const latestValuationMap = new Map<
+    string,
+    AccountWithRelations["valuations"][number]
+  >();
+  valuationRows.forEach((row) => {
+    if (!latestValuationMap.has(row.accountId)) {
+      latestValuationMap.set(row.accountId, {
+        asOf: row.asOf,
+        totalValue: row.totalValue,
+        currency: row.currency,
+        fxSnapshotId: row.fxSnapshotId,
+        fxAppliedRate: row.fxAppliedRate,
+      });
+    }
+  });
+
+  const accountsWithRelations: AccountWithRelations[] = accountRows.map((row) => ({
+    ...row,
+    txnLines: txnLinesMap.get(row.id) ?? [],
+    valuations: latestValuationMap.has(row.id)
+      ? [latestValuationMap.get(row.id)!]
+      : [],
+  }));
+
   const displayCurrencyUpper = options.displayCurrency
     ? options.displayCurrency.toUpperCase()
     : null;
 
-  const codesToFetch = gatherCurrencyCodes(accounts, displayCurrencyUpper);
+  const codesToFetch = gatherCurrencyCodes(accountsWithRelations, displayCurrencyUpper);
   const now = asOfDate ?? new Date();
-  const fxRateDelegate = prisma.fxRate;
   const rawFxRows =
-    codesToFetch.length === 0 || typeof fxRateDelegate?.findMany !== "function"
+    codesToFetch.length === 0
       ? []
-      : await fxRateDelegate.findMany({
-          where: {
-            base: BASE_CURRENCY,
-            quote: { in: codesToFetch },
-            effectiveFrom: { lte: now },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
-          },
-          orderBy: { effectiveFrom: "desc" },
-        });
+      : await db
+          .select({
+            quote: fxRates.quote,
+            rate: fxRates.rate,
+            effectiveFrom: fxRates.effectiveFrom,
+            effectiveTo: fxRates.effectiveTo,
+          })
+          .from(fxRates)
+          .where(
+            and(
+              eq(fxRates.base, BASE_CURRENCY),
+              inArray(fxRates.quote, codesToFetch),
+              lte(fxRates.effectiveFrom, now),
+              or(isNull(fxRates.effectiveTo), gt(fxRates.effectiveTo, now)),
+            ),
+          )
+          .orderBy(desc(fxRates.effectiveFrom));
   const rateMap = buildFxRateMap(
     rawFxRows as Array<{
       quote: string;
-      rate: Prisma.Decimal;
+      rate: string;
       effectiveFrom: Date;
       effectiveTo: Date | null;
     }>,
   );
 
-  const valuationSnapshotIds = accounts
+  const valuationSnapshotIds = accountsWithRelations
     .map((account) => account.valuations[0]?.fxSnapshotId)
     .filter((id): id is string => Boolean(id));
   const rawSnapshotRows =
     valuationSnapshotIds.length === 0
       ? []
-      : await prisma.fxSnapshot.findMany({
-          where: { id: { in: valuationSnapshotIds } },
-          select: {
-            id: true,
-            baseCurrency: true,
-            quoteCurrency: true,
-            rate: true,
-            capturedAt: true,
-          },
-        });
+      : await db
+          .select({
+            id: fxSnapshots.id,
+            baseCurrency: fxSnapshots.baseCurrency,
+            quoteCurrency: fxSnapshots.quoteCurrency,
+            rate: fxSnapshots.rate,
+            capturedAt: fxSnapshots.capturedAt,
+          })
+          .from(fxSnapshots)
+          .where(inArray(fxSnapshots.id, valuationSnapshotIds));
   const snapshotMap = new Map<
     string,
     {
@@ -314,7 +356,7 @@ export async function computeAccountsSummary(options: SummaryQueryOptions) {
   });
 
   const items: AccountSummaryItem[] = await Promise.all(
-    accounts.map(async (account) => {
+    accountsWithRelations.map(async (account) => {
       const metrics = computeAccountMetrics(account);
       if (!displayCurrencyUpper) {
         return metrics;

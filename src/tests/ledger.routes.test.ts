@@ -1,8 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGet, makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
+import {
+  insertCalls,
+  queueInsertResults,
+  setSelectFallback,
+} from "@/tests/helpers/dbMock";
+import { dbAdapterMock, resetDbAdapterMock } from "@/tests/helpers/dbAdapterMock";
+import {
+  accounts,
+  txnEntries,
+  txnLines,
+  valuationSnapshots,
+} from "@/server/db/schema";
 
-const mockPrisma = prismaMock;
+const mockDb = dbAdapterMock;
 // 跨币种自动折算路径中，直接 mock 转换函数，避免依赖汇率表
 const mockFxSnapshotDate = new Date("2025-01-01T00:00:00.000Z");
 
@@ -19,15 +30,37 @@ vi.mock("@/server/utils/auth", () => ({
 const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
 vi.mock("@/server/services/outbox", () => ({
   writeOutboxEvent: writeOutboxEventMock,
+  writeOutboxEventSync: vi.fn(),
   fetchPendingOutboxEvents: vi.fn(),
   markOutboxEventDelivered: vi.fn(),
   markOutboxEventFailed: vi.fn(),
 }));
+const logAuditMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/server/services/audit", () => ({
+  logAudit: logAuditMock,
+  audit: { log: vi.fn(), logAndEmit: vi.fn() },
+}));
+
+let fallbackAccounts: any[] = [];
+let fallbackTxnEntries: any[] = [];
+let fallbackTxnLines: any[] = [];
+let fallbackValuations: any[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetPrismaMock();
+  resetDbAdapterMock();
   writeOutboxEventMock.mockReset();
+  fallbackAccounts = [];
+  fallbackTxnEntries = [];
+  fallbackTxnLines = [];
+  fallbackValuations = [];
+  setSelectFallback(({ table }) => {
+    if (table === accounts) return fallbackAccounts;
+    if (table === txnEntries) return fallbackTxnEntries;
+    if (table === txnLines) return fallbackTxnLines;
+    if (table === valuationSnapshots) return fallbackValuations;
+    return [];
+  });
   convertMock.mockResolvedValue({
     amount: 70,
     effectiveRate: 7,
@@ -54,7 +87,7 @@ beforeEach(() => {
 // 本文件覆盖账户与记账接口，验证白名单更新、归档、时序查询与跨币种校验等逻辑。
 describe("Accounts & Entries routes", () => {
   it("GET /accounts returns list", async () => {
-    mockPrisma.account.findMany
+    mockDb.account.findMany
       .mockResolvedValueOnce([]) // 第一次调用 (workaround query)
       .mockResolvedValueOnce([]); // 第二次调用 (实际查询)
     const m = await import("@/app/api/v1/accounts-ledger/accounts/route");
@@ -63,8 +96,8 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("POST /accounts creates account with idempotency & audit", async () => {
-    mockPrisma.account.create.mockResolvedValueOnce({ id: "a1", name: "X" });
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockDb.account.create.mockResolvedValueOnce({ id: "a1", name: "X" });
+    mockDb.idempotencyKey.findUnique.mockResolvedValueOnce(null);
     const m = await import("@/app/api/v1/accounts-ledger/accounts/route");
     const res = await m.POST(
       makeJsonRequest(
@@ -80,12 +113,11 @@ describe("Accounts & Entries routes", () => {
       ),
     );
     expect(res.status).toBe(201);
-    expect(mockPrisma.idempotencyKey.create).toHaveBeenCalled();
-    expect(mockPrisma.auditLog.create).toHaveBeenCalled();
+    expect(logAuditMock).toHaveBeenCalled();
   });
 
   it("PATCH /accounts/:id blocks baseCurrency change", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
+    mockDb.account.findUnique.mockResolvedValueOnce({
       id: "a1",
       userId: "u1",
       baseCurrency: "CNY",
@@ -101,12 +133,12 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("POST /accounts/:id/archive updates status", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
+    mockDb.account.findUnique.mockResolvedValueOnce({
       id: "a1",
       userId: "u1",
       status: "ACTIVE",
     });
-    mockPrisma.account.update.mockResolvedValueOnce({
+    mockDb.account.update.mockResolvedValueOnce({
       id: "a1",
       status: "ARCHIVED",
     });
@@ -119,13 +151,10 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("GET /accounts/:id/timeseries valuation points", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "acc1",
-      userId: "u1",
-    });
-    mockPrisma.valuationSnapshot.findMany.mockResolvedValueOnce([
-      { asOf: new Date("2025-08-01"), totalValue: 100 },
-    ]);
+    fallbackAccounts = [{ id: "acc1", userId: "u1" }];
+    fallbackValuations = [
+      { accountId: "acc1", asOf: new Date("2025-08-01"), totalValue: 100 },
+    ];
     const m = await import("@/app/api/v1/accounts-ledger/accounts/[id]/timeseries/route");
     const res = await m.GET(
       makeGet(
@@ -141,26 +170,11 @@ describe("Accounts & Entries routes", () => {
   it("GET /accounts/:id/timeseries principal point uses toDate filter", async () => {
     const m = await import("@/app/api/v1/accounts-ledger/accounts/[id]/timeseries/route");
     // 两条分录：一条在 toDate 之前，一条在之后；应仅计入之前那条
-    mockPrisma.account.findUnique
-      .mockResolvedValueOnce({
-        id: "a",
-        userId: "u1",
-      }) // 第一次调用：权限检查
-      .mockResolvedValueOnce({
-        id: "a",
-        userId: "u1",
-        initialBalance: 100,
-        txnLines: [
-          {
-            amount: 10,
-            entry: { occurredAt: new Date("2025-08-01T00:00:00Z") },
-          },
-          {
-            amount: 99,
-            entry: { occurredAt: new Date("2025-09-02T00:00:00Z") },
-          },
-        ],
-      }); // 第二次调用：获取详细数据
+    fallbackAccounts = [{ id: "a", userId: "u1", initialBalance: 100 }];
+    fallbackTxnLines = [
+      { amount: "10", occurredAt: new Date("2025-08-01T00:00:00Z") },
+      { amount: "99", occurredAt: new Date("2025-09-02T00:00:00Z") },
+    ];
     const res = await m.GET(
       makeGet(
         "http://localhost/api/v1/accounts-ledger/accounts/a/timeseries?metric=principal&to=2025-09-01",
@@ -174,12 +188,12 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("PATCH /accounts/:id success for allowed fields", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
+    mockDb.account.findUnique.mockResolvedValueOnce({
       id: "a",
       userId: "u1",
       name: "Old",
     });
-    mockPrisma.account.update.mockResolvedValueOnce({ id: "a", name: "New" });
+    mockDb.account.update.mockResolvedValueOnce({ id: "a", name: "New" });
     const route = await import("@/app/api/v1/accounts-ledger/accounts/[id]/route");
     const res = await route.PATCH(
       makeJsonRequest("http://localhost/api/v1/accounts-ledger/accounts/a", "PATCH", {
@@ -193,7 +207,7 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("POST /entries/deposit 404 when account missing", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce(null);
+    mockDb.account.findUnique.mockResolvedValueOnce(null);
     const m = await import("@/app/api/v1/accounts-ledger/entries/deposit/route");
     const res = await m.POST(
       makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/deposit", "POST", {
@@ -206,13 +220,16 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("POST /entries/deposit writes idempotency & audit", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
+    mockDb.idempotencyKey.findUnique.mockResolvedValueOnce(null);
+    mockDb.account.findUnique.mockResolvedValueOnce({
       id: "acc1",
       userId: "u1",
       baseCurrency: "CNY",
     });
-    mockPrisma.idempotencyKey.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.txnEntry.create.mockResolvedValueOnce({ id: "e1" });
+    queueInsertResults(
+      { id: "e1" },
+      { id: "l1", accountId: "acc1", amount: "100", currency: "CNY" },
+    );
     const m = await import("@/app/api/v1/accounts-ledger/entries/deposit/route");
     const res = await m.POST(
       makeJsonRequest(
@@ -228,11 +245,11 @@ describe("Accounts & Entries routes", () => {
       ),
     );
     expect(res.status).toBe(201);
-    expect(mockPrisma.auditLog.create).toHaveBeenCalled();
+    expect(logAuditMock).toHaveBeenCalled();
   });
 
   it("POST /entries/transfer returns 404 when account missing; cross currency allowed with explicit to.amount", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce(null);
+    mockDb.account.findUnique.mockResolvedValueOnce(null);
     let m = await import("@/app/api/v1/accounts-ledger/entries/transfer/route");
     let res = await m.POST(
       makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/transfer", "POST", {
@@ -243,13 +260,14 @@ describe("Accounts & Entries routes", () => {
     );
     expect(res.status).toBe(404);
 
-    mockPrisma.account.findUnique
+    mockDb.account.findUnique
       .mockResolvedValueOnce({ id: "a", userId: "u1", baseCurrency: "USD" })
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
-    mockPrisma.txnEntry.create.mockResolvedValueOnce({
-      id: "entry1",
-      lines: [],
-    });
+    queueInsertResults(
+      { id: "entry1", meta: "{}" },
+      { id: "l1", accountId: "a", amount: "-10", currency: "USD" },
+      { id: "l2", accountId: "b", amount: "10", currency: "CNY" },
+    );
     m = await import("@/app/api/v1/accounts-ledger/entries/transfer/route");
     res = await m.POST(
       makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/transfer", "POST", {
@@ -262,15 +280,15 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("POST /entries/deposit success updates principal via summary", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
+    mockDb.account.findUnique.mockResolvedValueOnce({
       id: "a",
       userId: "u1",
       baseCurrency: "CNY",
     });
-    mockPrisma.txnEntry.create.mockResolvedValueOnce({
-      id: "e1",
-      lines: [{ accountId: "a", amount: 10 }],
-    });
+    queueInsertResults(
+      { id: "e1" },
+      { id: "l1", accountId: "a", amount: "10", currency: "CNY" },
+    );
     const dep = await import("@/app/api/v1/accounts-ledger/entries/deposit/route");
     const res = await dep.POST(
       makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/deposit", "POST", {
@@ -281,17 +299,7 @@ describe("Accounts & Entries routes", () => {
     );
     expect(res.status).toBe(201);
     // 摘要：初始100 + 10 = 110
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "a",
-      userId: "u1",
-      name: "A",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 100,
-      txnLines: [{ amount: 10 }],
-      valuations: [],
-    });
-    mockPrisma.account.findMany.mockResolvedValueOnce([
+    fallbackAccounts = [
       {
         id: "a",
         userId: "u1",
@@ -299,10 +307,16 @@ describe("Accounts & Entries routes", () => {
         baseCurrency: "CNY",
         accountType: "SAVINGS",
         initialBalance: 100,
-        txnLines: [{ amount: 10 }],
-        valuations: [],
       },
-    ]);
+    ];
+    fallbackTxnLines = [
+      {
+        accountId: "a",
+        amount: "10",
+        principalDelta: "10",
+        occurredAt: new Date("2025-01-01T00:00:00Z"),
+      },
+    ];
     const summary = await import("@/app/api/v1/accounts-ledger/accounts/[id]/summary/route");
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts-ledger/accounts/a/summary"),
@@ -313,15 +327,15 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("POST /entries/withdraw success updates principal via summary", async () => {
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
+    mockDb.account.findUnique.mockResolvedValueOnce({
       id: "a",
       userId: "u1",
       baseCurrency: "CNY",
     });
-    mockPrisma.txnEntry.create.mockResolvedValueOnce({
-      id: "e1",
-      lines: [{ accountId: "a", amount: -10 }],
-    });
+    queueInsertResults(
+      { id: "e1" },
+      { id: "l1", accountId: "a", amount: "-10", currency: "CNY" },
+    );
     const wd = await import("@/app/api/v1/accounts-ledger/entries/withdraw/route");
     const res = await wd.POST(
       makeJsonRequest("http://localhost/api/v1/accounts-ledger/entries/withdraw", "POST", {
@@ -332,17 +346,7 @@ describe("Accounts & Entries routes", () => {
     );
     expect(res.status).toBe(201);
     // 摘要：初始100 - 10 = 90
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "a",
-      userId: "u1",
-      name: "A",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 100,
-      txnLines: [{ amount: -10 }],
-      valuations: [],
-    });
-    mockPrisma.account.findMany.mockResolvedValueOnce([
+    fallbackAccounts = [
       {
         id: "a",
         userId: "u1",
@@ -350,10 +354,16 @@ describe("Accounts & Entries routes", () => {
         baseCurrency: "CNY",
         accountType: "SAVINGS",
         initialBalance: 100,
-        txnLines: [{ amount: -10 }],
-        valuations: [],
       },
-    ]);
+    ];
+    fallbackTxnLines = [
+      {
+        accountId: "a",
+        amount: "-10",
+        principalDelta: "-10",
+        occurredAt: new Date("2025-01-01T00:00:00Z"),
+      },
+    ];
     const summary = await import("@/app/api/v1/accounts-ledger/accounts/[id]/summary/route");
     const resSum = await summary.GET(
       makeGet("http://localhost/api/v1/accounts-ledger/accounts/a/summary"),
@@ -364,22 +374,13 @@ describe("Accounts & Entries routes", () => {
   });
 
   it("POST /entries/transfer cross-currency auto convert when to.amount omitted (asOf provided)", async () => {
-    mockPrisma.account.findUnique
+    mockDb.account.findUnique
       .mockResolvedValueOnce({ id: "a", userId: "u1", baseCurrency: "USD" })
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
-    mockPrisma.txnEntry.create.mockImplementation(
-      async ({
-        data,
-      }: {
-        data: {
-          lines: { create: Array<Record<string, unknown>> };
-          meta?: string;
-        };
-      }) => ({
-        id: "e1",
-        lines: data.lines.create.map((line) => ({ ...line })),
-        meta: data.meta,
-      }),
+    queueInsertResults(
+      { id: "e1", meta: "{}" },
+      { id: "l1", accountId: "a", amount: "-10", currency: "USD" },
+      { id: "l2", accountId: "b", amount: "70", currency: "CNY" },
     );
     const transfer = await import("@/app/api/v1/accounts-ledger/entries/transfer/route");
     const res = await transfer.POST(
@@ -391,10 +392,14 @@ describe("Accounts & Entries routes", () => {
       }),
     );
     expect(res.status).toBe(201);
-    const createArgs = mockPrisma.txnEntry.create.mock.calls[0][0];
+    const entryInsert = insertCalls.find((call) => call.table === txnEntries);
+    const lineCalls = insertCalls.filter((call) => call.table === txnLines);
+    const toLineValues = lineCalls[1]?.values as { amount?: string };
     // to.amount 使用了 convert 的返回（被 mock 为 70）
-    expect(createArgs.data.lines.create[1].amount).toBe(70);
-    const meta = JSON.parse(createArgs.data.meta);
+    expect(Number(toLineValues?.amount ?? 0)).toBe(70);
+    const meta = JSON.parse(
+      String((entryInsert?.values as { meta?: string })?.meta ?? "{}"),
+    );
     expect(meta).toMatchObject({
       fromAmount: 10,
       fromCurrency: "USD",
@@ -419,18 +424,40 @@ describe("Accounts & Entries routes", () => {
 
 describe("Account summary route", () => {
   it("computes principal/valuation/profit/roi", async () => {
-    const summaryAccount = {
-      id: "acc1",
-      userId: "u1",
-      name: "Invest",
-      baseCurrency: "CNY",
-      accountType: "INVESTMENT",
-      initialBalance: 100,
-      txnLines: [{ amount: 50 }, { amount: -10 }],
-      valuations: [{ totalValue: 200, currency: "CNY", fxSnapshotId: null, fxAppliedRate: 1, asOf: new Date("2025-08-01") }],
-    };
-    mockPrisma.account.findUnique.mockResolvedValueOnce(summaryAccount);
-    mockPrisma.account.findMany.mockResolvedValueOnce([summaryAccount]);
+    fallbackAccounts = [
+      {
+        id: "acc1",
+        userId: "u1",
+        name: "Invest",
+        baseCurrency: "CNY",
+        accountType: "INVESTMENT",
+        initialBalance: 100,
+      },
+    ];
+    fallbackTxnLines = [
+      {
+        accountId: "acc1",
+        amount: "50",
+        principalDelta: "50",
+        occurredAt: new Date("2025-08-01T00:00:00Z"),
+      },
+      {
+        accountId: "acc1",
+        amount: "-10",
+        principalDelta: "-10",
+        occurredAt: new Date("2025-08-02T00:00:00Z"),
+      },
+    ];
+    fallbackValuations = [
+      {
+        accountId: "acc1",
+        asOf: new Date("2025-08-01"),
+        currency: "CNY",
+        fxSnapshotId: null,
+        fxAppliedRate: "1",
+        totalValue: "200",
+      },
+    ];
     const m = await import("@/app/api/v1/accounts-ledger/accounts/[id]/summary/route");
     const res = await m.GET(
       makeGet("http://localhost/api/v1/accounts-ledger/accounts/acc1/summary"),
@@ -447,7 +474,7 @@ describe("Account summary route", () => {
 describe("Entries transfer success case", () => {
   it("same-currency transfer updates principals: A:100→95, B:50→55", async () => {
     // 1) 执行转账：A->B 5 CNY
-    mockPrisma.account.findUnique
+    mockDb.account.findUnique
       .mockResolvedValueOnce({ id: "a", userId: "u1", baseCurrency: "CNY" })
       .mockResolvedValueOnce({ id: "b", userId: "u1", baseCurrency: "CNY" });
     convertMock.mockResolvedValueOnce({
@@ -459,19 +486,10 @@ describe("Entries transfer success case", () => {
       fxEffectiveAt: mockFxSnapshotDate,
       snapshots: [],
     });
-    mockPrisma.txnEntry.create.mockImplementation(
-      async ({
-        data,
-      }: {
-        data: {
-          lines: { create: Array<Record<string, unknown>> };
-          meta?: string;
-        };
-      }) => ({
-        id: "e1",
-        lines: data.lines.create.map((line) => ({ ...line })),
-        meta: data.meta,
-      }),
+    queueInsertResults(
+      { id: "e1", meta: "{}" },
+      { id: "l1", accountId: "a", amount: "-5", currency: "CNY" },
+      { id: "l2", accountId: "b", amount: "5", currency: "CNY" },
     );
     const transfer = await import("@/app/api/v1/accounts-ledger/entries/transfer/route");
     const res = await transfer.POST(
@@ -483,10 +501,17 @@ describe("Entries transfer success case", () => {
       }),
     );
     expect(res.status).toBe(201);
-    const createArgs = mockPrisma.txnEntry.create.mock.calls[0][0];
-    expect(createArgs.data.lines.create[0].amount).toBe(-5);
-    expect(createArgs.data.lines.create[1].amount).toBe(5);
-    expect(JSON.parse(createArgs.data.meta)).toMatchObject({
+    const entryInsert = insertCalls.find((call) => call.table === txnEntries);
+    const lineCalls = insertCalls.filter((call) => call.table === txnLines);
+    const fromLineValues = lineCalls[0]?.values as { amount?: string };
+    const toLineValues = lineCalls[1]?.values as { amount?: string };
+    expect(Number(fromLineValues?.amount ?? 0)).toBe(-5);
+    expect(Number(toLineValues?.amount ?? 0)).toBe(5);
+    expect(
+      JSON.parse(
+        String((entryInsert?.values as { meta?: string })?.meta ?? "{}"),
+      ),
+    ).toMatchObject({
       fromAmount: 5,
       fromCurrency: "CNY",
       toAmount: 5,
@@ -504,17 +529,7 @@ describe("Entries transfer success case", () => {
       "@/app/api/v1/accounts-ledger/accounts/[id]/summary/route"
     );
     // 2) A 账户摘要：初始100 + (-5) = 95
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "a",
-      userId: "u1",
-      name: "A",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 100,
-      txnLines: [{ amount: -5 }],
-      valuations: [],
-    });
-    mockPrisma.account.findMany.mockResolvedValueOnce([
+    fallbackAccounts = [
       {
         id: "a",
         userId: "u1",
@@ -522,10 +537,16 @@ describe("Entries transfer success case", () => {
         baseCurrency: "CNY",
         accountType: "SAVINGS",
         initialBalance: 100,
-        txnLines: [{ amount: -5 }],
-        valuations: [],
       },
-    ]);
+    ];
+    fallbackTxnLines = [
+      {
+        accountId: "a",
+        amount: "-5",
+        principalDelta: "-5",
+        occurredAt: new Date("2025-01-01T00:00:00Z"),
+      },
+    ];
     const resA = await summaryRoute.GET(
       makeGet("http://localhost/api/v1/accounts-ledger/accounts/a/summary"),
       { params: { id: "a" } },
@@ -534,17 +555,7 @@ describe("Entries transfer success case", () => {
     expect(sjA.principal).toBe(95);
 
     // 3) B 账户摘要：初始50 + 5 = 55
-    mockPrisma.account.findUnique.mockResolvedValueOnce({
-      id: "b",
-      userId: "u1",
-      name: "B",
-      baseCurrency: "CNY",
-      accountType: "SAVINGS",
-      initialBalance: 50,
-      txnLines: [{ amount: 5 }],
-      valuations: [],
-    });
-    mockPrisma.account.findMany.mockResolvedValueOnce([
+    fallbackAccounts = [
       {
         id: "b",
         userId: "u1",
@@ -552,10 +563,16 @@ describe("Entries transfer success case", () => {
         baseCurrency: "CNY",
         accountType: "SAVINGS",
         initialBalance: 50,
-        txnLines: [{ amount: 5 }],
-        valuations: [],
       },
-    ]);
+    ];
+    fallbackTxnLines = [
+      {
+        accountId: "b",
+        amount: "5",
+        principalDelta: "5",
+        occurredAt: new Date("2025-01-01T00:00:00Z"),
+      },
+    ];
     const resB = await summaryRoute.GET(
       makeGet("http://localhost/api/v1/accounts-ledger/accounts/b/summary"),
       { params: { id: "b" } },

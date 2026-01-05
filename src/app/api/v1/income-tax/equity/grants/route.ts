@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { equityGrants } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import { scheduleIncomeRecalcTask } from "@/server/services/income-tax/income";
 import { getUserFromRequest } from "@/server/utils/auth";
@@ -7,6 +8,7 @@ import {
   ensureIdempotent,
   markIdempotencyUsed,
 } from "@/server/utils/idempotency";
+import { asc, eq } from "drizzle-orm";
 
 /**
  * GET /api/v1/income-tax/equity/grants
@@ -21,10 +23,11 @@ export async function GET(req: NextRequest) {
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
-  const items = await prisma.equityGrant.findMany({
-    where: { userId },
-    orderBy: { startVestDate: "asc" },
-  });
+  const items = await db
+    .select()
+    .from(equityGrants)
+    .where(eq(equityGrants.userId, userId))
+    .orderBy(asc(equityGrants.startVestDate));
   return NextResponse.json({ items });
 }
 
@@ -64,16 +67,17 @@ export async function POST(req: Request) {
       { error: "Idempotency key reused" },
       { status: 409 },
     );
-  const created = await prisma.equityGrant.create({
-    data: {
+  const [created] = await db
+    .insert(equityGrants)
+    .values({
       userId,
-      totalUnits,
+      totalUnits: String(totalUnits),
       currency: currency.toUpperCase(),
       startVestDate: new Date(startVestDate),
       vestPeriods,
       vestInterval,
-    },
-  });
+    })
+    .returning();
   const vestStart = new Date(startVestDate);
   if (!Number.isNaN(vestStart.getTime())) {
     await scheduleIncomeRecalcTask({

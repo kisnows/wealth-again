@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { cities, users as usersTable } from "@/server/db/schema";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { asc, eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
@@ -8,25 +10,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      displayCurrency: true,
-      currentCityId: true,
-      isActive: true,
-      createdAt: true,
-      updatedAt: true,
-      currentCity: {
-        select: {
-          name: true,
-          country: true,
-        },
-      },
-    },
-  });
+  const users = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      name: usersTable.name,
+      displayCurrency: usersTable.displayCurrency,
+      currentCityId: usersTable.currentCityId,
+      isActive: usersTable.isActive,
+      createdAt: usersTable.createdAt,
+      updatedAt: usersTable.updatedAt,
+      currentCityName: cities.name,
+      currentCityCountry: cities.country,
+    })
+    .from(usersTable)
+    .leftJoin(cities, eq(cities.id, usersTable.currentCityId))
+    .orderBy(asc(usersTable.createdAt));
 
   return NextResponse.json({
     items: users.map((item) => ({
@@ -36,7 +35,12 @@ export async function GET(req: NextRequest) {
       displayCurrency: item.displayCurrency,
       currentCityId: item.currentCityId,
       isActive: item.isActive,
-      currentCity: item.currentCity,
+      currentCity: item.currentCityId
+        ? {
+            name: item.currentCityName,
+            country: item.currentCityCountry,
+          }
+        : null,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     })),

@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { APIError } from "better-auth/api";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { cities, users } from "@/server/db/schema";
 import { auth } from "@/server/auth";
 import { logAudit } from "@/server/services/audit";
 import { DISPLAY_CURRENCY_SET } from "@/server/services/identity/constants";
+import { eq } from "drizzle-orm";
 
 export class UserEmailConflictError extends Error {
   constructor(email: string) {
@@ -76,18 +78,20 @@ export async function registerUser(
     throw new DisplayCurrencyNotSupportedError(displayCurrency);
   }
 
-  const city = await prisma.city.findUnique({
-    where: { id: parsed.cityId },
-    select: { id: true },
-  });
+  const [city] = await db
+    .select({ id: cities.id })
+    .from(cities)
+    .where(eq(cities.id, parsed.cityId))
+    .limit(1);
   if (!city) {
     throw new CityNotFoundError(parsed.cityId);
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email: parsed.email },
-    select: { id: true },
-  });
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, parsed.email))
+    .limit(1);
   if (existing) {
     throw new UserEmailConflictError(parsed.email);
   }

@@ -1,6 +1,8 @@
-import type { IncomeRecalcTask, Prisma } from "@prisma/client";
-import prisma from "@/server/db";
-import { writeOutboxEvent } from "@/server/services/outbox";
+import type { IncomeRecalcTask } from "@/server/db/types";
+import db from "@/server/db";
+import { incomeRecalcTasks } from "@/server/db/schema";
+import { and, asc, eq, inArray, lte } from "drizzle-orm";
+import { writeOutboxEventSync } from "@/server/services/outbox";
 
 export type IncomeRecalcJob = IncomeRecalcTask & { type: "income.recalc" };
 
@@ -14,7 +16,7 @@ export type EnqueueIncomeRecalcOptions = {
   delayMs?: number;
 };
 
-type PrismaClientOrTx = Prisma.TransactionClient | typeof prisma;
+type DbClient = typeof db;
 
 function clampMonth(value: number) {
   return Math.max(1, Math.min(12, value));
@@ -37,30 +39,43 @@ export async function enqueueIncomeRecalcTask(
   const normalizedStart = clampMonth(startMonth);
   const normalizedEnd = Math.max(normalizedStart, clampMonth(endMonth));
 
-  return prisma.$transaction(async (tx) => {
+  return db.transaction((tx) => {
     let targetTask: IncomeRecalcTask | null = null;
     if (userId) {
-      const existing = await tx.incomeRecalcTask.findFirst({
-        where: { userId, taxYear, status: "PENDING" },
-        orderBy: { scheduledFor: "asc" },
-      });
+      const existing = tx
+        .select()
+        .from(incomeRecalcTasks)
+        .where(
+          and(
+            eq(incomeRecalcTasks.userId, userId),
+            eq(incomeRecalcTasks.taxYear, taxYear),
+            eq(incomeRecalcTasks.status, "PENDING"),
+          ),
+        )
+        .orderBy(asc(incomeRecalcTasks.scheduledFor))
+        .limit(1)
+        .get();
       if (existing) {
-        targetTask = await tx.incomeRecalcTask.update({
-          where: { id: existing.id },
-          data: {
+        const updated = tx
+          .update(incomeRecalcTasks)
+          .set({
             startMonth: Math.min(existing.startMonth, normalizedStart),
             endMonth: Math.max(existing.endMonth, normalizedEnd),
             cityId: cityId ?? existing.cityId,
             scheduledFor,
             triggeredBy: triggeredBy ?? existing.triggeredBy,
             updatedAt: now,
-          },
-        });
+          })
+          .where(eq(incomeRecalcTasks.id, existing.id))
+          .returning()
+          .get();
+        targetTask = updated ?? null;
       }
     }
     if (!targetTask) {
-      targetTask = await tx.incomeRecalcTask.create({
-        data: {
+      const created = tx
+        .insert(incomeRecalcTasks)
+        .values({
           userId: userId ?? null,
           taxYear,
           startMonth: normalizedStart,
@@ -70,10 +85,15 @@ export async function enqueueIncomeRecalcTask(
           scheduledFor,
           attempts: 0,
           triggeredBy: triggeredBy ?? null,
-        },
-      });
+        })
+        .returning()
+        .get();
+      targetTask = created;
     }
-    await writeOutboxEvent(tx, {
+    if (!targetTask) {
+      throw new Error("income_recalc_task_create_failed");
+    }
+    writeOutboxEventSync(tx, {
       eventType: "income.recalc.requested",
       payload: {
         taskId: targetTask.id,
@@ -91,33 +111,42 @@ export async function enqueueIncomeRecalcTask(
 }
 
 export async function fetchPendingIncomeRecalcTasks(limit = 5): Promise<IncomeRecalcJob[]> {
-  const tasks = await prisma.incomeRecalcTask.findMany({
-    where: {
-      status: "PENDING",
-      scheduledFor: { lte: new Date() },
-    },
-    orderBy: { scheduledFor: "asc" },
-    take: limit,
-  });
+  const tasks = await db
+    .select()
+    .from(incomeRecalcTasks)
+    .where(
+      and(
+        eq(incomeRecalcTasks.status, "PENDING"),
+        lte(incomeRecalcTasks.scheduledFor, new Date()),
+      ),
+    )
+    .orderBy(asc(incomeRecalcTasks.scheduledFor))
+    .limit(limit);
   return tasks.map((task) => ({ ...task, type: "income.recalc" }));
 }
 
 export async function markIncomeRecalcRunning(
   task: IncomeRecalcTask,
 ): Promise<boolean> {
-  return prisma.$transaction(async (tx) => {
-    const claimed = await tx.incomeRecalcTask.updateMany({
-      where: { id: task.id, status: "PENDING" },
-      data: {
+  return db.transaction((tx) => {
+    const claimed = tx
+      .update(incomeRecalcTasks)
+      .set({
         status: "RUNNING",
         attempts: task.attempts + 1,
         updatedAt: new Date(),
-      },
-    });
-    if (!claimed.count) {
+      })
+      .where(
+        and(
+          eq(incomeRecalcTasks.id, task.id),
+          eq(incomeRecalcTasks.status, "PENDING"),
+        ),
+      )
+      .run();
+    if (!claimed.changes) {
       return false;
     }
-    await writeOutboxEvent(tx, {
+    writeOutboxEventSync(tx, {
       eventType: "income.recalc.started",
       payload: {
         taskId: task.id,
@@ -138,17 +167,18 @@ export async function markIncomeRecalcCompleted(
   updatedCount: number,
 ): Promise<void> {
   const processedAt = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.incomeRecalcTask.update({
-      where: { id: task.id },
-      data: {
+  db.transaction((tx) => {
+    tx
+      .update(incomeRecalcTasks)
+      .set({
         status: "COMPLETED",
         processedAt,
         lastError: null,
         updatedAt: processedAt,
-      },
-    });
-    await writeOutboxEvent(tx, {
+      })
+      .where(eq(incomeRecalcTasks.id, task.id))
+      .run();
+    writeOutboxEventSync(tx, {
       eventType: "income.recalc.completed",
       payload: {
         taskId: task.id,
@@ -169,17 +199,18 @@ export async function markIncomeRecalcFailed(
   error: string,
   retryAt: Date,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await tx.incomeRecalcTask.update({
-      where: { id: task.id },
-      data: {
+  db.transaction((tx) => {
+    tx
+      .update(incomeRecalcTasks)
+      .set({
         status: "FAILED",
         lastError: error,
         scheduledFor: retryAt,
         updatedAt: new Date(),
-      },
-    });
-    await writeOutboxEvent(tx, {
+      })
+      .where(eq(incomeRecalcTasks.id, task.id))
+      .run();
+    writeOutboxEventSync(tx, {
       eventType: "income.recalc.failed",
       payload: {
         taskId: task.id,
@@ -196,21 +227,23 @@ export async function markIncomeRecalcFailed(
 }
 
 export async function releaseIncomeRecalcTasks(
-  client: PrismaClientOrTx,
+  client: DbClient,
   userId: string,
   taxYear: number,
 ): Promise<void> {
-  await client.incomeRecalcTask.updateMany({
-    where: {
-      userId,
-      taxYear,
-      status: { in: ["PENDING", "RUNNING", "FAILED"] },
-    },
-    data: {
+  await client
+    .update(incomeRecalcTasks)
+    .set({
       status: "COMPLETED",
       processedAt: new Date(),
       lastError: null,
       updatedAt: new Date(),
-    },
-  });
+    })
+    .where(
+      and(
+        eq(incomeRecalcTasks.userId, userId),
+        eq(incomeRecalcTasks.taxYear, taxYear),
+        inArray(incomeRecalcTasks.status, ["PENDING", "RUNNING", "FAILED"]),
+      ),
+    );
 }

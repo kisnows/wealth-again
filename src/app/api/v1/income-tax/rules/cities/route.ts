@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { cities } from "@/server/db/schema";
 import { logAudit } from "@/server/services/audit";
 import {
   ensureIdempotent,
@@ -27,11 +28,13 @@ export async function PUT(req: Request) {
       { status: 409 },
     );
   for (const it of items) {
-    await prisma.city.upsert({
-      where: { name: it.name },
-      update: { country: it.country || "CN" },
-      create: { name: it.name, country: it.country || "CN" },
-    });
+    await db
+      .insert(cities)
+      .values({ name: it.name, country: it.country || "CN" })
+      .onConflictDoUpdate({
+        target: cities.name,
+        set: { country: it.country || "CN" },
+      });
   }
   await logAudit("RULE_CITIES_UPSERT", { meta: { count: items.length } });
   await markIdempotencyUsed(key);

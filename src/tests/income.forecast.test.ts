@@ -1,6 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeJsonRequest } from "@/tests/helpers";
-import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
+import { insertCalls, resetDbMock, setSelectFallback } from "@/tests/helpers/dbMock";
+import { incomeRecords, incomeRecalcTasks } from "@/server/db/schema";
+import {
+  bonusPlans,
+  cityRuleHF,
+  cityRuleSS,
+  equityVests,
+  incomeChanges,
+  longTermCashPayouts,
+  taxBracket,
+  taxConfig,
+  users,
+} from "@/server/db/schema";
 
 // 本文件针对“收入预测/回算”做金额级断言：
 // - 工资：每月 10000
@@ -14,7 +26,6 @@ import { prismaMock, resetPrismaMock } from "@/tests/helpers/prismaMock";
 // - 1月 682.5（当月含 2w 奖金）；2月 82.5；3月 82.5；4月 172.5（含 3k LTC）
 // - 5月 135（跨档后当月税 135）；6月 275；7月 575（含 3k LTC）；8月 275
 
-const mockPrisma = prismaMock;
 const writeOutboxEventMock = vi.fn().mockResolvedValue({ id: "evt" });
 vi.mock("@/server/services/outbox", () => ({
   writeOutboxEvent: writeOutboxEventMock,
@@ -46,90 +57,118 @@ function buildPendingTask(overrides: Partial<any> = {}) {
 async function runIncomeWorkerOnce(taskOverrides: Partial<any> = {}) {
   const { processDueIncomeRecalcTasks } = await import("@/server/services/income-tax/income");
   const pendingTask = buildPendingTask(taskOverrides);
-  mockPrisma.incomeRecalcTask.findMany.mockResolvedValueOnce([pendingTask]);
-  mockPrisma.incomeRecalcTask.updateMany.mockResolvedValueOnce({ count: 1 });
-  mockPrisma.incomeRecalcTask.update.mockResolvedValueOnce({
-    ...pendingTask,
-    status: "COMPLETED",
-    processedAt: new Date(),
-    updatedAt: new Date(),
-  });
-  await processDueIncomeRecalcTasks();
+  return { pendingTask, processDueIncomeRecalcTasks };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetPrismaMock();
+  resetDbMock();
   writeOutboxEventMock.mockReset();
+  setSelectFallback(null);
 });
 
 describe("收入预测与回算（半年 + 5-8 月截取）", () => {
   it("半年（1-6月）与 5-8 月的应纳税额准确", async () => {
     const recalc = await import("@/app/api/v1/income-tax/recalc/route");
+    const monthlyBonuses = [
+      [{ amount: "20000" }],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+    ];
+    const monthlyLtc = [
+      [],
+      [],
+      [],
+      [{ amount: "3000" }],
+      [],
+      [],
+      [{ amount: "3000" }],
+      [],
+    ];
+    let incomeRecalcTaskResponses: any[][] = [];
+    setSelectFallback(({ table, tableCallIndex }) => {
+      if (table === users) {
+        return [
+          {
+            id: "u1",
+            currentCityId: "c1",
+          },
+        ];
+      }
+      if (table === incomeChanges) {
+        return [{ grossMonthly: "10000", currency: "CNY" }];
+      }
+      if (table === bonusPlans) {
+        return monthlyBonuses[tableCallIndex] ?? [];
+      }
+      if (table === longTermCashPayouts) {
+        return monthlyLtc[tableCallIndex] ?? [];
+      }
+      if (table === equityVests) {
+        return [];
+      }
+      if (table === cityRuleSS) {
+        return [
+          {
+            baseMin: "0",
+            baseMax: "100000",
+            ratePension: "0.08",
+            rateMedical: "0.02",
+            rateUnemployment: "0.005",
+          },
+        ];
+      }
+      if (table === cityRuleHF) {
+        return [
+          {
+            baseMin: "0",
+            baseMax: "100000",
+            rateEmployee: "0.12",
+          },
+        ];
+      }
+      if (table === taxConfig) {
+        return [
+          {
+            country: "CN",
+            taxYear: 2025,
+            standardDeduction: "5000",
+          },
+        ];
+      }
+      if (table === taxBracket) {
+        return [
+          {
+            position: 1,
+            threshold: "36000",
+            taxRate: "0.03",
+            quickDeduction: "0",
+          },
+          {
+            position: 2,
+            threshold: "144000",
+            taxRate: "0.1",
+            quickDeduction: "2520",
+          },
+          {
+            position: 7,
+            threshold: "1000000000",
+            taxRate: "0.45",
+            quickDeduction: "181920",
+          },
+        ];
+      }
+      if (table === incomeRecalcTasks) {
+        return incomeRecalcTaskResponses[tableCallIndex] ?? [];
+      }
+      return [];
+    });
     // 用户（CN）
-    mockPrisma.user.findMany.mockResolvedValueOnce([
-      {
-        id: "u1",
-        currentCityId: "c1",
-        currentCity: { country: "CN" },
-      },
-    ]);
-    // 工资变更：10000/月
-    mockPrisma.incomeChange.findFirst.mockResolvedValue({
-      grossMonthly: 10000,
-    });
-    // 奖金：1 月 20000
-    mockPrisma.bonusPlan.findMany.mockImplementation(({ where }: any) => {
-      const gte = where.effectiveDate.gte as Date;
-      const lt = where.effectiveDate.lt as Date;
-      const isJan = gte.getUTCMonth() === 0 && lt.getUTCMonth() === 1;
-      return Promise.resolve(isJan ? [{ amount: 20000 }] : []);
-    });
-    // 长期现金：4 月与 7 月各 3000
-    mockPrisma.longTermCashPayout.findMany.mockImplementation(
-      ({ where }: any) => {
-        const g = where.payDate.gte as Date;
-        const _l = where.payDate.lt as Date;
-        const m = g.getUTCMonth();
-        if (m === 3) return Promise.resolve([{ amount: 3000 }]); // 4 月（0-based）
-        if (m === 6) return Promise.resolve([{ amount: 3000 }]); // 7 月
-        return Promise.resolve([]);
-      },
-    );
-    mockPrisma.equityVest.findMany.mockResolvedValue([]);
-    // 社保/公积金规则（基数 clamp=工资本身）
-    mockPrisma.cityRuleSS.findFirst.mockResolvedValue({
-      baseMin: 0,
-      baseMax: 100000,
-      ratePension: 0.08,
-      rateMedical: 0.02,
-      rateUnemployment: 0.005,
-    });
-    mockPrisma.cityRuleHF.findFirst.mockResolvedValue({
-      baseMin: 0,
-      baseMax: 100000,
-      rateEmployee: 0.12,
-    });
-    // 税制：标准扣除 5000；税表（简化）
-    const taxConfig = {
-      country: "CN",
-      taxYear: 2025,
-      standardDeduction: 5000,
-      brackets: undefined,
-    };
-    mockPrisma.taxConfig.findUnique.mockResolvedValue(taxConfig);
-    mockPrisma.taxConfig.findFirst.mockResolvedValue(taxConfig);
-    mockPrisma.taxBracket.findMany.mockResolvedValueOnce([
-      { position: 1, threshold: 36000, taxRate: 0.03, quickDeduction: 0 },
-      { position: 2, threshold: 144000, taxRate: 0.1, quickDeduction: 2520 },
-      {
-        position: 7,
-        threshold: 1000000000,
-        taxRate: 0.45,
-        quickDeduction: 181920,
-      },
-    ]);
-    mockPrisma.incomeRecord.upsert.mockResolvedValue({});
 
     // 回算到 8 月，便于截取 5-8 月
     const scheduleResp = await recalc.POST(
@@ -139,19 +178,24 @@ describe("收入预测与回算（半年 + 5-8 月截取）", () => {
       }),
     );
     expect(scheduleResp.status).toBe(202);
-    await runIncomeWorkerOnce({ taxYear: 2025, startMonth: 1, endMonth: 8 });
+    const { pendingTask, processDueIncomeRecalcTasks } = await runIncomeWorkerOnce({
+      taxYear: 2025,
+      startMonth: 1,
+      endMonth: 8,
+    });
+    incomeRecalcTaskResponses = [[], [pendingTask]];
+    await processDueIncomeRecalcTasks();
 
-    // 收集 upsert 调用，按 monthDate 映射断言
-    const calls = (mockPrisma.incomeRecord.upsert as any).mock.calls as any[];
+    // 收集写入记录，按 monthDate 映射断言
     const byMonth: Record<number, any> = {};
-    for (const c of calls) {
-      const arg = c[0];
-      const d: Date = arg.where.userId_monthDate.monthDate;
+    for (const call of insertCalls) {
+      if (call.table !== incomeRecords) continue;
+      const values = call.values as { monthDate: Date; incomeTax?: string; socialInsurance?: string; housingFund?: string };
+      const d = values.monthDate;
       byMonth[d.getUTCMonth() + 1] = {
-        // 1-based 月
-        incomeTax: Number(arg.update?.incomeTax ?? arg.create?.incomeTax),
-        ss: Number(arg.update?.socialInsurance ?? arg.create?.socialInsurance),
-        hf: Number(arg.update?.housingFund ?? arg.create?.housingFund),
+        incomeTax: Number(values.incomeTax ?? 0),
+        ss: Number(values.socialInsurance ?? 0),
+        hf: Number(values.housingFund ?? 0),
       };
     }
 

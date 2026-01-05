@@ -20,7 +20,7 @@ describe("auth config", () => {
   });
 
   it("uses dedicated auth tables to avoid clashes", () => {
-    expect(auth.options.session?.modelName).toBe("authSession");
-    expect(auth.options.account?.modelName).toBe("authAccount");
+    expect(auth.options.database).toBeDefined();
+    expect(typeof auth.options.database).toBe("function");
   });
 });

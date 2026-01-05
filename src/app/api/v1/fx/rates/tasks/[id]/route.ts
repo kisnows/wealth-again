@@ -1,7 +1,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { fxRateUpdateLogs, fxRateUpdateTasks } from "@/server/db/schema";
 import { getUserFromRequest } from "@/server/utils/auth";
+import { asc, eq } from "drizzle-orm";
 
 type RouteContext = {
   params: { id: string };
@@ -14,16 +16,19 @@ export async function GET(req: NextRequest, context: RouteContext) {
   }
   const params = await context.params;
   const taskId = params.id;
-  const task = await prisma.fxRateUpdateTask.findUnique({
-    where: { id: taskId },
-  });
+  const [task] = await db
+    .select()
+    .from(fxRateUpdateTasks)
+    .where(eq(fxRateUpdateTasks.id, taskId))
+    .limit(1);
   if (!task) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  const logRows = await prisma.fxRateUpdateLog.findMany({
-    where: { taskId },
-    orderBy: { weekStart: "asc" },
-  });
+  const logRows = await db
+    .select()
+    .from(fxRateUpdateLogs)
+    .where(eq(fxRateUpdateLogs.taskId, taskId))
+    .orderBy(asc(fxRateUpdateLogs.weekStart));
   const logs = logRows.map((log) => ({
     id: log.id,
     weekStart: log.weekStart.toISOString(),

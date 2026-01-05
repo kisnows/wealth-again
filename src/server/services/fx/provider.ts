@@ -1,8 +1,9 @@
-import { Prisma } from "@prisma/client";
-import prisma from "@/server/db";
+import db from "@/server/db";
+import { fxRates, fxSnapshots } from "@/server/db/schema";
 import { audit } from "@/server/services/audit";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 
-type DecimalLike = number | { toNumber: () => number };
+type DecimalLike = number | string;
 
 export type FxQuote = {
   id: string;
@@ -105,7 +106,7 @@ const USD = "USD";
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function toNumber(value: DecimalLike): number {
-  return typeof value === "number" ? value : value.toNumber();
+  return typeof value === "number" ? value : Number(value);
 }
 
 function asUtcIso(value: Date | undefined | null, fallback: string): string {
@@ -380,46 +381,25 @@ export class FxProvider {
     quote: string;
     asOf?: Date;
   }): Promise<FxRateRecord | null> {
-    const delegate = prisma.fxRate;
-    if (!delegate) return null;
-    if (typeof delegate.findFirst === "function") {
-      if (params.asOf) {
-        const at = params.asOf;
-        return delegate.findFirst({
-          where: {
-            base: params.base,
-            quote: params.quote,
-            effectiveFrom: { lte: at },
-            OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }],
-          },
-          orderBy: { effectiveFrom: "desc" },
-        });
-      }
-      return delegate.findFirst({
-        where: { base: params.base, quote: params.quote },
-        orderBy: { effectiveFrom: "desc" },
-      });
-    }
-    if (typeof delegate.findMany === "function") {
-      const rows: FxRateRecord[] = await delegate.findMany({
-        where: {
-          base: params.base,
-          quote: params.quote,
-          ...(params.asOf
-            ? {
-                effectiveFrom: { lte: params.asOf },
-                OR: [
-                  { effectiveTo: null },
-                  { effectiveTo: { gt: params.asOf } },
-                ],
-              }
-            : undefined),
-        },
-        orderBy: { effectiveFrom: "desc" },
-      });
-      return rows[0] ?? null;
-    }
-    return null;
+    const at = params.asOf;
+    const [row] = await db
+      .select()
+      .from(fxRates)
+      .where(
+        and(
+          eq(fxRates.base, params.base),
+          eq(fxRates.quote, params.quote),
+          ...(at
+            ? [
+                lte(fxRates.effectiveFrom, at),
+                or(isNull(fxRates.effectiveTo), gt(fxRates.effectiveTo, at)),
+              ]
+            : []),
+        ),
+      )
+      .orderBy(desc(fxRates.effectiveFrom))
+      .limit(1);
+    return row ?? null;
   }
 
   private async fetchLatestRatesFromDb(
@@ -428,19 +408,19 @@ export class FxProvider {
     at: Date,
   ): Promise<FxLatestRate[]> {
     if (quotes.length === 0) return [];
-    const delegate = prisma.fxRate;
     let rows: FxRateRecord[] = [];
-    if (delegate && typeof delegate.findMany === "function") {
-      rows = await delegate.findMany({
-        where: {
-          base,
-          quote: { in: quotes },
-          effectiveFrom: { lte: at },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }],
-        },
-        orderBy: { effectiveFrom: "desc" },
-      });
-    }
+    rows = await db
+      .select()
+      .from(fxRates)
+      .where(
+        and(
+          eq(fxRates.base, base),
+          inArray(fxRates.quote, quotes),
+          lte(fxRates.effectiveFrom, at),
+          or(isNull(fxRates.effectiveTo), gt(fxRates.effectiveTo, at)),
+        ),
+      )
+      .orderBy(desc(fxRates.effectiveFrom));
     const latest = new Map<
       string,
       { rate: number; effectiveFrom: Date; effectiveTo: Date | null }
@@ -472,21 +452,21 @@ export class FxProvider {
     from: Date;
     to?: Date;
   }): Promise<FxTimeSeriesPoint[]> {
-    const delegate = prisma.fxRate;
-    if (!delegate || typeof delegate.findMany !== "function") return [];
-    const where: Record<string, unknown> = {
-      base: params.base,
-      quote: params.quote,
-      effectiveFrom: { lte: params.to ?? new Date("9999-12-31T23:59:59Z") },
-      OR: [
-        { effectiveTo: null },
-        { effectiveTo: { gt: params.from } },
-      ],
-    };
-    const rows: FxRateRecord[] = await delegate.findMany({
-      where,
-      orderBy: { effectiveFrom: "asc" },
-    });
+    const rows: FxRateRecord[] = await db
+      .select()
+      .from(fxRates)
+      .where(
+        and(
+          eq(fxRates.base, params.base),
+          eq(fxRates.quote, params.quote),
+          lte(
+            fxRates.effectiveFrom,
+            params.to ?? new Date("9999-12-31T23:59:59Z"),
+          ),
+          or(isNull(fxRates.effectiveTo), gt(fxRates.effectiveTo, params.from)),
+        ),
+      )
+      .orderBy(asc(fxRates.effectiveFrom));
     return rows
       .filter((row) => row.effectiveFrom <= (params.to ?? row.effectiveFrom))
       .map((row) => ({
@@ -528,46 +508,36 @@ export class FxProvider {
     }
 
     const existing = await this.fxSnapshotFindFirst({
-      where: {
-        baseCurrency: params.base,
-        quoteCurrency: params.quote,
-        sourceRateId: rateRecord.id,
-        capturedAt: params.asOf,
-      },
+      baseCurrency: params.base,
+      quoteCurrency: params.quote,
+      sourceRateId: rateRecord.id,
+      capturedAt: params.asOf,
     });
     if (existing) return this.mapSnapshot(existing);
 
-    try {
-      const created = await this.fxSnapshotCreate({
-        data: {
-          baseCurrency: params.base,
-          quoteCurrency: params.quote,
-          rate: rateRecord.rate,
-          capturedAt: params.asOf,
-          sourceRateId: rateRecord.id,
-          effectiveFrom: rateRecord.effectiveFrom,
-          effectiveTo: rateRecord.effectiveTo,
-          createdBy: params.createdBy ?? "system",
-        },
-      });
-      return this.mapSnapshot(created);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        const retry = await this.fxSnapshotFindFirst({
-          where: {
-            baseCurrency: params.base,
-            quoteCurrency: params.quote,
-            sourceRateId: rateRecord.id,
-            capturedAt: params.asOf,
-          },
-        });
-        if (retry) return this.mapSnapshot(retry);
-      }
-      throw error;
-    }
+    const [created] = await db
+      .insert(fxSnapshots)
+      .values({
+        baseCurrency: params.base,
+        quoteCurrency: params.quote,
+        rate: String(rateRecord.rate),
+        capturedAt: params.asOf,
+        sourceRateId: rateRecord.id,
+        effectiveFrom: rateRecord.effectiveFrom,
+        effectiveTo: rateRecord.effectiveTo,
+        createdBy: params.createdBy ?? "system",
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (created) return this.mapSnapshot(created);
+    const retry = await this.fxSnapshotFindFirst({
+      baseCurrency: params.base,
+      quoteCurrency: params.quote,
+      sourceRateId: rateRecord.id,
+      capturedAt: params.asOf,
+    });
+    if (retry) return this.mapSnapshot(retry);
+    return null;
   }
 
   private async resolveUsdRate(
@@ -608,23 +578,26 @@ export class FxProvider {
   }
 
   private async fxSnapshotFindFirst(
-    args: Record<string, unknown>,
+    params: {
+      baseCurrency: string;
+      quoteCurrency: string;
+      sourceRateId: string | null;
+      capturedAt: Date;
+    },
   ): Promise<FxSnapshotRecord | null> {
-    const delegate = prisma.fxSnapshot;
-    if (delegate && typeof delegate.findFirst === "function") {
-      return delegate.findFirst(args);
-    }
-    return null;
-  }
-
-  private async fxSnapshotCreate(
-    args: Record<string, unknown>,
-  ): Promise<FxSnapshotRecord> {
-    const delegate = (prisma as unknown as Record<string, any>).fxSnapshot;
-    if (delegate && typeof delegate.create === "function") {
-      return delegate.create(args);
-    }
-    throw new Error("fxSnapshot.create not available");
+    const [row] = await db
+      .select()
+      .from(fxSnapshots)
+      .where(
+        and(
+          eq(fxSnapshots.baseCurrency, params.baseCurrency),
+          eq(fxSnapshots.quoteCurrency, params.quoteCurrency),
+          eq(fxSnapshots.sourceRateId, params.sourceRateId),
+          eq(fxSnapshots.capturedAt, params.capturedAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
   }
 
   private mapSnapshot(record: FxSnapshotRecord): FxSnapshotInfo {
