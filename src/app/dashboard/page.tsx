@@ -40,11 +40,13 @@ import { useUserPrefsStore } from "@/lib/state/identity";
 import { accentTokens, semanticAccents } from "@/lib/theme/palette";
 import type { AccentKey } from "@/lib/theme/tokens";
 
+/** 指标卡片可用的强调色类型 */
 type MetricAccent = Extract<
   AccentKey,
   "primary" | "success" | "accent" | "warning" | "info"
 >;
 
+/** 收入时间段预设配置 */
 type PeriodPreset = {
   value: string;
   label: string;
@@ -52,6 +54,21 @@ type PeriodPreset = {
   getRange: () => { from: string; to: string };
 };
 
+/**
+ * 仪表盘页面组件
+ *
+ * 作为应用的核心总览页面，展示：
+ * - 关键指标卡片：净资产、年度收入、本月收入、有效税率
+ * - 收入概览面板：支持切换年度/近三年数据
+ * - 净资产趋势图与资产分配饼图
+ * - 账户排名列表
+ * - 快速操作入口：存入、取出、转账、估值
+ *
+ * 数据来源：
+ * - useDashboard: 净资产与趋势数据
+ * - useAccountsSummary: 账户汇总与资产分配
+ * - useIncomeTimeseries: 收入时序数据
+ */
 export default function DashboardPage() {
   const { displayCurrency } = useUserPrefsStore();
   const [incomePeriod, setIncomePeriod] = useState("current-year");
@@ -537,6 +554,7 @@ export default function DashboardPage() {
   );
 }
 
+/** 收入概览项属性 */
 type IncomeSummaryItemProps = {
   label: string;
   value: ReactNode;
@@ -544,6 +562,17 @@ type IncomeSummaryItemProps = {
   testId: string;
 };
 
+/**
+ * 收入概览单项组件
+ *
+ * 用于在收入概览区域展示单个统计指标（如总收入、净收入等），
+ * 支持不同色调以区分指标类型。
+ *
+ * @param label - 指标标签
+ * @param value - 指标值（支持 ReactNode 以兼容加载态骨架屏）
+ * @param tone - 强调色调
+ * @param testId - 测试标识
+ */
 function IncomeSummaryItem({
   label,
   value,

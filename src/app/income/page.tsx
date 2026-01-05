@@ -29,13 +29,35 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUserPrefsStore } from "@/lib/state/identity";
 
+/** 支持的弹窗类型标识 */
 const MODAL_KEYS = ["salary", "bonus", "ltc"] as const;
 type ModalKey = (typeof MODAL_KEYS)[number];
 
+/**
+ * 校验字符串是否为有效的弹窗类型
+ * @param value - 待校验的字符串
+ */
 const isModalKey = (value: string | null): value is ModalKey =>
   value !== null &&
   (MODAL_KEYS as readonly string[]).includes(value as ModalKey);
 
+/**
+ * 收入管理中心页面组件
+ *
+ * 作为收入域的统一入口，提供：
+ * - 核心配置入口：工资变更、一次性奖金、长期现金计划、税务规则
+ * - 收入总览面板：展示收入、税费与扣除统计
+ * - 回算任务中心：查看与触发回算任务
+ *
+ * 弹窗管理：
+ * - 通过 URL 查询参数 `dialog` 控制弹窗状态
+ * - 支持 salary（工资变更）、bonus（奖金）、ltc（长期现金）三种弹窗
+ *
+ * 数据来源：
+ * - useUserPrefsStore: 用户偏好与任务状态
+ * - IncomeAnalyticsPanel: 收入分析面板（内部管理数据）
+ * - IncomeRecalcTaskBoard: 回算任务面板（内部管理数据）
+ */
 export default function IncomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -65,7 +87,7 @@ export default function IncomePage() {
       const query = params.toString();
       router.push(query ? `/income?${query}` : "/income", { scroll: false });
     },
-    [router, searchParamsString],
+    [router, searchParamsString]
   );
 
   const closeModal = useCallback(() => {
@@ -97,10 +119,7 @@ export default function IncomePage() {
   );
 
   return (
-    <PageContainer
-      padding="md"
-      testId="income-ui-page"
-    >
+    <PageContainer padding="md" testId="income-ui-page">
       <PageHeader
         actions={actionButtons}
         description="统一维护工资、激励、社保、公积金与个税配置，所有展示均来自服务端实时回算结果。"
@@ -114,9 +133,7 @@ export default function IncomePage() {
               data-testid="income-ui-recalc-status"
               variant={pendingTasks > 0 ? "secondary" : "default"}
             >
-              {pendingTasks > 0
-                ? `回算待处理 ${pendingTasks}`
-                : "回算队列已空"}
+              {pendingTasks > 0 ? `回算待处理 ${pendingTasks}` : "回算队列已空"}
             </Badge>
             {syncLabel ? (
               <span
@@ -246,6 +263,14 @@ export default function IncomePage() {
   );
 }
 
+/**
+ * 格式化相对时间
+ *
+ * 将时间戳转换为人类可读的相对时间描述，如"刚刚"、"5 分钟前"等。
+ *
+ * @param timestamp - ISO 格式的时间戳字符串
+ * @returns 格式化后的相对时间字符串，无效时返回 null
+ */
 function formatRelativeTime(timestamp: string | null) {
   if (!timestamp) return null;
   const date = new Date(timestamp);
@@ -261,6 +286,14 @@ function formatRelativeTime(timestamp: string | null) {
   return `${diffDays} 天前`;
 }
 
+/**
+ * 实时数据来源说明组件
+ *
+ * 展示收入数据的单一来源说明，强调：
+ * - 图表、时间线与回算面板统一读取服务端回算后的 IncomeRecord
+ * - 回算完成后自动失效 SWR 缓存
+ * - 所有写操作要求携带 Idempotency-Key
+ */
 function RealtimeSourceSummary() {
   return (
     <div
@@ -296,6 +329,7 @@ function RealtimeSourceSummary() {
   );
 }
 
+/** 维护入口操作配置类型 */
 type MaintenanceAction =
   | {
       type: "button";
@@ -310,6 +344,20 @@ type MaintenanceAction =
       variant?: "default" | "outline" | "secondary" | "ghost";
     };
 
+/**
+ * 维护入口项组件
+ *
+ * 用于在核心配置入口区域展示单个维护项，包含：
+ * - 图标与标题
+ * - 功能描述
+ * - 操作按钮（按钮或链接）
+ *
+ * @param icon - 图标元素
+ * @param title - 标题
+ * @param description - 功能描述
+ * @param actions - 操作按钮配置列表
+ * @param testId - 测试标识
+ */
 function MaintenanceItem({
   icon,
   title,
@@ -357,7 +405,7 @@ function MaintenanceItem({
             >
               <Link href={action.href}>{action.label}</Link>
             </Button>
-          ),
+          )
         )}
       </div>
     </div>

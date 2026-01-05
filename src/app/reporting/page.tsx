@@ -28,6 +28,18 @@ import { Badge } from "@/components/ui/badge";
 import { useReportDatasets } from "@/lib/api/reports";
 import { useUserPrefsStore } from "@/lib/state/identity";
 
+/**
+ * 报表数据集页面组件
+ *
+ * 展示系统生成的报表缓存记录，用于诊断报表数据是否及时生成。
+ * 支持手动刷新缓存与导出报表（导出功能待实现）。
+ *
+ * 数据来源：
+ * - useReportDatasets: 报表数据集列表
+ *
+ * 副作用：
+ * - 加载成功后更新全局 lastDataSyncAt 时间戳
+ */
 export default function ReportingPage() {
   const { data, isLoading, error, mutate } = useReportDatasets();
   const { setLastDataSyncAt } = useUserPrefsStore((state) => ({

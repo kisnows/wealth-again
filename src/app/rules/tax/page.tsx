@@ -33,6 +33,7 @@ import {
 } from "@/lib/domain/currency";
 import { formatMoney } from "@/lib/domain/money";
 
+/** 中国 2025 年个税税率表示例数据 */
 const TAX_BRACKETS_EXAMPLE = [
   {
     name: "中国 2025年 个税税率表",
@@ -97,6 +98,11 @@ const TAX_BRACKETS_EXAMPLE = [
   },
 ];
 
+/**
+ * 类型守卫：校验对象是否为有效的税率档位输入
+ * @param value - 待校验的对象
+ * @returns 是否为有效的 TaxBracketRuleInput
+ */
 function isTaxBracketRuleInput(value: unknown): value is TaxBracketRuleInput {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
@@ -122,6 +128,18 @@ function isTaxBracketRuleInput(value: unknown): value is TaxBracketRuleInput {
   });
 }
 
+/**
+ * 税制与税率管理页面组件
+ *
+ * 提供个人所得税配置的完整管理界面，包括：
+ * - 税制基础配置：国家、税年、月度基本扣除额、专项附加扣除
+ * - 当前税率表：展示指定国家与税年的累进税率档位
+ * - 批量配置：支持 JSON 格式批量导入税率表
+ * - 字段说明：税制配置与税率表字段的参考文档
+ *
+ * 数据来源：
+ * - useTaxBrackets: 税率档位列表
+ */
 export default function TaxRulesPage() {
   const [configForm, setConfigForm] = useState({
     country: "CN",

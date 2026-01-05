@@ -10,6 +10,11 @@ import {
   useHousingFund,
 } from "@/lib/api/rules";
 
+/**
+ * 类型守卫：校验对象是否为有效的公积金规则输入
+ * @param value - 待校验的对象
+ * @returns 是否为有效的 HousingFundRuleInput
+ */
 function isHousingFundRuleInput(value: unknown): value is HousingFundRuleInput {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
@@ -45,6 +50,17 @@ function isHousingFundRuleInput(value: unknown): value is HousingFundRuleInput {
   });
 }
 
+/**
+ * 公积金规则管理页面组件
+ *
+ * 提供城市住房公积金规则的查询与配置界面，包括：
+ * - 规则查询：按城市与日期查询当前生效的公积金规则
+ * - 规则详情：展示缴费基数范围与个人缴存比例
+ * - 批量配置：支持 JSON 格式批量导入公积金规则
+ *
+ * 数据来源：
+ * - useHousingFund: 公积金规则查询
+ */
 export default function HousingFundRulesPage() {
   const [q, setQ] = useState({ city: "Hangzhou", on: "2025-01-01" });
   const { data } = useHousingFund(q.city, q.on);

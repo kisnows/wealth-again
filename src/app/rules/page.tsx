@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+/** 规则配置入口列表：税制、社保、公积金、城市 */
 const ruleEntries = [
   {
     href: "/rules/tax",
@@ -42,6 +43,17 @@ const ruleEntries = [
   },
 ];
 
+/**
+ * 规则中心概览页面组件
+ *
+ * 作为规则配置的统一入口，展示四大规则模块卡片：
+ * - 税制与税率：各国税年、基本扣除额与阶梯税率
+ * - 城市社保：社保上下限、个人比例与固定医疗金额
+ * - 住房公积金：基数区间与个人缴存比例
+ * - 城市名录：城市信息与税制规则初始化
+ *
+ * 每个卡片点击后跳转至对应的明细配置页面。
+ */
 export default function RulesOverviewPage() {
   return (
     <PageContainer padding="md" testId="rules-ui-overview">

@@ -28,6 +28,12 @@ import {
   STATUS_LABELS,
 } from "@/components/modules/accounts/account-table-utils";
 
+/**
+ * 从账户汇总列表中查找指定账户的展示数据
+ * @param accountId - 账户 ID
+ * @param summaries - 账户汇总数据
+ * @returns 匹配的账户汇总项，未找到返回 null
+ */
 function buildSummaryDisplay(
   accountId: string,
   summaries: ReturnType<typeof useAccountsSummary>["data"] | undefined,
@@ -36,6 +42,22 @@ function buildSummaryDisplay(
   return summaries.items.find((item) => item.id === accountId) ?? null;
 }
 
+/**
+ * 账户详情页面组件
+ *
+ * 展示单个账户的完整信息，包括：
+ * - 核心指标卡片：当前估值、累计本金、收益、ROI
+ * - 账户信息：类型、状态、账户币种、估值币种、描述
+ * - 历史走势图：估值走势与本金走势折线图
+ * - 交易记录表格：支持筛选与分页
+ *
+ * 已归档账户不显示操作按钮。
+ *
+ * 数据来源：
+ * - useAccountSummary: 单账户汇总数据
+ * - useAccountsSummary: 账户列表（用于展示币种折算）
+ * - useAccountTimeseries: 账户时序数据（估值/本金）
+ */
 export default function AccountDetailPage() {
   const params = useParams<{ id: string }>();
   const accountId = params.id;

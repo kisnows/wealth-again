@@ -30,6 +30,7 @@ import { useUserPrefsStore } from "@/lib/state/identity";
 import { formatMoney } from "@/lib/domain/money";
 import { calculateAccountTotals } from "@/lib/domain/accounts";
 
+/** 汇总卡片配置：资产、负债、净资产 */
 const SUMMARY_CARDS = [
   {
     key: "assets",
@@ -48,6 +49,19 @@ const SUMMARY_CARDS = [
   },
 ] as const;
 
+/**
+ * 账户中心页面组件
+ *
+ * 提供账户管理的核心功能界面，包括：
+ * - 关键指标卡片：资产总额、负债总额、净资产
+ * - 账户估值一览表：按展示币种折算的账户列表
+ * - 账户详情表格：完整的账户列表与操作入口
+ * - 快捷操作：新建账户、存入、取出、转账、估值
+ *
+ * 数据来源：
+ * - useAccounts: 账户列表
+ * - useAccountsSummary: 账户汇总（含折算后的估值）
+ */
 export default function AccountsPage() {
   const { displayCurrency } = useUserPrefsStore();
   const {

@@ -31,6 +31,20 @@ import FxTaskDetailDialog, {
 } from "@/components/modules/fx/FxTaskDetailDialog";
 import { notifyAsync } from "@/lib/utils/notify";
 
+/**
+ * 任务中心页面组件
+ *
+ * 统一展示后台任务、事件与审计记录，包含四个标签页：
+ * - 回算任务：收入回算任务列表，展示税年、月份范围、状态等
+ * - 汇率任务：汇率更新任务列表，支持立即执行与详情查看
+ * - EventOutbox：事件发件箱（占位）
+ * - Audit Log：审计日志（占位）
+ *
+ * 数据来源：
+ * - useIncomeRecalcTasks: 回算任务列表
+ * - useFxRateUpdateTasks: 汇率更新任务列表
+ * - useTaskCenterStore: 任务状态同步至全局 store
+ */
 export default function ActivityPage() {
   const { data, isLoading, error, mutate } = useIncomeRecalcTasks({
     refreshInterval: 60_000,
@@ -469,12 +483,22 @@ export default function ActivityPage() {
   );
 }
 
+/** 占位卡片属性 */
 type PlaceholderCardProps = {
   title: string;
   description: string;
   testId: string;
 };
 
+/**
+ * 占位卡片组件
+ *
+ * 用于展示尚未实现功能的占位提示，包含标题与描述。
+ *
+ * @param title - 卡片标题
+ * @param description - 功能描述
+ * @param testId - 测试标识
+ */
 function PlaceholderCard({ title, description, testId }: PlaceholderCardProps) {
   return (
     <div
@@ -487,6 +511,14 @@ function PlaceholderCard({ title, description, testId }: PlaceholderCardProps) {
   );
 }
 
+/**
+ * 格式化日期时间
+ *
+ * 将 ISO 格式的时间戳转换为中文本地化的日期时间字符串。
+ *
+ * @param value - ISO 格式的时间戳字符串
+ * @returns 格式化后的日期时间，无效值返回 "—"
+ */
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
   const date = new Date(value);
@@ -494,11 +526,24 @@ function formatDate(value: string | null | undefined) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+/**
+ * 格式化月份范围
+ *
+ * @param start - 起始月份
+ * @param end - 结束月份
+ * @returns 格式如 "1 - 12 月" 或 "6 月"（单月时）
+ */
 function formatMonthRange(start: number, end: number) {
   if (start === end) return `${start} 月`;
   return `${start} - ${end} 月`;
 }
 
+/**
+ * 根据回算任务状态返回对应的 Badge 样式变体
+ *
+ * @param status - 任务状态
+ * @returns Badge 组件的 variant 值
+ */
 function recalcStatusVariant(status: IncomeRecalcTask["status"]) {
   switch (status) {
     case "COMPLETED":

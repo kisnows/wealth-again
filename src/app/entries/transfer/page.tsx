@@ -6,6 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { postTransfer } from "@/lib/api/accounts";
 
+/**
+ * 转账记录页面组件
+ *
+ * 提供简单的转账交易表单，包含：
+ * - 转出账户 ID
+ * - 转入账户 ID
+ * - 转账金额
+ * - 发生时间
+ * - 备注（可选）
+ *
+ * 注意：此为简化版页面，推荐使用 AccountsPage 中的 TransferDialog 弹窗。
+ */
 export default function TransferPage() {
   const [form, setForm] = useState({
     fromAccount: "",

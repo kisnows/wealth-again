@@ -6,6 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { postDeposit } from "@/lib/api/accounts";
 
+/**
+ * 存入记录页面组件
+ *
+ * 提供简单的存入交易表单，包含：
+ * - 账户 ID
+ * - 存入金额
+ * - 发生时间
+ * - 备注（可选）
+ *
+ * 注意：此为简化版页面，推荐使用 AccountsPage 中的 DepositDialog 弹窗。
+ */
 export default function DepositPage() {
   const [form, setForm] = useState({
     accountId: "",

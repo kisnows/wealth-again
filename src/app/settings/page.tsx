@@ -68,6 +68,7 @@ import {
 } from "@/lib/domain/currency";
 import { useLatestFxRates } from "@/lib/api/fx";
 
+/** 国家代码到中文名称的映射 */
 const countryLabels: Record<string, string> = {
   CN: "中国",
   US: "美国",
@@ -77,6 +78,7 @@ const countryLabels: Record<string, string> = {
   HK: "香港",
 };
 
+/** 城市迁移表单校验规则 */
 const cityChangeSchema = z.object({
   toCityId: z.string().min(1, "请选择目标城市"),
   effectiveMonth: z.string().regex(/^\d{4}-\d{2}$/, "请选择生效月份"),
@@ -89,15 +91,24 @@ const cityChangeSchema = z.object({
 
 type CityChangeFormValues = z.infer<typeof cityChangeSchema>;
 
+/**
+ * 获取下个月的年月值
+ * @returns 格式为 "YYYY-MM" 的字符串
+ */
 function getNextMonthValue(): string {
   const now = new Date();
   const next = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
   );
   const month = String(next.getUTCMonth() + 1).padStart(2, "0");
   return `${next.getUTCFullYear()}-${month}`;
 }
 
+/**
+ * 格式化月份显示标签
+ * @param value - ISO 格式的日期字符串
+ * @returns 格式如 "2024年01月" 的字符串
+ */
 function monthLabel(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -106,32 +117,52 @@ function monthLabel(value: string) {
   return `${year}年${month}月`;
 }
 
+/**
+ * 构建城市显示名称
+ * @param city - 城市对象，包含 name 和 country
+ * @returns 格式如 "杭州（中国）" 的字符串
+ */
 function buildCityName(city?: { name: string; country: string } | null) {
   if (!city) return "尚未设置";
   const country = countryLabels[city.country] || city.country;
   return `${city.name}（${country}）`;
 }
 
+/**
+ * 将月份值转换为 ISO 格式的月初日期
+ * @param monthValue - 格式为 "YYYY-MM" 的字符串
+ * @returns 格式为 "YYYY-MM-01" 的字符串
+ */
 function toIsoMonthStart(monthValue: string) {
   return `${monthValue}-01`;
 }
 
+/**
+ * 查找最近的待生效城市迁移记录
+ * @param items - 城市迁移记录列表
+ * @returns 第一条尚未生效的迁移记录，若无则返回 undefined
+ */
 function findUpcomingChange(items: CityChangeItem[]) {
   const today = new Date();
   const monthStart = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1),
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)
   );
   const sorted = [...items].sort(
     (a, b) =>
       new Date(a.effectiveMonth).getTime() -
-      new Date(b.effectiveMonth).getTime(),
+      new Date(b.effectiveMonth).getTime()
   );
   return sorted.find(
-    (change) =>
-      new Date(change.effectiveMonth).getTime() > monthStart.getTime(),
+    (change) => new Date(change.effectiveMonth).getTime() > monthStart.getTime()
   );
 }
 
+/**
+ * 从错误对象中提取可读的错误消息
+ * @param error - 错误对象
+ * @param fallback - 无法提取时的默认消息
+ * @returns 可读的错误消息字符串
+ */
 function extractErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) {
     try {
@@ -147,6 +178,22 @@ function extractErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+/**
+ * 用户设置页面组件
+ *
+ * 提供用户个人偏好与配置的统一管理界面，包括：
+ * - 展示偏好与基础设置：展示币种、当前工作城市、用户 ID
+ * - 汇率维护：管理涉及币种的 USD 中间价
+ * - 城市迁移：记录城市迁移计划，自动切换社保/公积金/个税规则
+ * - 年度专项附加扣除：维护个税回算的年度扣除额度
+ *
+ * 数据来源：
+ * - useCurrentUser: 当前用户信息
+ * - useCityChanges: 城市迁移历史
+ * - useAnnualDeductions: 年度专项附加扣除列表
+ * - useAccountsSummary: 账户汇总（用于汇率面板币种列表）
+ * - useLatestFxRates: 最新汇率（用于金额折算）
+ */
 export default function SettingsPage() {
   const { data: user, isLoading: userLoading } = useCurrentUser();
   const {
@@ -163,7 +210,8 @@ export default function SettingsPage() {
 
   const [citySubmitting, setCitySubmitting] = useState(false);
   const [deductionDialogOpen, setDeductionDialogOpen] = useState(false);
-  const [editingDeduction, setEditingDeduction] = useState<AnnualDeduction | null>(null);
+  const [editingDeduction, setEditingDeduction] =
+    useState<AnnualDeduction | null>(null);
   const { displayCurrency, setDisplayCurrency } = useUserPrefsStore();
 
   const fxCurrencies = useMemo(() => {
@@ -186,24 +234,24 @@ export default function SettingsPage() {
   const taxCurrencyCode = useMemo(
     () =>
       resolveCountryCurrency(cityChangeData?.currentCity?.country ?? undefined),
-    [cityChangeData?.currentCity?.country],
+    [cityChangeData?.currentCity?.country]
   );
   const displayCurrencyCode = ensureSupportedCurrency(
     displayCurrency,
-    taxCurrencyCode,
+    taxCurrencyCode
   );
   const requiresConversion = displayCurrencyCode !== taxCurrencyCode;
   const supportedCurrencyOptions = useMemo(
     () => getSupportedCurrencyOptions(),
-    [],
+    []
   );
   const taxCurrencyLabel = useMemo(
     () => formatCurrencyLabel(taxCurrencyCode),
-    [taxCurrencyCode],
+    [taxCurrencyCode]
   );
   const displayCurrencyLabel = useMemo(
     () => formatCurrencyLabel(displayCurrencyCode),
-    [displayCurrencyCode],
+    [displayCurrencyCode]
   );
 
   const fxQuotes = useMemo(() => {
@@ -234,9 +282,12 @@ export default function SettingsPage() {
         rateMap.set(item.quote.toUpperCase(), Number(item.rate));
       }
     });
-    const fromRate = taxCurrencyCode === base ? 1 : rateMap.get(taxCurrencyCode) ?? null;
+    const fromRate =
+      taxCurrencyCode === base ? 1 : rateMap.get(taxCurrencyCode) ?? null;
     const toRate =
-      displayCurrencyCode === base ? 1 : rateMap.get(displayCurrencyCode) ?? null;
+      displayCurrencyCode === base
+        ? 1
+        : rateMap.get(displayCurrencyCode) ?? null;
     if (!fromRate || !toRate) {
       return {
         convertAmount: (amount: number) => ({
@@ -274,12 +325,12 @@ export default function SettingsPage() {
 
   const upcomingChange = useMemo(
     () => findUpcomingChange(cityChangeData?.items ?? []),
-    [cityChangeData?.items],
+    [cityChangeData?.items]
   );
 
   const applyDisplayCurrency = async (
     nextValue: string | null,
-    successMessage: string,
+    successMessage: string
   ) => {
     const normalized =
       nextValue != null ? nextValue.trim().toUpperCase() : null;
@@ -299,7 +350,7 @@ export default function SettingsPage() {
     if (!nextValue) return;
     void applyDisplayCurrency(
       nextValue,
-      `展示币种偏好已更新为 ${nextValue.toUpperCase()}`,
+      `展示币种偏好已更新为 ${nextValue.toUpperCase()}`
     );
   };
 
@@ -315,7 +366,7 @@ export default function SettingsPage() {
       toast.success(
         taskId
           ? `城市迁移记录已创建，回算任务已排队（任务号 ${taskId}）`
-          : "城市迁移记录已创建，回算任务已排队",
+          : "城市迁移记录已创建，回算任务已排队"
       );
       changeForm.reset({
         toCityId: "",
@@ -404,7 +455,7 @@ export default function SettingsPage() {
                       if (displayCurrency == null) return;
                       void applyDisplayCurrency(
                         null,
-                        "展示币种偏好已恢复为自动模式",
+                        "展示币种偏好已恢复为自动模式"
                       );
                     }}
                     size="sm"
@@ -415,7 +466,8 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  选择具体币种后，账户与报表均按 USD 中间价折算；恢复自动则保留原币种。
+                  选择具体币种后，账户与报表均按 USD
+                  中间价折算；恢复自动则保留原币种。
                 </p>
               </div>
             </CardContent>
@@ -477,7 +529,10 @@ export default function SettingsPage() {
         testId="settings-ui-section-fx"
         title="汇率维护"
       >
-        <AccountFxPanel currencies={fxCurrencies} testId="settings-ui-fx-panel" />
+        <AccountFxPanel
+          currencies={fxCurrencies}
+          testId="settings-ui-fx-panel"
+        />
       </PageSection>
 
       <PageSection
@@ -486,129 +541,129 @@ export default function SettingsPage() {
         title="城市迁移"
       >
         <Card data-testid="settings-ui-city-change">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            城市迁移
-          </CardTitle>
-          <CardDescription>
-            提交迁移后，从生效月份起系统会按新城市的税务与社保规则回算收入
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <Form {...changeForm}>
-            <form
-              className="grid gap-4 md:grid-cols-3"
-              onSubmit={changeForm.handleSubmit(onSubmitCityChange)}
-            >
-              <FormField
-                control={changeForm.control}
-                name="toCityId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>目标城市</FormLabel>
-                    <FormControl>
-                      <CitySelect
-                        disabled={citySubmitting}
-                        onValueChange={field.onChange}
-                        placeholder="选择迁移城市"
-                        value={field.value}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={changeForm.control}
-                name="effectiveMonth"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>生效月份</FormLabel>
-                    <FormControl>
-                      <Input
-                        min={defaultEffectiveMonth}
-                        type="month"
-                        {...field}
-                        disabled={citySubmitting}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={changeForm.control}
-                name="reason"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-1">
-                    <FormLabel>备注（可选）</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="如：工作调动、搬家等"
-                        {...field}
-                        disabled={citySubmitting}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="md:col-span-3">
-                <Button
-                  className="w-full md:w-auto"
-                  disabled={citySubmitting}
-                  type="submit"
-                >
-                  {citySubmitting ? "提交中..." : "提交迁移"}
-                </Button>
-              </div>
-            </form>
-          </Form>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              城市迁移
+            </CardTitle>
+            <CardDescription>
+              提交迁移后，从生效月份起系统会按新城市的税务与社保规则回算收入
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Form {...changeForm}>
+              <form
+                className="grid gap-4 md:grid-cols-3"
+                onSubmit={changeForm.handleSubmit(onSubmitCityChange)}
+              >
+                <FormField
+                  control={changeForm.control}
+                  name="toCityId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>目标城市</FormLabel>
+                      <FormControl>
+                        <CitySelect
+                          disabled={citySubmitting}
+                          onValueChange={field.onChange}
+                          placeholder="选择迁移城市"
+                          value={field.value}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={changeForm.control}
+                  name="effectiveMonth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>生效月份</FormLabel>
+                      <FormControl>
+                        <Input
+                          min={defaultEffectiveMonth}
+                          type="month"
+                          {...field}
+                          disabled={citySubmitting}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={changeForm.control}
+                  name="reason"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-1">
+                      <FormLabel>备注（可选）</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="如：工作调动、搬家等"
+                          {...field}
+                          disabled={citySubmitting}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="md:col-span-3">
+                  <Button
+                    className="w-full md:w-auto"
+                    disabled={citySubmitting}
+                    type="submit"
+                  >
+                    {citySubmitting ? "提交中..." : "提交迁移"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium">历史记录</h3>
-            {cityChangeError ? (
-              <div className="flex items-center justify-center rounded-md border border-dashed border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
-                城市变更记录加载失败，请稍后重试
-              </div>
-            ) : (cityChangeData?.items.length ?? 0) === 0 ? (
-              <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                暂无迁移记录
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>生效月份</TableHead>
-                    <TableHead>迁移前</TableHead>
-                    <TableHead>迁移后</TableHead>
-                    <TableHead>备注</TableHead>
-                    <TableHead>提交时间</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cityChangeData?.items.map((change) => (
-                    <TableRow key={change.id}>
-                      <TableCell className="font-mono">
-                        {monthLabel(change.effectiveMonth)}
-                      </TableCell>
-                      <TableCell>{buildCityName(change.fromCity)}</TableCell>
-                      <TableCell>{buildCityName(change.toCity)}</TableCell>
-                      <TableCell>{change.reason || "-"}</TableCell>
-                      <TableCell>
-                        {new Date(change.createdAt).toLocaleString("zh-CN", {
-                          hour12: false,
-                        })}
-                      </TableCell>
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">历史记录</h3>
+              {cityChangeError ? (
+                <div className="flex items-center justify-center rounded-md border border-dashed border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
+                  城市变更记录加载失败，请稍后重试
+                </div>
+              ) : (cityChangeData?.items.length ?? 0) === 0 ? (
+                <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  暂无迁移记录
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>生效月份</TableHead>
+                      <TableHead>迁移前</TableHead>
+                      <TableHead>迁移后</TableHead>
+                      <TableHead>备注</TableHead>
+                      <TableHead>提交时间</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {cityChangeData?.items.map((change) => (
+                      <TableRow key={change.id}>
+                        <TableCell className="font-mono">
+                          {monthLabel(change.effectiveMonth)}
+                        </TableCell>
+                        <TableCell>{buildCityName(change.fromCity)}</TableCell>
+                        <TableCell>{buildCityName(change.toCity)}</TableCell>
+                        <TableCell>{change.reason || "-"}</TableCell>
+                        <TableCell>
+                          {new Date(change.createdAt).toLocaleString("zh-CN", {
+                            hour12: false,
+                          })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </PageSection>
 
       <PageSection
@@ -697,8 +752,12 @@ export default function SettingsPage() {
                 </TableHeader>
                 <TableBody>
                   {annualDeductions.map((deduction) => {
-                    const annualConverted = convertAmount(deduction.annualAmount);
-                    const monthlyConverted = convertAmount(deduction.annualAmount / 12);
+                    const annualConverted = convertAmount(
+                      deduction.annualAmount
+                    );
+                    const monthlyConverted = convertAmount(
+                      deduction.annualAmount / 12
+                    );
                     const showOriginal =
                       requiresConversion && annualConverted.converted;
                     return (
@@ -707,36 +766,36 @@ export default function SettingsPage() {
                         <TableCell className="text-right font-mono">
                           {formatMoney(
                             annualConverted.value,
-                            annualConverted.displayCurrency,
+                            annualConverted.displayCurrency
                           )}
                           {requiresConversion ? (
                             <div className="mt-1 text-xs text-muted-foreground">
                               {annualConverted.converted
                                 ? `原币 ${formatMoney(
                                     deduction.annualAmount,
-                                    taxCurrencyCode,
+                                    taxCurrencyCode
                                   )}`
                                 : conversionReady
-                                  ? `汇率不可用，已显示原币`
-                                  : `汇率加载中或缺失，暂显示原币`}
+                                ? `汇率不可用，已显示原币`
+                                : `汇率加载中或缺失，暂显示原币`}
                             </div>
                           ) : null}
                         </TableCell>
                         <TableCell className="text-right font-mono">
                           {formatMoney(
                             monthlyConverted.value,
-                            monthlyConverted.displayCurrency,
+                            monthlyConverted.displayCurrency
                           )}
                           {requiresConversion ? (
                             <div className="mt-1 text-xs text-muted-foreground">
                               {monthlyConverted.converted
                                 ? `原币 ${formatMoney(
                                     deduction.annualAmount / 12,
-                                    taxCurrencyCode,
+                                    taxCurrencyCode
                                   )}`
                                 : conversionReady
-                                  ? `汇率不可用，已显示原币`
-                                  : `汇率加载中或缺失，暂显示原币`}
+                                ? `汇率不可用，已显示原币`
+                                : `汇率加载中或缺失，暂显示原币`}
                             </div>
                           ) : null}
                         </TableCell>

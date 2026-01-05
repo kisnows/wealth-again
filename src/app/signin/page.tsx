@@ -15,6 +15,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth/client";
 
+/**
+ * 登录页面组件
+ *
+ * 提供用户邮箱密码登录功能：
+ * - 默认预填测试账号（demo@example.com / demo）
+ * - 登录成功后重定向至首页或指定回调地址
+ * - 登录失败时展示错误提示
+ *
+ * 认证流程：
+ * - 调用 authClient.signIn.email 完成 better-auth 认证
+ * - 支持服务端重定向响应
+ */
 export default function SignInPage() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -54,10 +66,7 @@ export default function SignInPage() {
       className="flex items-center justify-center min-h-dvh px-4"
       data-testid="identity-ui-signin-page"
     >
-      <Card
-        className="w-full max-w-sm"
-        data-testid="identity-ui-signin-card"
-      >
+      <Card className="w-full max-w-sm" data-testid="identity-ui-signin-card">
         <CardHeader>
           <CardTitle>登录</CardTitle>
         </CardHeader>

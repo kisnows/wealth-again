@@ -31,21 +31,20 @@ import {
 } from "@/components/ui/select";
 import { z } from "zod";
 
+/** 城市选项类型 */
 type CityOption = {
   id: string;
   name: string;
   country: string;
 };
 
+/** 支持的展示币种代码列表 */
 const DISPLAY_CURRENCY_CODES = ["CNY", "USD", "EUR", "HKD", "JPY"] as const;
 
+/** 注册表单校验规则 */
 const registerFormSchema = z
   .object({
-    email: z
-      .string()
-      .trim()
-      .min(1, "请输入邮箱")
-      .email("邮箱格式不正确"),
+    email: z.string().trim().min(1, "请输入邮箱").email("邮箱格式不正确"),
     name: z
       .string()
       .trim()
@@ -56,9 +55,7 @@ const registerFormSchema = z
       .string()
       .min(8, "密码长度至少 8 位")
       .max(72, "密码长度不得超过 72 位"),
-    confirmPassword: z
-      .string()
-      .min(8, "请确认密码"),
+    confirmPassword: z.string().min(8, "请确认密码"),
     cityId: z.string().min(1, "请选择所在城市"),
     displayCurrency: z
       .string()
@@ -74,11 +71,29 @@ const registerFormSchema = z
 
 type RegisterFormValues = z.infer<typeof registerFormSchema>;
 
+/** 展示币种选项列表（含格式化标签） */
 const DISPLAY_CURRENCY_OPTIONS = DISPLAY_CURRENCY_CODES.map((code) => ({
   code,
   label: formatCurrencyLabel(code),
 }));
 
+/**
+ * 注册页面组件
+ *
+ * 提供新用户注册功能，包括：
+ * - 邮箱与密码设置（含确认密码校验）
+ * - 姓名（可选）
+ * - 所在城市选择（影响社保/公积金/个税规则）
+ * - 展示币种偏好
+ *
+ * 注册流程：
+ * 1. 调用 registerUser API 创建账户
+ * 2. 注册成功后自动调用 authClient.signIn.email 登录
+ * 3. 登录成功后重定向至首页
+ *
+ * 数据来源：
+ * - /api/v1/identity/cities: 城市列表
+ */
 export default function SignUpPage() {
   const router = useRouter();
   const {
@@ -151,8 +166,7 @@ export default function SignUpPage() {
     } catch (error) {
       if (error instanceof RegisterUserError) {
         const code = error.code ?? "register_failed";
-        const message =
-          ERROR_MESSAGE_MAP[code] ?? "注册失败，请稍后重试";
+        const message = ERROR_MESSAGE_MAP[code] ?? "注册失败，请稍后重试";
         toast.error(message);
         if (code === "email_conflict") {
           setError("email", { message, type: "server" });
@@ -346,6 +360,7 @@ export default function SignUpPage() {
   );
 }
 
+/** 注册错误码到中文消息的映射 */
 const ERROR_MESSAGE_MAP: Record<string, string> = {
   email_conflict: "该邮箱已注册，请直接登录",
   city_not_found: "选择的城市无效，请重新选择",

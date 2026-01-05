@@ -25,6 +25,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAdminUsers } from "@/lib/api/user";
 
+/**
+ * 管理员用户管理页面组件
+ *
+ * 提供管理员专用的用户管理界面，包括：
+ * - 用户清单：展示所有用户的基本信息（姓名、邮箱、城市、币种、状态）
+ * - 新增用户：（待实现）创建新用户
+ * - 模拟登录：（待实现）以指定用户身份登录进行调试
+ *
+ * 访问权限：
+ * - 仅管理员可访问，非管理员将显示权限错误
+ *
+ * 数据来源：
+ * - useAdminUsers: 用户列表（管理员接口）
+ */
 export default function AdminUsersPage() {
   const { data, isLoading, error } = useAdminUsers();
   const users = data?.items ?? [];

@@ -22,6 +22,11 @@ import {
 } from "@/components/ui/table";
 import { generateEquityVests, useEquityGrants } from "@/lib/api/income";
 
+/**
+ * 格式化股权授予标签
+ * @param date - 授予开始日期
+ * @returns 格式如 "Grant-2024-01" 的标签
+ */
 function formatGrantLabel(date: string) {
   const d = new Date(date);
   const year = d.getFullYear();
@@ -29,6 +34,11 @@ function formatGrantLabel(date: string) {
   return `Grant-${year}-${month}`;
 }
 
+/**
+ * 格式化归属频率
+ * @param value - 归属频率代码
+ * @returns 中文标签（月度/季度/年度/自定义）
+ */
 function formatVestInterval(value: string) {
   switch (value) {
     case "MONTHLY":
@@ -44,6 +54,20 @@ function formatVestInterval(value: string) {
   }
 }
 
+/**
+ * 股权激励页面组件
+ *
+ * 以弹窗形式展示股权激励管理界面，包括：
+ * - 股权授予列表：展示所有授予计划的基本信息
+ * - 生成归属按钮：为指定授予生成归属日程
+ * - 股权授予表单：新增授予计划
+ * - 归属公允价值表单：维护归属时的公允价值
+ *
+ * 关闭弹窗时自动返回 /income 页面。
+ *
+ * 数据来源：
+ * - useEquityGrants: 股权授予列表
+ */
 export default function EquityPage() {
   const router = useRouter();
   const { data, isLoading } = useEquityGrants();

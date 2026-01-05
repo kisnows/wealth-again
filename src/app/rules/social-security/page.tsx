@@ -33,7 +33,7 @@ import {
 } from "@/lib/api/rules";
 import { formatMoney } from "@/lib/domain/money";
 
-// 示例数据
+/** 社保规则示例数据（杭州、北京、上海 2025年） */
 const EXAMPLE_DATA = [
   {
     name: "杭州 2025年 社保规则",
@@ -82,6 +82,11 @@ const EXAMPLE_DATA = [
   },
 ];
 
+/**
+ * 类型守卫：校验对象是否为有效的社保规则输入
+ * @param value - 待校验的对象
+ * @returns 是否为有效的 SocialSecurityRuleInput
+ */
 function isSocialSecurityRuleInput(
   value: unknown,
 ): value is SocialSecurityRuleInput {
@@ -129,6 +134,19 @@ function isSocialSecurityRuleInput(
   });
 }
 
+/**
+ * 社保规则管理页面组件
+ *
+ * 提供城市社保缴费规则的查询与配置界面，包括：
+ * - 规则查询：按城市与日期查询当前生效的社保规则
+ * - 规则详情：展示缴费基数范围、各险种费率
+ * - 计算示例：基于 20000 元工资的社保费用示例
+ * - 批量配置：支持 JSON 格式批量导入社保规则
+ * - 字段说明：各字段含义与示例值
+ *
+ * 数据来源：
+ * - useSocialSecurity: 社保规则查询
+ */
 export default function SocialSecurityRulesPage() {
   const [query, setQuery] = useState({ city: "Hangzhou", on: "2025-01-01" });
   const { data, isLoading } = useSocialSecurity(query.city, query.on);
